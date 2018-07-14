@@ -10,8 +10,11 @@ fn main() {
     let s0 = v.as_mut_slice();
     let mut w: Vec<u32> = (0..100).collect();
     let s1 = w.as_mut_slice();
-    let mut z = zip(s0, s1);
-    let (zl, zr) = z.split_at_mut(50);
+    let mut x: Vec<u32> = (0..100).collect();
+    let s2 = x.as_mut_slice();
+    let z = zip(s0, s1);
+    let mut z2 = zip(z, s2);
+    let (zl, zr) = z2.split_at_mut(50);
 
     //sort(&mut v);
 }
