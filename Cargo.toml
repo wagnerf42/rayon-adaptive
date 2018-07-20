@@ -5,3 +5,4 @@ authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 
 [dependencies]
 rayon="*"
+itertools="*"
