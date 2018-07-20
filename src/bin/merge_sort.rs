@@ -1,7 +1,10 @@
 extern crate itertools;
 extern crate rayon_adaptive;
+extern crate rayon_logs;
+use rayon_logs::ThreadPoolBuilder;
+
 use itertools::kmerge;
-use rayon_adaptive::{schedule, Policy};
+use rayon_adaptive::{schedule, Block, Output, Policy};
 
 /// We can now fuse contiguous slices together back into one.
 fn fuse_slices<'a, 'b, 'c: 'a + 'b, T: 'c>(s1: &'a mut [T], s2: &'b mut [T]) -> &'c mut [T] {
@@ -20,7 +23,6 @@ struct SortingSlices<'a, T: 'a> {
 
 impl<'a, T: 'a> SortingSlices<'a, T> {
     /// Return the two mutable slices of given indices.
-    /// pre-condition: i1 < i2.
     fn mut_couple<'b>(&'b mut self, i1: usize, i2: usize) -> (&'b mut [T], &'b mut [T]) {
         let (s0, s1, s2) = {
             let (s0, leftover) = self.s.split_first_mut().unwrap();
@@ -30,72 +32,71 @@ impl<'a, T: 'a> SortingSlices<'a, T> {
         match (i1, i2) {
             (0, 1) => (s0, s1),
             (0, 2) => (s0, s2),
+            (1, 0) => (s1, s0),
             (1, 2) => (s1, s2),
-            _ => panic!("precondition is not ok"),
+            (2, 0) => (s2, s0),
+            (2, 1) => (s2, s1),
+            _ => panic!("i1 == i2"),
         }
     }
 }
 
-fn split_at_mut<'a, T: 'a>(
-    slices: SortingSlices<'a, T>,
-    i: usize,
-) -> (SortingSlices<'a, T>, SortingSlices<'a, T>) {
-    let v = slices.s.into_iter().map(|s| s.split_at_mut(i)).fold(
-        (Vec::new(), Vec::new()),
-        |mut acc, (s1, s2)| {
-            acc.0.push(s1);
-            acc.1.push(s2);
-            acc
-        },
-    );
-    (
-        SortingSlices {
-            s: v.0,
-            i: slices.i,
-        },
-        SortingSlices {
-            s: v.1,
-            i: slices.i,
-        },
-    )
+impl<'a, T: 'a + Ord + Copy> Block for SortingSlices<'a, T> {
+    type Output = SortingSlices<'a, T>;
+    fn len(&self) -> usize {
+        self.s[0].len()
+    }
+    fn split(self, i: usize) -> (Self, Self) {
+        let v = self.s.into_iter().map(|s| s.split_at_mut(i)).fold(
+            (Vec::new(), Vec::new()),
+            |mut acc, (s1, s2)| {
+                acc.0.push(s1);
+                acc.1.push(s2);
+                acc
+            },
+        );
+        (
+            SortingSlices { s: v.0, i: self.i },
+            SortingSlices { s: v.1, i: self.i },
+        )
+    }
+    fn compute(self) -> Self::Output {
+        let mut slices = self;
+        slices.s[slices.i].sort();
+        slices
+    }
 }
 
-fn fuse<'a, T: 'a + Ord + Copy>(
-    slices: SortingSlices<'a, T>,
-    other: SortingSlices<'a, T>,
-) -> SortingSlices<'a, T> {
-    let mut slices = slices;
-    let mut other = other;
-    let destination = (0..3usize)
-        .filter(|&i| i != slices.i && i != other.i)
-        .next()
-        .unwrap();
-    {
-        let i1 = slices.i;
-        let (s1, d1) = slices.mut_couple(i1, destination);
-        let i2 = other.i;
-        let (s2, d2) = other.mut_couple(i2, destination);
-        for (i, o) in kmerge(vec![s1, s2]).zip(d1.iter_mut().chain(d2.iter_mut())) {
-            *o = *i
+impl<'a, T: 'a + Ord + Copy> Output for SortingSlices<'a, T> {
+    fn fuse(self, other: Self) -> Self {
+        let mut slices = self;
+        let mut other = other;
+        let destination = (0..3usize)
+            .filter(|&i| i != slices.i && i != other.i)
+            .next()
+            .unwrap();
+        {
+            let i1 = slices.i;
+            let (s1, d1) = slices.mut_couple(i1, destination);
+            let i2 = other.i;
+            let (s2, d2) = other.mut_couple(i2, destination);
+            for (i, o) in kmerge(vec![s1, s2]).zip(d1.iter_mut().chain(d2.iter_mut())) {
+                *o = *i
+            }
+        }
+        SortingSlices {
+            s: slices
+                .s
+                .into_iter()
+                .zip(other.s.into_iter())
+                .map(|(s1, s2)| fuse_slices(s1, s2))
+                .collect(),
+            i: destination,
         }
     }
-    SortingSlices {
-        s: slices
-            .s
-            .into_iter()
-            .zip(other.s.into_iter())
-            .map(|(s1, s2)| fuse_slices(s1, s2))
-            .collect(),
-        i: destination,
-    }
 }
 
-fn final_sort<'a, T: Ord>(mut slices: SortingSlices<'a, T>) -> SortingSlices<'a, T> {
-    slices.s[slices.i].sort();
-    slices
-}
-
-fn generic_sort<T: Ord + Copy>(v: &mut [T], policy: Policy) {
+fn generic_sort<T: Ord + Copy + Send>(v: &mut [T], policy: Policy) {
     let mut buffer1 = Vec::with_capacity(v.len());
     unsafe { buffer1.set_len(v.len()) }
     let mut buffer2 = Vec::with_capacity(v.len());
@@ -104,7 +105,7 @@ fn generic_sort<T: Ord + Copy>(v: &mut [T], policy: Policy) {
         s: vec![v, &mut buffer1, &mut buffer2],
         i: 0,
     };
-    let mut result: SortingSlices<T> = schedule(vectors, split_at_mut, fuse, final_sort, policy);
+    let mut result: SortingSlices<T> = schedule(vectors, policy);
 
     // we might get one extra copy at the end if data is not in the right buffer
     if result.i != 0 {
@@ -114,7 +115,11 @@ fn generic_sort<T: Ord + Copy>(v: &mut [T], policy: Policy) {
 }
 
 fn main() {
-    let mut v: Vec<u32> = (0..20).collect();
-    generic_sort(&mut v, Policy::Join(2000));
-    println!("v: {:?}", v);
+    let mut v: Vec<u32> = (0..100_000).collect();
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .expect("failed building pool");
+    let log = pool.install(|| generic_sort(&mut v, Policy::Join(2000))).1;
+    log.save_svg("join.svg").expect("saving svg file failed");
 }

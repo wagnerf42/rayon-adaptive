@@ -1,9 +1,10 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
-extern crate rayon;
+extern crate rayon_logs as rayon;
+//extern crate rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod scheduling;
-pub use scheduling::{schedule, Policy};
+pub use scheduling::{schedule, Block, Output, Policy};
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.

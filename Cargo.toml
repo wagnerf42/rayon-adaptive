@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 
 [dependencies]
+rayon_logs="*"
 rayon="*"
 itertools="*"
