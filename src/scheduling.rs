@@ -135,21 +135,46 @@ where
         move || {
             let mut input = input;
             let mut block_size = initial_block_size;
+            let mut answered = false; // do not send anything twice
 
             while input.len() > 0 {
-                if input.len() > initial_block_size && stolen.load(Ordering::Relaxed) {
-                    let mid = input.len() / 2;
-                    let (my_half, his_half) = input.split(mid);
-                    sender.send(Some(his_half)).expect("sending failed");
-                    return schedule_adaptive(my_half, done, initial_block_size, growth_factor);
+                if stolen.load(Ordering::Relaxed) {
+                    if input.len() > initial_block_size {
+                        let mid = input.len() / 2;
+                        let (my_half, his_half) = input.split(mid);
+                        sender.send(Some(his_half)).expect("sending failed");
+                        return schedule_adaptive(my_half, done, initial_block_size, growth_factor);
+                    } else {
+                        // do not let stealer wait for an answer
+                        sender.send(None).expect("sending failed");
+                    }
+                    answered = true;
+                    stolen.store(false, Ordering::Relaxed);
                 }
                 if block_size > input.len() {
                     block_size = input.len();
                 }
                 let (next_block, remaining_part) = input.split(block_size);
                 let mut output = next_block.compute();
+                input = remaining_part;
+
+                let mut stolen_between_fusions = false;
                 loop {
-                    // TODO: check for steal requests between each fusion ?
+                    // we check for steal requests between each fusion
+                    if !stolen_between_fusions && stolen.load(Ordering::Relaxed) {
+                        if input.len() > initial_block_size {
+                            let mid = input.len() / 2;
+                            let (my_half, his_half) = input.split(mid);
+                            sender.send(Some(his_half)).expect("sending failed");
+                            input = my_half;
+                            stolen_between_fusions = true;
+                        } else {
+                            // do not let stealer wait for an answer
+                            sender.send(None).expect("sending failed");
+                        }
+                        answered = true;
+                        stolen.store(false, Ordering::Relaxed);
+                    }
                     if !done.last()
                         .map(|last_output| output.len() >= last_output.len())
                         .unwrap_or(false)
@@ -159,14 +184,24 @@ where
                     let last_output = done.pop().unwrap();
                     output = last_output.fuse(output);
                 }
+
                 done.push(output);
-                input = remaining_part;
+                if stolen_between_fusions {
+                    return schedule_adaptive(input, done, initial_block_size, growth_factor);
+                }
                 block_size = (block_size as f64 * growth_factor) as usize;
             }
             let mut output = done.pop().unwrap();
             loop {
-                if done.is_empty() {
+                if stolen.load(Ordering::Relaxed) {
                     sender.send(None).expect("sending none failed");
+                    stolen.store(false, Ordering::Relaxed);
+                    answered = true;
+                }
+                if done.is_empty() {
+                    if !answered {
+                        sender.send(None).expect("sending none failed");
+                    }
                     return output;
                 }
                 let last_output = done.pop().unwrap();
