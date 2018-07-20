@@ -115,11 +115,22 @@ fn generic_sort<T: Ord + Copy + Send>(v: &mut [T], policy: Policy) {
 }
 
 fn main() {
-    let mut v: Vec<u32> = (0..100_000).collect();
+    let v: Vec<u32> = (0..100_000).rev().collect();
     let pool = ThreadPoolBuilder::new()
         .num_threads(2)
         .build()
         .expect("failed building pool");
-    let log = pool.install(|| generic_sort(&mut v, Policy::Join(2000))).1;
-    log.save_svg("join.svg").expect("saving svg file failed");
+    pool.compare(
+        "join",
+        "join_context",
+        || {
+            let mut w = v.clone();
+            generic_sort(&mut w, Policy::Join(2000))
+        },
+        || {
+            let mut w = v.clone();
+            generic_sort(&mut w, Policy::JoinContext(200))
+        },
+        "joins_battle.html",
+    ).expect("saving logs failed");
 }
