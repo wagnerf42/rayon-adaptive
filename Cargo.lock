@@ -152,6 +152,7 @@ name = "rayon-adaptive"
 version = "0.1.0"
 dependencies = [
  "itertools 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon_logs 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

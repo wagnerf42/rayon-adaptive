@@ -1,6 +1,8 @@
 extern crate itertools;
+extern crate rand;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
+use rand::{ChaChaRng, Rng};
 use rayon_logs::ThreadPoolBuilder;
 
 use itertools::kmerge;
@@ -68,6 +70,9 @@ impl<'a, T: 'a + Ord + Copy> Block for SortingSlices<'a, T> {
 }
 
 impl<'a, T: 'a + Ord + Copy> Output for SortingSlices<'a, T> {
+    fn len(&self) -> usize {
+        self.s[0].len()
+    }
     fn fuse(self, other: Self) -> Self {
         let mut slices = self;
         let mut other = other;
@@ -115,22 +120,30 @@ fn generic_sort<T: Ord + Copy + Send>(v: &mut [T], policy: Policy) {
 }
 
 fn main() {
-    let v: Vec<u32> = (0..100_000).rev().collect();
+    let mut v: Vec<u32> = (0..100_000).collect();
+    let answer = v.clone();
+    let mut ra = ChaChaRng::new_unseeded();
+    ra.shuffle(&mut v);
+
     let pool = ThreadPoolBuilder::new()
-        .num_threads(2)
+        .num_threads(4)
         .build()
         .expect("failed building pool");
-    pool.compare(
-        "join",
-        "join_context",
-        || {
-            let mut w = v.clone();
-            generic_sort(&mut w, Policy::Join(2000))
-        },
-        || {
-            let mut w = v.clone();
-            generic_sort(&mut w, Policy::JoinContext(200))
-        },
-        "joins_battle.html",
-    ).expect("saving logs failed");
+    let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000, 2.0)))
+        .1;
+    assert_eq!(v, answer);
+    log.save_svg("adapt.svg").expect("failed saving svg");
+    //    pool.compare(
+    //        "join",
+    //        "join_context",
+    //        || {
+    //            let mut w = v.clone();
+    //            generic_sort(&mut w, Policy::Join(2000))
+    //        },
+    //        || {
+    //            let mut w = v.clone();
+    //            generic_sort(&mut w, Policy::DepJoin(2000))
+    //        },
+    //        "joins_battle.html",
+    //    ).expect("saving logs failed");
 }

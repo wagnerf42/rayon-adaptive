@@ -7,3 +7,4 @@ authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 rayon_logs="*"
 rayon="*"
 itertools="*"
+rand="*"
