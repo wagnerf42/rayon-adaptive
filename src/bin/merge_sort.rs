@@ -8,12 +8,123 @@ use rayon_logs::ThreadPoolBuilder;
 use itertools::kmerge;
 use rayon_adaptive::{schedule, Block, Output, Policy};
 
+trait Boolean {
+    fn value() -> bool;
+}
+struct True;
+struct False;
+impl Boolean for True {
+    fn value() -> bool {
+        true
+    }
+}
+impl Boolean for False {
+    fn value() -> bool {
+        false
+    }
+}
+
+fn partial_manual_merge<
+    CheckLeft: Boolean,
+    CheckRight: Boolean,
+    CheckLimit: Boolean,
+    T: Ord + Copy,
+>(
+    input1: &[T],
+    input2: &[T],
+    output: &mut [T],
+    limit: usize,
+) -> Option<(usize, usize, usize)> {
+    let mut i1 = 0;
+    let mut i2 = 0;
+    let mut i_out = 0;
+    let (check_left, check_right, check_limit) =
+        (CheckLeft::value(), CheckRight::value(), CheckLimit::value());
+    if check_limit {
+        debug_assert_eq!(true, input1.len() + input2.len() >= limit);
+        debug_assert_eq!(true, limit <= output.len());
+    } else {
+        debug_assert_eq!(input1.len() + input2.len(), output.len());
+    }
+    if check_left && input1.is_empty() {
+        output.copy_from_slice(input2);
+        return None;
+    } else if check_right && input2.is_empty() {
+        output.copy_from_slice(input1);
+        return None;
+    } else {
+        unsafe {
+            let mut value1 = input1.get_unchecked(i1);
+            let mut value2 = input2.get_unchecked(i2);
+            for o in output.iter_mut() {
+                if check_limit && i_out >= limit {
+                    break;
+                }
+                if value1.lt(value2) {
+                    *o = *value1;
+                    i1 += 1;
+                    i_out += 1;
+                    if check_left && i1 >= input1.len() {
+                        break;
+                    }
+                    value1 = input1.get_unchecked(i1);
+                } else {
+                    *o = *value2;
+                    i2 += 1;
+                    i_out += 1;
+                    if check_right && i2 >= input2.len() {
+                        break;
+                    }
+                    value2 = input2.get_unchecked(i2);
+                }
+            }
+        }
+        if check_right && i2 == input2.len() {
+            output[(i1 + i2)..].copy_from_slice(&input1[i1..]);
+            return None;
+        } else if check_left && i1 == input1.len() {
+            output[(i1 + i2)..].copy_from_slice(&input2[i2..]);
+            return None;
+        }
+    }
+    Some((i1, i2, i_out))
+}
+
 /// We can now fuse contiguous slices together back into one.
 fn fuse_slices<'a, 'b, 'c: 'a + 'b, T: 'c>(s1: &'a mut [T], s2: &'b mut [T]) -> &'c mut [T] {
     let ptr1 = s1.as_mut_ptr();
     unsafe {
         assert_eq!(ptr1.offset(s1.len() as isize) as *const T, s2.as_ptr());
         std::slice::from_raw_parts_mut(ptr1, s1.len() + s2.len())
+    }
+}
+
+/// Adaptive merge input
+struct MergeBlock<'a, T: 'a> {
+    left: &'a [T],
+    right: &'a [T],
+    output: &'a mut [T],
+}
+
+struct MergeOutput();
+
+impl Output for MergeOutput {
+    fn fuse(self, other: Self) -> Self {
+        MergeOutput()
+    }
+}
+
+impl<'a, T: 'a + Ord + Copy> Block for MergeBlock<'a, T> {
+    type Output = MergeOutput;
+    fn len(&self) -> usize {
+        self.output.len()
+    }
+    fn split(self, i: usize) -> (Self, Self) {
+        unimplemented!()
+    }
+    fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
+        partial_manual_merge::<True, True, False, _>(self.left, self.right, self.output, limit);
+        unimplemented!("we need to figure out what's left")
     }
 }
 
@@ -62,10 +173,11 @@ impl<'a, T: 'a + Ord + Copy> Block for SortingSlices<'a, T> {
             SortingSlices { s: v.1, i: self.i },
         )
     }
-    fn compute(self) -> Self::Output {
-        let mut slices = self;
-        slices.s[slices.i].sort();
-        slices
+    fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
+        unimplemented!()
+        //   let mut slices = self;
+        //   slices.s[slices.i][].sort();
+        //   slices
     }
 }
 

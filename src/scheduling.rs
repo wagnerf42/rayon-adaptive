@@ -28,8 +28,8 @@ pub trait Block: Sized {
     }
     /// Divide ourselves.
     fn split(self, mid: usize) -> (Self, Self);
-    /// Compute output for this block.
-    fn compute(self) -> Self::Output;
+    /// Compute some output for this block. Return what's left to do if any and result.
+    fn compute(self, limit: usize) -> (Option<Self>, Self::Output);
 }
 
 /// All outputs should implement this trait.
@@ -63,7 +63,7 @@ where
     R: Output + Send,
 {
     if input.len() < block_size {
-        input.compute()
+        input.compute(input.len()).1
     } else {
         let midpoint = input.len() / 2;
         let (i1, i2) = input.split(midpoint);
@@ -81,7 +81,7 @@ where
     R: Output + Send,
 {
     if input.len() < block_size {
-        input.compute()
+        input.compute(input.len()).1
     } else {
         let midpoint = input.len() / 2;
         let (i1, i2) = input.split(midpoint);
@@ -99,7 +99,7 @@ where
     R: Output + Send,
 {
     if input.len() < block_size {
-        input.compute()
+        input.compute(input.len()).1
     } else {
         let midpoint = input.len() / 2;
         let (i1, i2) = input.split(midpoint);
@@ -109,7 +109,7 @@ where
                 if c.migrated() {
                     schedule_join_context(i2, block_size)
                 } else {
-                    i2.compute()
+                    i2.compute(i2.len()).1
                 }
             },
         );
@@ -137,7 +137,7 @@ where
             let mut block_size = initial_block_size;
             let mut answered = false; // do not send anything twice
 
-            while input.len() > 0 {
+            loop {
                 if stolen.load(Ordering::Relaxed) {
                     if input.len() > initial_block_size {
                         let mid = input.len() / 2;
@@ -154,9 +154,12 @@ where
                 if block_size > input.len() {
                     block_size = input.len();
                 }
-                let (next_block, remaining_part) = input.split(block_size);
-                let mut output = next_block.compute();
-                input = remaining_part;
+                let (remaining_part, output) = input.compute(block_size);
+                done.push(output);
+                if remaining_part.is_none() {
+                    break;
+                }
+                input = remaining_part.unwrap();
 
                 let mut stolen_between_fusions = false;
                 loop {
@@ -175,17 +178,19 @@ where
                         answered = true;
                         stolen.store(false, Ordering::Relaxed);
                     }
-                    if !done.last()
-                        .map(|last_output| output.len() >= last_output.len())
-                        .unwrap_or(false)
-                    {
+                    if done.len() < 2 {
                         break;
                     }
+                    let last_size = done.last().unwrap().len();
+                    let next_to_last_size = done[done.len() - 2].len();
+                    if last_size < next_to_last_size {
+                        break;
+                    }
+                    let output = done.pop().unwrap();
                     let last_output = done.pop().unwrap();
-                    output = last_output.fuse(output);
+                    done.push(last_output.fuse(output));
                 }
 
-                done.push(output);
                 if stolen_between_fusions {
                     return schedule_adaptive(input, done, initial_block_size, growth_factor);
                 }
