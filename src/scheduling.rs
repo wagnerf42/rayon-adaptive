@@ -62,10 +62,11 @@ where
     B: Block<Output = R> + Send,
     R: Output + Send,
 {
-    if input.len() < block_size {
-        input.compute(input.len()).1
+    let len = input.len();
+    if len < block_size {
+        input.compute(len).1
     } else {
-        let midpoint = input.len() / 2;
+        let midpoint = len / 2;
         let (i1, i2) = input.split(midpoint);
         let (r1, r2) = rayon::join(
             || schedule_join(i1, block_size),
@@ -80,10 +81,11 @@ where
     B: Block<Output = R> + Send,
     R: Output + Send,
 {
-    if input.len() < block_size {
-        input.compute(input.len()).1
+    let len = input.len();
+    if len < block_size {
+        input.compute(len).1
     } else {
-        let midpoint = input.len() / 2;
+        let midpoint = len / 2;
         let (i1, i2) = input.split(midpoint);
         depjoin(
             || schedule_depjoin(i1, block_size),
@@ -98,10 +100,11 @@ where
     B: Block<Output = R> + Send,
     R: Output + Send,
 {
-    if input.len() < block_size {
-        input.compute(input.len()).1
+    let len = input.len();
+    if len < block_size {
+        input.compute(len).1
     } else {
-        let midpoint = input.len() / 2;
+        let midpoint = len / 2;
         let (i1, i2) = input.split(midpoint);
         let (r1, r2) = rayon::join_context(
             |_| schedule_join_context(i1, block_size),
@@ -109,7 +112,8 @@ where
                 if c.migrated() {
                     schedule_join_context(i2, block_size)
                 } else {
-                    i2.compute(i2.len()).1
+                    let len = i2.len();
+                    i2.compute(len).1
                 }
             },
         );

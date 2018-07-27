@@ -174,10 +174,15 @@ impl<'a, T: 'a + Ord + Copy> Block for SortingSlices<'a, T> {
         )
     }
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        unimplemented!()
-        //   let mut slices = self;
-        //   slices.s[slices.i][].sort();
-        //   slices
+        if self.s[0].len() == limit {
+            let mut slice = self;
+            slice.s[slice.i].sort();
+            (None, slice)
+        } else {
+            let (mut start, remaining) = self.split(limit);
+            start.s[start.i].sort();
+            (Some(remaining), start)
+        }
     }
 }
 
@@ -193,6 +198,7 @@ impl<'a, T: 'a + Ord + Copy> Output for SortingSlices<'a, T> {
             .next()
             .unwrap();
         {
+            //TODO: put nice value here
             let i1 = slices.i;
             let (s1, d1) = slices.mut_couple(i1, destination);
             let i2 = other.i;
