@@ -1,8 +1,9 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use depjoin;
 use rayon;
+use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 
 /// All scheduling available scheduling policies.
 pub enum Policy {
@@ -121,6 +122,105 @@ where
     }
 }
 
+struct AdaptiveWorker<'a, 'b, B, R: 'b> {
+    done: &'b mut Vec<R>,
+    initial_block_size: usize,
+    current_block_size: usize,
+    growth_factor: f64,
+    stolen: &'a AtomicBool,
+    sender: Sender<Option<B>>,
+}
+
+impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, 'b, B, R> {
+    fn new(
+        done: &'b mut Vec<R>,
+        initial_block_size: usize,
+        growth_factor: f64,
+        stolen: &'a AtomicBool,
+        sender: Sender<Option<B>>,
+    ) -> Self {
+        AdaptiveWorker {
+            done,
+            initial_block_size,
+            current_block_size: initial_block_size,
+            growth_factor,
+            stolen,
+            sender,
+        }
+    }
+    fn fusion_needed(&self) -> bool {
+        if self.done.len() < 2 {
+            return false;
+        }
+        let last_size = self.done.last().unwrap().len();
+        let next_to_last_size = self.done[self.done.len() - 2].len();
+        last_size >= next_to_last_size
+    }
+    fn is_stolen(&self) -> bool {
+        self.stolen.load(Ordering::Relaxed)
+    }
+    fn fuse_outputs(&mut self) {
+        while self.fusion_needed() {
+            let last_output = self.done.pop().unwrap();
+            let next_to_last_output = self.done.pop().unwrap();
+            self.done.push(next_to_last_output.fuse(last_output));
+        }
+    }
+
+    fn fuse_all_outputs(&mut self) -> R {
+        let mut last_output = self.done.pop().unwrap();
+        while let Some(next_to_last_output) = self.done.pop() {
+            last_output = next_to_last_output.fuse(last_output);
+        }
+        last_output
+    }
+
+    fn answer_steal(&mut self, input: B) -> R {
+        let mid = input.len() / 2;
+        let (my_half, his_half) = input.split(mid);
+        self.sender.send(Some(his_half)).expect("sending failed");
+        return schedule_adaptive(
+            my_half,
+            self.done,
+            self.initial_block_size,
+            self.growth_factor,
+        );
+    }
+
+    fn cancel_stealing_task(&mut self) {
+        self.sender.send(None).expect("canceling task failed");
+    }
+
+    fn schedule(mut self, input: B) -> R {
+        let mut input = input;
+        while !self.fusion_needed() {
+            let size = min(input.len(), self.current_block_size);
+            let (remaining_part, output) = input.compute(size);
+            self.current_block_size =
+                (self.current_block_size as f64 * self.growth_factor) as usize;
+            self.done.push(output);
+            if remaining_part.is_none() {
+                self.cancel_stealing_task();
+                return self.fuse_all_outputs();
+            }
+            input = remaining_part.unwrap();
+
+            //TODO: we need to better check if the input is splittable
+            if self.is_stolen() && input.len() > self.initial_block_size {
+                return self.answer_steal(input);
+            }
+        }
+        self.cancel_stealing_task();
+        self.fuse_outputs();
+        return schedule_adaptive(
+            input,
+            self.done,
+            self.initial_block_size,
+            self.growth_factor,
+        );
+    }
+}
+
 fn schedule_adaptive<B, R>(
     input: B,
     done: &mut Vec<R>,
@@ -134,92 +234,15 @@ where
     let stolen = &AtomicBool::new(false);
     let (sender, receiver) = channel();
 
+    let worker = AdaptiveWorker::new(done, initial_block_size, growth_factor, stolen, sender);
+
     //TODO depjoin instead of join
     let (o1, maybe_o2) = rayon::join(
-        move || {
-            let mut input = input;
-            let mut block_size = initial_block_size;
-            let mut answered = false; // do not send anything twice
-
-            loop {
-                if stolen.load(Ordering::Relaxed) {
-                    if input.len() > initial_block_size {
-                        let mid = input.len() / 2;
-                        let (my_half, his_half) = input.split(mid);
-                        sender.send(Some(his_half)).expect("sending failed");
-                        return schedule_adaptive(my_half, done, initial_block_size, growth_factor);
-                    } else {
-                        // do not let stealer wait for an answer
-                        sender.send(None).expect("sending failed");
-                    }
-                    answered = true;
-                    stolen.store(false, Ordering::Relaxed);
-                }
-                if block_size > input.len() {
-                    block_size = input.len();
-                }
-                let (remaining_part, output) = input.compute(block_size);
-                done.push(output);
-                if remaining_part.is_none() {
-                    break;
-                }
-                input = remaining_part.unwrap();
-
-                let mut stolen_between_fusions = false;
-                loop {
-                    // we check for steal requests between each fusion
-                    if !stolen_between_fusions && stolen.load(Ordering::Relaxed) {
-                        if input.len() > initial_block_size {
-                            let mid = input.len() / 2;
-                            let (my_half, his_half) = input.split(mid);
-                            sender.send(Some(his_half)).expect("sending failed");
-                            input = my_half;
-                            stolen_between_fusions = true;
-                        } else {
-                            // do not let stealer wait for an answer
-                            sender.send(None).expect("sending failed");
-                        }
-                        answered = true;
-                        stolen.store(false, Ordering::Relaxed);
-                    }
-                    if done.len() < 2 {
-                        break;
-                    }
-                    let last_size = done.last().unwrap().len();
-                    let next_to_last_size = done[done.len() - 2].len();
-                    if last_size < next_to_last_size {
-                        break;
-                    }
-                    let output = done.pop().unwrap();
-                    let last_output = done.pop().unwrap();
-                    done.push(last_output.fuse(output));
-                }
-
-                if stolen_between_fusions {
-                    return schedule_adaptive(input, done, initial_block_size, growth_factor);
-                }
-                block_size = (block_size as f64 * growth_factor) as usize;
-            }
-            let mut output = done.pop().unwrap();
-            loop {
-                if stolen.load(Ordering::Relaxed) {
-                    sender.send(None).expect("sending none failed");
-                    stolen.store(false, Ordering::Relaxed);
-                    answered = true;
-                }
-                if done.is_empty() {
-                    if !answered {
-                        sender.send(None).expect("sending none failed");
-                    }
-                    return output;
-                }
-                let last_output = done.pop().unwrap();
-                output = last_output.fuse(output);
-            }
-        },
+        move || worker.schedule(input),
         move || {
             stolen.store(true, Ordering::Relaxed);
-            let received = receiver.recv().expect("receiving failed");
+            let received =
+                rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
             if received.is_none() {
                 return None;
             }
@@ -232,6 +255,7 @@ where
             ));
         },
     );
+
     let fusion_needed = maybe_o2.is_some();
     if fusion_needed {
         o1.fuse(maybe_o2.unwrap())

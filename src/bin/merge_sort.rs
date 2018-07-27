@@ -227,8 +227,9 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
     }
 
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        let remaining =
-            partial_manual_merge::<True, True, False, _>(self.left, self.right, self.output, limit);
+        let remaining = rayon_logs::sequential_task(3, self.output.len(), || {
+            partial_manual_merge::<True, True, False, _>(self.left, self.right, self.output, limit)
+        });
         (
             if let Some((i1, i2, io)) = remaining {
                 Some(MergeBlock {
@@ -325,7 +326,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Output for SortingSlices<'a, T> {
                 right: s2,
                 output,
             };
-            schedule(input, Policy::Adaptive(2000, 2.0));
+            schedule(input, Policy::Adaptive(4000, 1.1));
         }
         SortingSlices {
             s: slices
@@ -368,7 +369,7 @@ fn main() {
         .num_threads(4)
         .build()
         .expect("failed building pool");
-    let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000, 2.0)))
+    let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000, 1.1)))
         .1;
     assert_eq!(v, answer);
     log.save_svg("adapt.svg").expect("failed saving svg");
