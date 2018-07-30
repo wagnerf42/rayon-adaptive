@@ -106,15 +106,6 @@ struct MergeBlock<'a, T: 'a + Sync + Send> {
     output: &'a mut [T],
 }
 
-// merge does not return anything
-struct MergeOutput();
-
-impl Output for MergeOutput {
-    fn fuse(self, other: Self) -> Self {
-        MergeOutput()
-    }
-}
-
 /// find subslice without last value in given sorted slice.
 fn subslice_without_last_value<T: Eq>(slice: &[T]) -> &[T] {
     match slice.split_last() {
@@ -195,11 +186,11 @@ fn merge_split<'a, T: Ord>(
 
 //TODO: remove i from split api. we don't need it anymore
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
-    type Output = MergeOutput;
+    type Output = ();
     fn len(&self) -> usize {
         self.output.len()
     }
-    fn split(self, _i: usize) -> (Self, Self) {
+    fn split(self) -> (Self, Self) {
         let ((left1, left2, left3), (right1, right2, right3)) =
             if self.left.len() > self.right.len() {
                 merge_split(self.left, self.right)
@@ -240,7 +231,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
             } else {
                 None
             },
-            MergeOutput(),
+            (),
         )
     }
 }
@@ -269,14 +260,7 @@ impl<'a, T: 'a> SortingSlices<'a, T> {
             _ => panic!("i1 == i2"),
         }
     }
-}
-
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
-    type Output = SortingSlices<'a, T>;
-    fn len(&self) -> usize {
-        self.s[0].len()
-    }
-    fn split(self, i: usize) -> (Self, Self) {
+    fn split_at(self, i: usize) -> (Self, Self) {
         let v = self.s.into_iter().map(|s| s.split_at_mut(i)).fold(
             (Vec::new(), Vec::new()),
             |mut acc, (s1, s2)| {
@@ -290,13 +274,24 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
             SortingSlices { s: v.1, i: self.i },
         )
     }
+}
+
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
+    type Output = SortingSlices<'a, T>;
+    fn len(&self) -> usize {
+        self.s[0].len()
+    }
+    fn split(self) -> (Self, Self) {
+        let mid = self.s[0].len() / 2;
+        self.split_at(mid)
+    }
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
         if self.s[0].len() == limit {
             let mut slice = self;
             slice.s[slice.i].sort();
             (None, slice)
         } else {
-            let (mut start, remaining) = self.split(limit);
+            let (mut start, remaining) = self.split_at(limit);
             start.s[start.i].sort();
             (Some(remaining), start)
         }

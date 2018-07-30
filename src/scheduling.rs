@@ -28,7 +28,7 @@ pub trait Block: Sized {
         1
     }
     /// Divide ourselves.
-    fn split(self, mid: usize) -> (Self, Self);
+    fn split(self) -> (Self, Self);
     /// Compute some output for this block. Return what's left to do if any and result.
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output);
 }
@@ -40,6 +40,15 @@ pub trait Output: Sized {
     /// Length of ouput.
     fn len(&self) -> usize {
         1
+    }
+}
+
+impl Output for () {
+    fn fuse(self, _other: Self) -> Self {
+        ()
+    }
+    fn len(&self) -> usize {
+        0
     }
 }
 
@@ -67,8 +76,7 @@ where
     if len < block_size {
         input.compute(len).1
     } else {
-        let midpoint = len / 2;
-        let (i1, i2) = input.split(midpoint);
+        let (i1, i2) = input.split();
         let (r1, r2) = rayon::join(
             || schedule_join(i1, block_size),
             || schedule_join(i2, block_size),
@@ -86,8 +94,7 @@ where
     if len < block_size {
         input.compute(len).1
     } else {
-        let midpoint = len / 2;
-        let (i1, i2) = input.split(midpoint);
+        let (i1, i2) = input.split();
         depjoin(
             || schedule_depjoin(i1, block_size),
             || schedule_depjoin(i2, block_size),
@@ -105,8 +112,7 @@ where
     if len < block_size {
         input.compute(len).1
     } else {
-        let midpoint = len / 2;
-        let (i1, i2) = input.split(midpoint);
+        let (i1, i2) = input.split();
         let (r1, r2) = rayon::join_context(
             |_| schedule_join_context(i1, block_size),
             |c| {
@@ -123,7 +129,7 @@ where
 }
 
 struct AdaptiveWorker<'a, 'b, B, R: 'b> {
-    done: &'b mut Vec<R>,
+    done: &'b mut Vec<(R, usize)>,
     initial_block_size: usize,
     current_block_size: usize,
     growth_factor: f64,
@@ -131,9 +137,23 @@ struct AdaptiveWorker<'a, 'b, B, R: 'b> {
     sender: Sender<Option<B>>,
 }
 
+impl<'a, O: 'a + Output> Block for &'a mut [(O, usize)] {
+    type Output = ();
+    fn len(&self) -> usize {
+        //TODO: this is just plain wrong
+        self.last().map(|o| o.1).unwrap_or(0)
+    }
+    fn split(self) -> (Self, Self) {
+        unimplemented!()
+    }
+    fn compute(self, limit: usize) -> (Option<Self>, ()) {
+        unimplemented!()
+    }
+}
+
 impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, 'b, B, R> {
     fn new(
-        done: &'b mut Vec<R>,
+        done: &'b mut Vec<(R, usize)>,
         initial_block_size: usize,
         growth_factor: f64,
         stolen: &'a AtomicBool,
@@ -149,35 +169,22 @@ impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, '
         }
     }
     fn fusion_needed(&self) -> bool {
-        if self.done.len() < 2 {
-            return false;
-        }
-        let last_size = self.done.last().unwrap().len();
-        let next_to_last_size = self.done[self.done.len() - 2].len();
-        last_size >= next_to_last_size
+        self.done.last().map(|e| e.1 > 200_000).unwrap_or(false)
     }
     fn is_stolen(&self) -> bool {
         self.stolen.load(Ordering::Relaxed)
     }
-    fn fuse_outputs(&mut self) {
-        while self.fusion_needed() {
-            let last_output = self.done.pop().unwrap();
-            let next_to_last_output = self.done.pop().unwrap();
-            self.done.push(next_to_last_output.fuse(last_output));
-        }
-    }
-
     fn fuse_all_outputs(&mut self) -> R {
-        let mut last_output = self.done.pop().unwrap();
-        while let Some(next_to_last_output) = self.done.pop() {
+        //TODO: use schedule :-)
+        let (mut last_output, _) = self.done.pop().unwrap();
+        while let Some((next_to_last_output, _)) = self.done.pop() {
             last_output = next_to_last_output.fuse(last_output);
         }
         last_output
     }
 
     fn answer_steal(&mut self, input: B) -> R {
-        let mid = input.len() / 2;
-        let (my_half, his_half) = input.split(mid);
+        let (my_half, his_half) = input.split();
         self.sender.send(Some(his_half)).expect("sending failed");
         return schedule_adaptive(
             my_half,
@@ -198,7 +205,9 @@ impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, '
             let (remaining_part, output) = input.compute(size);
             self.current_block_size =
                 (self.current_block_size as f64 * self.growth_factor) as usize;
-            self.done.push(output);
+            let previous_size = self.done.last().map(|o| o.1).unwrap_or(0);
+            let new_size = previous_size + output.len();
+            self.done.push((output, new_size));
             if remaining_part.is_none() {
                 self.cancel_stealing_task();
                 return self.fuse_all_outputs();
@@ -211,7 +220,7 @@ impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, '
             }
         }
         self.cancel_stealing_task();
-        self.fuse_outputs();
+        self.fuse_all_outputs();
         return schedule_adaptive(
             input,
             self.done,
@@ -223,7 +232,7 @@ impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, '
 
 fn schedule_adaptive<B, R>(
     input: B,
-    done: &mut Vec<R>,
+    done: &mut Vec<(R, usize)>,
     initial_block_size: usize,
     growth_factor: f64,
 ) -> R
@@ -231,6 +240,7 @@ where
     B: Block<Output = R> + Send,
     R: Output + Send,
 {
+    //TODO: if output is not splittable do it sequentially
     let stolen = &AtomicBool::new(false);
     let (sender, receiver) = channel();
 
