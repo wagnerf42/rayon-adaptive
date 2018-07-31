@@ -144,6 +144,7 @@ impl<'a, O: 'a + Output> Block for &'a mut [(O, usize)] {
         self.last().map(|o| o.1).unwrap_or(0)
     }
     fn split(self) -> (Self, Self) {
+        //TODO: we need some theoretical analysis here
         unimplemented!()
     }
     fn compute(self, limit: usize) -> (Option<Self>, ()) {
@@ -240,36 +241,40 @@ where
     B: Block<Output = R> + Send,
     R: Output + Send,
 {
-    //TODO: if output is not splittable do it sequentially
-    let stolen = &AtomicBool::new(false);
-    let (sender, receiver) = channel();
-
-    let worker = AdaptiveWorker::new(done, initial_block_size, growth_factor, stolen, sender);
-
-    //TODO depjoin instead of join
-    let (o1, maybe_o2) = rayon::join(
-        move || worker.schedule(input),
-        move || {
-            stolen.store(true, Ordering::Relaxed);
-            let received =
-                rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
-            if received.is_none() {
-                return None;
-            }
-            let input = received.unwrap();
-            return Some(schedule_adaptive(
-                input,
-                &mut Vec::new(),
-                initial_block_size,
-                growth_factor,
-            ));
-        },
-    );
-
-    let fusion_needed = maybe_o2.is_some();
-    if fusion_needed {
-        o1.fuse(maybe_o2.unwrap())
+    let size = input.len();
+    if size <= initial_block_size {
+        input.compute(size).1
     } else {
-        o1
+        let stolen = &AtomicBool::new(false);
+        let (sender, receiver) = channel();
+
+        let worker = AdaptiveWorker::new(done, initial_block_size, growth_factor, stolen, sender);
+
+        //TODO depjoin instead of join
+        let (o1, maybe_o2) = rayon::join(
+            move || worker.schedule(input),
+            move || {
+                stolen.store(true, Ordering::Relaxed);
+                let received =
+                    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
+                if received.is_none() {
+                    return None;
+                }
+                let input = received.unwrap();
+                return Some(schedule_adaptive(
+                    input,
+                    &mut Vec::new(),
+                    initial_block_size,
+                    growth_factor,
+                ));
+            },
+        );
+
+        let fusion_needed = maybe_o2.is_some();
+        if fusion_needed {
+            o1.fuse(maybe_o2.unwrap())
+        } else {
+            o1
+        }
     }
 }

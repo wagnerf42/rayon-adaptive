@@ -184,7 +184,6 @@ fn merge_split<'a, T: Ord>(
     (split_large, split_small)
 }
 
-//TODO: remove i from split api. we don't need it anymore
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
     type Output = ();
     fn len(&self) -> usize {
@@ -218,8 +217,8 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
     }
 
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        let remaining = rayon_logs::sequential_task(3, self.output.len(), || {
-            partial_manual_merge::<True, True, False, _>(self.left, self.right, self.output, limit)
+        let remaining = rayon_logs::sequential_task(3, limit, || {
+            partial_manual_merge::<True, True, True, _>(self.left, self.right, self.output, limit)
         });
         (
             if let Some((i1, i2, io)) = remaining {
@@ -288,11 +287,11 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
         if self.s[0].len() == limit {
             let mut slice = self;
-            slice.s[slice.i].sort();
+            rayon_logs::sequential_task(4, limit, || slice.s[slice.i].sort());
             (None, slice)
         } else {
             let (mut start, remaining) = self.split_at(limit);
-            start.s[start.i].sort();
+            rayon_logs::sequential_task(2, limit, || start.s[start.i].sort());
             (Some(remaining), start)
         }
     }
@@ -361,7 +360,7 @@ fn main() {
     ra.shuffle(&mut v);
 
     let pool = ThreadPoolBuilder::new()
-        .num_threads(4)
+        .num_threads(2)
         .build()
         .expect("failed building pool");
     let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000, 1.1)))
