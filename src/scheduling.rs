@@ -14,10 +14,8 @@ pub enum Policy {
     /// Recursively cut in two with depjoin until given block size.
     DepJoin(usize),
     /// Advance locally with increasing block sizes. When stolen create tasks
-    /// on the fly. Manage a stack of outputs and fuse them as a depth first execution
-    /// (we try to fuse equal sized outputs).
-    /// We need an initial block size and a block growing factor.
-    Adaptive(usize, f64),
+    /// We need an initial block size.
+    Adaptive(usize),
 }
 
 /// All inputs should implement this trait.
@@ -61,9 +59,7 @@ where
         Policy::Join(block_size) => schedule_join(input, block_size),
         Policy::JoinContext(block_size) => schedule_join_context(input, block_size),
         Policy::DepJoin(block_size) => schedule_depjoin(input, block_size),
-        Policy::Adaptive(block_size, growth_factor) => {
-            schedule_adaptive(input, &mut Vec::new(), block_size, growth_factor)
-        }
+        Policy::Adaptive(block_size) => schedule_adaptive(input, block_size),
     }
 }
 
@@ -128,115 +124,76 @@ where
     }
 }
 
-struct AdaptiveWorker<'a, 'b, B, R: 'b> {
-    done: &'b mut Vec<(R, usize)>,
+struct AdaptiveWorker<'a, B> {
     initial_block_size: usize,
     current_block_size: usize,
-    growth_factor: f64,
     stolen: &'a AtomicBool,
     sender: Sender<Option<B>>,
 }
 
-impl<'a, O: 'a + Output> Block for &'a mut [(O, usize)] {
-    type Output = ();
-    fn len(&self) -> usize {
-        //TODO: this is just plain wrong
-        self.last().map(|o| o.1).unwrap_or(0)
-    }
-    fn split(self) -> (Self, Self) {
-        //TODO: we need some theoretical analysis here
-        unimplemented!()
-    }
-    fn compute(self, limit: usize) -> (Option<Self>, ()) {
-        unimplemented!()
-    }
-}
-
-impl<'a, 'b, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, 'b, B, R> {
-    fn new(
-        done: &'b mut Vec<(R, usize)>,
-        initial_block_size: usize,
-        growth_factor: f64,
-        stolen: &'a AtomicBool,
-        sender: Sender<Option<B>>,
-    ) -> Self {
+impl<'a, B: Block<Output = R> + Send, R: Output + Send> AdaptiveWorker<'a, B> {
+    fn new(initial_block_size: usize, stolen: &'a AtomicBool, sender: Sender<Option<B>>) -> Self {
         AdaptiveWorker {
-            done,
             initial_block_size,
             current_block_size: initial_block_size,
-            growth_factor,
             stolen,
             sender,
         }
     }
-    fn fusion_needed(&self) -> bool {
-        self.done.last().map(|e| e.1 > 200_000).unwrap_or(false)
-    }
     fn is_stolen(&self) -> bool {
         self.stolen.load(Ordering::Relaxed)
     }
-    fn fuse_all_outputs(&mut self) -> R {
-        //TODO: use schedule :-)
-        let (mut last_output, _) = self.done.pop().unwrap();
-        while let Some((next_to_last_output, _)) = self.done.pop() {
-            last_output = next_to_last_output.fuse(last_output);
-        }
-        last_output
-    }
-
     fn answer_steal(&mut self, input: B) -> R {
         let (my_half, his_half) = input.split();
         self.sender.send(Some(his_half)).expect("sending failed");
-        return schedule_adaptive(
-            my_half,
-            self.done,
-            self.initial_block_size,
-            self.growth_factor,
-        );
+        return schedule_adaptive(my_half, self.initial_block_size);
     }
 
     fn cancel_stealing_task(&mut self) {
         self.sender.send(None).expect("canceling task failed");
     }
 
-    fn schedule(mut self, input: B) -> R {
-        let mut input = input;
-        while !self.fusion_needed() {
-            let size = min(input.len(), self.current_block_size);
-            let (remaining_part, output) = input.compute(size);
-            self.current_block_size =
-                (self.current_block_size as f64 * self.growth_factor) as usize;
-            let previous_size = self.done.last().map(|o| o.1).unwrap_or(0);
-            let new_size = previous_size + output.len();
-            self.done.push((output, new_size));
-            if remaining_part.is_none() {
-                self.cancel_stealing_task();
-                return self.fuse_all_outputs();
+    //TODO: we still need macro blocks
+    fn schedule(mut self, mut input: B) -> R {
+        // start by computing a little bit in order to get a first output
+        let size = min(input.len(), self.current_block_size);
+
+        if input.len() <= self.current_block_size {
+            self.cancel_stealing_task(); // no need to keep people waiting for nothing
+        }
+        let (mut remaining_input, mut output) = input.compute(size);
+
+        // I have this really nice proof as to why I need phi but the margins
+        // are too small to write it down here :-)
+        let phi: f64 = (1.0 + 5.0f64.sqrt()) / 2.0;
+
+        // loop while not stolen or something left to do
+        loop {
+            if remaining_input.is_none() {
+                return output;
             }
-            input = remaining_part.unwrap();
+            input = remaining_input.unwrap();
 
             //TODO: we need to better check if the input is splittable
             if self.is_stolen() && input.len() > self.initial_block_size {
-                return self.answer_steal(input);
+                let new_output = self.answer_steal(input);
+                return output.fuse(new_output);
             }
+            self.current_block_size = (self.current_block_size as f64 * phi) as usize;
+
+            if input.len() <= self.current_block_size {
+                self.cancel_stealing_task(); // no need to keep people waiting for nothing
+            }
+
+            let size = min(input.len(), self.current_block_size);
+            let (remaining, new_output) = input.compute(size);
+            remaining_input = remaining;
+            output = output.fuse(new_output);
         }
-        self.cancel_stealing_task();
-        self.fuse_all_outputs();
-        return schedule_adaptive(
-            input,
-            self.done,
-            self.initial_block_size,
-            self.growth_factor,
-        );
     }
 }
 
-fn schedule_adaptive<B, R>(
-    input: B,
-    done: &mut Vec<(R, usize)>,
-    initial_block_size: usize,
-    growth_factor: f64,
-) -> R
+fn schedule_adaptive<B, R>(input: B, initial_block_size: usize) -> R
 where
     B: Block<Output = R> + Send,
     R: Output + Send,
@@ -248,7 +205,7 @@ where
         let stolen = &AtomicBool::new(false);
         let (sender, receiver) = channel();
 
-        let worker = AdaptiveWorker::new(done, initial_block_size, growth_factor, stolen, sender);
+        let worker = AdaptiveWorker::new(initial_block_size, stolen, sender);
 
         //TODO depjoin instead of join
         let (o1, maybe_o2) = rayon::join(
@@ -261,12 +218,7 @@ where
                     return None;
                 }
                 let input = received.unwrap();
-                return Some(schedule_adaptive(
-                    input,
-                    &mut Vec::new(),
-                    initial_block_size,
-                    growth_factor,
-                ));
+                return Some(schedule_adaptive(input, initial_block_size));
             },
         );
 

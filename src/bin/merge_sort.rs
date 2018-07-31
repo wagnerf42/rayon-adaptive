@@ -320,7 +320,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Output for SortingSlices<'a, T> {
                 right: s2,
                 output,
             };
-            schedule(input, Policy::Adaptive(4000, 1.1));
+            schedule(input, Policy::Adaptive(4000));
         }
         SortingSlices {
             s: slices
@@ -363,21 +363,21 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("failed building pool");
-    let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000, 1.1)))
-        .1;
-    assert_eq!(v, answer);
-    log.save_svg("adapt.svg").expect("failed saving svg");
-    //    pool.compare(
-    //        "join",
-    //        "join_context",
-    //        || {
-    //            let mut w = v.clone();
-    //            generic_sort(&mut w, Policy::Join(2000))
-    //        },
-    //        || {
-    //            let mut w = v.clone();
-    //            generic_sort(&mut w, Policy::DepJoin(2000))
-    //        },
-    //        "joins_battle.html",
-    //    ).expect("saving logs failed");
+    //let log = pool.install(|| generic_sort(&mut v, Policy::Adaptive(2000)))
+    //    .1;
+    //assert_eq!(v, answer);
+    //log.save_svg("adapt.svg").expect("failed saving svg");
+    pool.compare(
+        "join",
+        "adaptive",
+        || {
+            let mut w = v.clone();
+            generic_sort(&mut w, Policy::Adaptive(1000))
+        },
+        || {
+            let mut w = v.clone();
+            generic_sort(&mut w, Policy::Adaptive(2000))
+        },
+        "joins_battle.html",
+    ).expect("saving logs failed");
 }
