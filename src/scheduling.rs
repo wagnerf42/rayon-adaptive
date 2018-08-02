@@ -218,6 +218,7 @@ where
                     return None;
                 }
                 let input = received.unwrap();
+                assert!(input.len() > 0);
                 return Some(schedule_adaptive(input, initial_block_size));
             },
         );

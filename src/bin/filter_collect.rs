@@ -30,7 +30,7 @@ impl<'a> Block for FilterInput<'a> {
         self.input.len()
     }
     fn split(self) -> (Self, Self) {
-        let mid = self.input.len();
+        let mid = self.input.len() / 2;
         let (input_left, input_right) = self.input.split_at(mid);
         let (output_left, output_right) = self.output.split_at_mut(mid);
         (
@@ -85,9 +85,9 @@ impl<'a> Output for FilterOutput<'a> {
         if self.slice.len() >= self.used + other.used && self.slice.len() != self.used {
             // enough space to move data back and moving back required
             self.slice[self.used..(self.used + other.used)]
-                .copy_from_slice(&other.slice[..other.used]);
+                .copy_from_slice(&other.slice[..other.used])
         }
-        if self.slice.len() >= self.used + other.used {
+        if self.slice.len() >= self.used + other.used || self.slice.len() == self.used {
             FilterOutput {
                 slice: fuse_slices(self.slice, other.slice),
                 used: self.used + other.used,
@@ -129,7 +129,7 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
 }
 
 fn main() {
-    let v: Vec<u32> = (0..100_000).map(|_| random::<u32>() % 2).collect();
+    let v: Vec<u32> = (0..100_000).map(|_| random::<u32>() % 10).collect();
     let answer: Vec<u32> = v.iter().filter(|&i| i % 2 == 0).cloned().collect();
 
     let pool = ThreadPoolBuilder::new()
