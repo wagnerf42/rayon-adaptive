@@ -5,7 +5,7 @@ extern crate rayon_logs;
 use rand::{ChaChaRng, Rng};
 use rayon_logs::ThreadPoolBuilder;
 
-use rayon_adaptive::{schedule, Block, Output, Policy};
+use rayon_adaptive::{schedule, Block, Divisible, Output, Policy};
 use std::iter::repeat;
 
 trait Boolean {
@@ -184,8 +184,7 @@ fn merge_split<'a, T: Ord>(
     (split_large, split_small)
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
-    type Output = ();
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for MergeBlock<'a, T> {
     fn len(&self) -> usize {
         self.output.len()
     }
@@ -215,7 +214,10 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
             },
         )
     }
+}
 
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
+    type Output = ();
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
         let remaining = rayon_logs::sequential_task(3, limit, || {
             partial_manual_merge::<True, True, True, _>(self.left, self.right, self.output, limit)
@@ -275,8 +277,7 @@ impl<'a, T: 'a> SortingSlices<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
-    type Output = SortingSlices<'a, T>;
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
     fn len(&self) -> usize {
         self.s[0].len()
     }
@@ -284,6 +285,10 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
         let mid = self.s[0].len() / 2;
         self.split_at(mid)
     }
+}
+
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
+    type Output = SortingSlices<'a, T>;
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
         if self.s[0].len() == limit {
             let mut slice = self;
@@ -298,9 +303,6 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
 }
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Output for SortingSlices<'a, T> {
-    fn len(&self) -> usize {
-        self.s[0].len()
-    }
     fn fuse(self, other: Self) -> Self {
         let mut slices = self;
         let mut other = other;

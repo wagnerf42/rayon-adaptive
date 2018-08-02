@@ -2,7 +2,7 @@ extern crate rand;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 use rand::random;
-use rayon_adaptive::{schedule, Block, Output, Policy};
+use rayon_adaptive::{schedule, Block, Divisible, Output, Policy};
 use rayon_logs::ThreadPoolBuilder;
 
 /// We can now fuse contiguous slices together back into one.
@@ -24,8 +24,7 @@ struct FilterOutput<'a> {
     used: usize, // size really used from start
 }
 
-impl<'a> Block for FilterInput<'a> {
-    type Output = FilterOutput<'a>;
+impl<'a> Divisible for FilterInput<'a> {
     fn len(&self) -> usize {
         self.input.len()
     }
@@ -44,6 +43,10 @@ impl<'a> Block for FilterInput<'a> {
             },
         )
     }
+}
+
+impl<'a> Block for FilterInput<'a> {
+    type Output = FilterOutput<'a>;
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
         let mut collected = 0;
         for (i, o) in self.input

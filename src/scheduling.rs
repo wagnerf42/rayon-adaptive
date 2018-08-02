@@ -4,6 +4,7 @@ use rayon;
 use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
+use traits::{Block, Output};
 
 /// All scheduling available scheduling policies.
 pub enum Policy {
@@ -16,38 +17,6 @@ pub enum Policy {
     /// Advance locally with increasing block sizes. When stolen create tasks
     /// We need an initial block size.
     Adaptive(usize),
-}
-
-/// All inputs should implement this trait.
-pub trait Block: Sized {
-    type Output: Output;
-    /// Return block's length.
-    fn len(&self) -> usize {
-        1
-    }
-    /// Divide ourselves.
-    fn split(self) -> (Self, Self);
-    /// Compute some output for this block. Return what's left to do if any and result.
-    fn compute(self, limit: usize) -> (Option<Self>, Self::Output);
-}
-
-/// All outputs should implement this trait.
-pub trait Output: Sized {
-    /// Merge two outputs into one.
-    fn fuse(self, other: Self) -> Self;
-    /// Length of ouput.
-    fn len(&self) -> usize {
-        1
-    }
-}
-
-impl Output for () {
-    fn fuse(self, _other: Self) -> Self {
-        ()
-    }
-    fn len(&self) -> usize {
-        0
-    }
 }
 
 pub fn schedule<B, R>(input: B, policy: Policy) -> R
