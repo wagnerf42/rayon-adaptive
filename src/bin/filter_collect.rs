@@ -45,22 +45,87 @@ impl<'a> Block for FilterInput<'a> {
         )
     }
     fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        unimplemented!()
+        let mut collected = 0;
+        for (i, o) in self.input
+            .iter()
+            .take(limit)
+            .filter(|&i| i % 2 == 0)
+            .zip(self.output.iter_mut())
+        {
+            *o = *i;
+            collected += 1;
+        }
+        let remaining_input = &self.input[limit..];
+        if remaining_input.is_empty() {
+            (
+                None,
+                FilterOutput {
+                    slice: self.output, // give back all slice to avoid holes
+                    used: collected,
+                },
+            )
+        } else {
+            let (done_output, remaining_output) = self.output.split_at_mut(collected);
+            (
+                Some(FilterInput {
+                    input: remaining_input,
+                    output: remaining_output,
+                }),
+                FilterOutput {
+                    slice: done_output,
+                    used: collected,
+                },
+            )
+        }
     }
 }
 
 impl<'a> Output for FilterOutput<'a> {
     fn fuse(self, other: Self) -> Self {
-        self.slice[self.used..].copy_from_slice(&other.slice[other.used..]);
-        FilterOutput {
-            slice: fuse_slices(self.slice, other.slice),
-            used: self.used + other.used,
+        if self.slice.len() >= self.used + other.used && self.slice.len() != self.used {
+            // enough space to move data back and moving back required
+            self.slice[self.used..(self.used + other.used)]
+                .copy_from_slice(&other.slice[..other.used]);
+        }
+        if self.slice.len() >= self.used + other.used {
+            FilterOutput {
+                slice: fuse_slices(self.slice, other.slice),
+                used: self.used + other.used,
+            }
+        } else {
+            // hard case, move things by hand
+            let mut j = self.slice.len();
+            let slice = fuse_slices(self.slice, other.slice);
+            for i in (self.used)..(self.used + other.used) {
+                slice[i] = slice[j];
+                j += 1;
+            }
+            FilterOutput {
+                slice,
+                used: self.used + other.used,
+            }
         }
     }
 }
 
 fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
-    unimplemented!()
+    let size = slice.len();
+    let mut uninitialized_output = Vec::with_capacity(size);
+    unsafe {
+        uninitialized_output.set_len(size);
+    }
+    let used = {
+        let input = FilterInput {
+            input: slice,
+            output: uninitialized_output.as_mut_slice(),
+        };
+        let output = schedule(input, policy);
+        output.used
+    };
+    unsafe {
+        uninitialized_output.set_len(used);
+    }
+    uninitialized_output
 }
 
 fn main() {

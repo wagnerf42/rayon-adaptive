@@ -2,6 +2,15 @@
 - stabilize api (do we need a 'split_at' ? rename Block to Input ? rename compute to work ?)
    it was nice to only need split (for .chars iterators for example)
    but we still would still need split_at for locality
+
+   something like :
+     - splittable
+     - indexed_splittable (approximately)
+     - input
+   such that indexed_splittable : splittable
+   and any indexed_splittable can be turned into a full input by adjunction of a work function
+
+
 - fully adaptive algorithms (with worker and helper)
    a lot of design is still needed
 - impl find first from existing iterators
