@@ -2,7 +2,7 @@ extern crate rand;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 use rand::random;
-use rayon_adaptive::{schedule, Block, Divisible, Output, Policy};
+use rayon_adaptive::{Divisible, Mergeable, Policy};
 use rayon_logs::ThreadPoolBuilder;
 
 /// We can now fuse contiguous slices together back into one.
@@ -19,7 +19,7 @@ struct FilterInput<'a> {
     output: &'a mut [u32],
 }
 
-struct FilterOutput<'a> {
+struct FilterMergeable<'a> {
     slice: &'a mut [u32],
     used: usize, // size really used from start
 }
@@ -45,45 +45,7 @@ impl<'a> Divisible for FilterInput<'a> {
     }
 }
 
-impl<'a> Block for FilterInput<'a> {
-    type Output = FilterOutput<'a>;
-    fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        let mut collected = 0;
-        for (i, o) in self.input
-            .iter()
-            .take(limit)
-            .filter(|&i| i % 2 == 0)
-            .zip(self.output.iter_mut())
-        {
-            *o = *i;
-            collected += 1;
-        }
-        let remaining_input = &self.input[limit..];
-        if remaining_input.is_empty() {
-            (
-                None,
-                FilterOutput {
-                    slice: self.output, // give back all slice to avoid holes
-                    used: collected,
-                },
-            )
-        } else {
-            let (done_output, remaining_output) = self.output.split_at_mut(collected);
-            (
-                Some(FilterInput {
-                    input: remaining_input,
-                    output: remaining_output,
-                }),
-                FilterOutput {
-                    slice: done_output,
-                    used: collected,
-                },
-            )
-        }
-    }
-}
-
-impl<'a> Output for FilterOutput<'a> {
+impl<'a> Mergeable for FilterMergeable<'a> {
     fn fuse(self, other: Self) -> Self {
         if self.slice.len() >= self.used + other.used && self.slice.len() != self.used {
             // enough space to move data back and moving back required
@@ -91,7 +53,7 @@ impl<'a> Output for FilterOutput<'a> {
                 .copy_from_slice(&other.slice[..other.used])
         }
         if self.slice.len() >= self.used + other.used || self.slice.len() == self.used {
-            FilterOutput {
+            FilterMergeable {
                 slice: fuse_slices(self.slice, other.slice),
                 used: self.used + other.used,
             }
@@ -103,7 +65,7 @@ impl<'a> Output for FilterOutput<'a> {
                 slice[i] = slice[j];
                 j += 1;
             }
-            FilterOutput {
+            FilterMergeable {
                 slice,
                 used: self.used + other.used,
             }
@@ -122,7 +84,44 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
             input: slice,
             output: uninitialized_output.as_mut_slice(),
         };
-        let output = schedule(input, policy);
+
+        let output = input.work(
+            |d, limit| {
+                let mut collected = 0;
+                for (i, o) in d.input
+                    .iter()
+                    .take(limit)
+                    .filter(|&i| i % 2 == 0)
+                    .zip(d.output.iter_mut())
+                {
+                    *o = *i;
+                    collected += 1;
+                }
+                let remaining_input = &d.input[limit..];
+                if remaining_input.is_empty() {
+                    (
+                        None,
+                        FilterMergeable {
+                            slice: d.output, // give back all slice to avoid holes
+                            used: collected,
+                        },
+                    )
+                } else {
+                    let (done_output, remaining_output) = d.output.split_at_mut(collected);
+                    (
+                        Some(FilterInput {
+                            input: remaining_input,
+                            output: remaining_output,
+                        }),
+                        FilterMergeable {
+                            slice: done_output,
+                            used: collected,
+                        },
+                    )
+                }
+            },
+            policy,
+        );
         output.used
     };
     unsafe {

@@ -10,9 +10,6 @@
    such that any indexed_divisible impl divisible
    and any indexed_divisible can be turned into a full input by adjunction of a work function
 
-   --> we need to remove Block and do something like
-   any Divisible has a 'work' method containing the compute function
-
 
 - fully adaptive algorithms (with worker and helper)
    a lot of design is still needed

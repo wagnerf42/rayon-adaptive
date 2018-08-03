@@ -1,52 +1,38 @@
 //! This module contains all traits enabling us to express some parallelism.
+use scheduling::{schedule, Policy};
 use std;
 
-/// Some work we could schedule adaptively.
-pub struct AdaptiveWork<D: Divisible, O: Output, W: Fn(D) -> (Option<D>, O)> {
-    input: D,
-    work_function: W,
-}
-
-//TODO: add a `schedule` method to the adaptive work
-//TODO: remove Block
-
-pub trait Divisible: Sized {
+pub trait Divisible: Sized + Send {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
     /// Return our length.
     fn len(&self) -> usize;
-    /// Register the work function and get back some `AdaptiveWork` ready for scheduling.
-    fn work<O: Output, W: Fn(Self) -> (Option<Self>, O)>(
-        self,
-        work_function: W,
-    ) -> AdaptiveWork<Self, O, W> {
-        AdaptiveWork {
-            input: self,
-            work_function,
-        }
+    /// apply work function with given policy.
+    fn work<M, F>(self, work_function: F, policy: Policy) -> M
+    where
+        M: Mergeable,
+        F: Fn(Self, usize) -> (Option<Self>, M) + Sync,
+    {
+        //Note: we used to have a `Block` trait REQUIRING a work_function.
+        //it's better now because we can compose Divisibles as we like without
+        //caring about the function applied to them.
+        schedule(self, &work_function, policy)
     }
 }
 
-/// All inputs should implement this trait.
-pub trait Block: Divisible {
-    type Output: Output;
-    /// Compute some output for this block. Return what's left to do if any and result.
-    fn compute(self, limit: usize) -> (Option<Self>, Self::Output);
-}
-
-/// All outputs should implement this trait.
-pub trait Output: Sized {
+/// All outputs must implement this trait.
+pub trait Mergeable: Sized + Send {
     /// Merge two outputs into one.
     fn fuse(self, other: Self) -> Self;
 }
 
-impl Output for () {
+impl Mergeable for () {
     fn fuse(self, _other: Self) -> Self {
         ()
     }
 }
 
-impl<'a, T> Divisible for &'a [T] {
+impl<'a, T: Sync> Divisible for &'a [T] {
     fn len(&self) -> usize {
         (*self as &[T]).len()
     }
@@ -56,7 +42,8 @@ impl<'a, T> Divisible for &'a [T] {
     }
 }
 
-impl<'a, T: 'a> Divisible for &'a mut [T] {
+//TODO: I don't get why the compiler requires send here
+impl<'a, T: 'a + Sync + Send> Divisible for &'a mut [T] {
     fn len(&self) -> usize {
         (*self as &[T]).len()
     }
@@ -66,6 +53,7 @@ impl<'a, T: 'a> Divisible for &'a mut [T] {
     }
 }
 
+//TODO: macroize all that stuff ; even better : derive ?
 impl<A: Divisible, B: Divisible> Divisible for (A, B) {
     fn len(&self) -> usize {
         std::cmp::min(self.0.len(), self.1.len())

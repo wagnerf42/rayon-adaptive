@@ -5,7 +5,7 @@ extern crate rayon_logs;
 use rand::{ChaChaRng, Rng};
 use rayon_logs::ThreadPoolBuilder;
 
-use rayon_adaptive::{schedule, Block, Divisible, Output, Policy};
+use rayon_adaptive::{Divisible, Mergeable, Policy};
 use std::iter::repeat;
 
 trait Boolean {
@@ -216,27 +216,6 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for MergeBlock<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for MergeBlock<'a, T> {
-    type Output = ();
-    fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        let remaining = rayon_logs::sequential_task(3, limit, || {
-            partial_manual_merge::<True, True, True, _>(self.left, self.right, self.output, limit)
-        });
-        (
-            if let Some((i1, i2, io)) = remaining {
-                Some(MergeBlock {
-                    left: &self.left[i1..],
-                    right: &self.right[i2..],
-                    output: &mut self.output[io..],
-                })
-            } else {
-                None
-            },
-            (),
-        )
-    }
-}
-
 /// We'll need slices of several vectors at once.
 struct SortingSlices<'a, T: 'a> {
     s: Vec<&'a mut [T]>, // we have 2 input slices and one output slice
@@ -287,22 +266,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Block for SortingSlices<'a, T> {
-    type Output = SortingSlices<'a, T>;
-    fn compute(self, limit: usize) -> (Option<Self>, Self::Output) {
-        if self.s[0].len() == limit {
-            let mut slice = self;
-            rayon_logs::sequential_task(4, limit, || slice.s[slice.i].sort());
-            (None, slice)
-        } else {
-            let (mut start, remaining) = self.split_at(limit);
-            rayon_logs::sequential_task(2, limit, || start.s[start.i].sort());
-            (Some(remaining), start)
-        }
-    }
-}
-
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Output for SortingSlices<'a, T> {
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
     fn fuse(self, other: Self) -> Self {
         let mut slices = self;
         let mut other = other;
@@ -322,7 +286,28 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Output for SortingSlices<'a, T> {
                 right: s2,
                 output,
             };
-            schedule(input, Policy::Adaptive(4000));
+            input.work(
+                |d, limit| {
+                    let remaining = rayon_logs::sequential_task(3, limit, || {
+                        partial_manual_merge::<True, True, True, _>(
+                            d.left, d.right, d.output, limit,
+                        )
+                    });
+                    (
+                        if let Some((i1, i2, io)) = remaining {
+                            Some(MergeBlock {
+                                left: &d.left[i1..],
+                                right: &d.right[i2..],
+                                output: &mut d.output[io..],
+                            })
+                        } else {
+                            None
+                        },
+                        (),
+                    )
+                },
+                Policy::Adaptive(4000),
+            )
         }
         SortingSlices {
             s: slices
@@ -346,7 +331,20 @@ fn generic_sort<T: Ord + Copy + Sync + Send>(v: &mut [T], policy: Policy) {
         s: vec![v, &mut buffer1, &mut buffer2],
         i: 0,
     };
-    let mut result: SortingSlices<T> = schedule(vectors, policy);
+    let mut result: SortingSlices<T> = vectors.work(
+        |d, limit| {
+            if d.s[0].len() == limit {
+                let mut slice = d;
+                rayon_logs::sequential_task(4, limit, || slice.s[slice.i].sort());
+                (None, slice)
+            } else {
+                let (mut start, remaining) = d.split_at(limit);
+                rayon_logs::sequential_task(2, limit, || start.s[start.i].sort());
+                (Some(remaining), start)
+            }
+        },
+        policy,
+    );
 
     // we might get one extra copy at the end if data is not in the right buffer
     if result.i != 0 {
