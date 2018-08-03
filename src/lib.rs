@@ -7,6 +7,8 @@ mod traits;
 pub use traits::{Divisible, Mergeable};
 mod scheduling;
 pub use scheduling::Policy;
+mod utils;
+pub use utils::fuse_slices;
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.

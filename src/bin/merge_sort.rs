@@ -5,7 +5,7 @@ extern crate rayon_logs;
 use rand::{ChaChaRng, Rng};
 use rayon_logs::ThreadPoolBuilder;
 
-use rayon_adaptive::{Divisible, Mergeable, Policy};
+use rayon_adaptive::{fuse_slices, Divisible, Mergeable, Policy};
 use std::iter::repeat;
 
 trait Boolean {
@@ -88,15 +88,6 @@ fn partial_manual_merge<
         }
     }
     Some((i1, i2, i_out))
-}
-
-/// We can now fuse contiguous slices together back into one.
-fn fuse_slices<'a, 'b, 'c: 'a + 'b, T: 'c>(s1: &'a mut [T], s2: &'b mut [T]) -> &'c mut [T] {
-    let ptr1 = s1.as_mut_ptr();
-    unsafe {
-        assert_eq!(ptr1.offset(s1.len() as isize) as *const T, s2.as_ptr());
-        std::slice::from_raw_parts_mut(ptr1, s1.len() + s2.len())
-    }
 }
 
 /// Adaptive merge input
