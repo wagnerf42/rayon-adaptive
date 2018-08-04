@@ -1,6 +1,23 @@
 //! This module contains all traits enabling us to express some parallelism.
-use scheduling::{schedule, Policy};
+use scheduling::{schedule, schedule2, Policy};
 use std;
+use std::collections::LinkedList;
+
+pub trait AdaptiveWork: Sized + Send {
+    type Output: Mergeable;
+    /// Work locally.
+    fn work(&mut self, limit: usize);
+    /// Get final output.
+    fn output(self) -> Self::Output;
+    /// Return how much work is left.
+    fn remaining_length(&self) -> usize;
+    /// We were stolen. Let's cut into two parts.
+    fn split(self) -> (Self, Self);
+    /// Launch computations with given scheduling policy.
+    fn schedule(self, policy: Policy) -> Self::Output {
+        schedule2(self, policy)
+    }
+}
 
 pub trait Divisible: Sized + Send {
     /// Divide ourselves.
@@ -29,6 +46,15 @@ pub trait Mergeable: Sized + Send {
 impl Mergeable for () {
     fn fuse(self, _other: Self) -> Self {
         ()
+    }
+}
+
+impl<T: Send> Mergeable for LinkedList<T> {
+    fn fuse(self, other: Self) -> Self {
+        let mut left = self;
+        let mut right = other; // TODO: change type of self and other ?
+        left.append(&mut right);
+        left
     }
 }
 

@@ -5,7 +5,7 @@ use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::{Divisible, Mergeable};
+use traits::{AdaptiveWork, Divisible, Mergeable};
 
 /// All scheduling available scheduling policies.
 pub enum Policy {
@@ -34,6 +34,39 @@ where
     }
 }
 
+pub(crate) fn schedule2<A, M>(mut input: A, policy: Policy) -> M
+where
+    A: AdaptiveWork<Output = M>,
+    M: Mergeable,
+{
+    match policy {
+        Policy::Join(block_size) => schedule_join2(input, block_size),
+        Policy::JoinContext(block_size) => schedule_join_context2(input, block_size),
+        _ => unimplemented!()
+        //Policy::DepJoin(block_size) => schedule_depjoin(input, work_function, block_size),
+        //Policy::Adaptive(block_size) => schedule_adaptive(input, work_function, block_size),
+    }
+}
+
+fn schedule_join2<A, M>(mut input: A, block_size: usize) -> M
+where
+    A: AdaptiveWork<Output = M>,
+    M: Mergeable,
+{
+    let len = input.remaining_length();
+    if len < block_size {
+        input.work(len);
+        input.output()
+    } else {
+        let (i1, i2) = input.split();
+        let (r1, r2) = rayon::join(
+            || schedule_join2(i1, block_size),
+            || schedule_join2(i2, block_size),
+        );
+        r1.fuse(r2)
+    }
+}
+
 fn schedule_join<D, M, F>(input: D, work_function: &F, block_size: usize) -> M
 where
     D: Divisible,
@@ -48,6 +81,33 @@ where
         let (r1, r2) = rayon::join(
             || schedule_join(i1, work_function, block_size),
             || schedule_join(i2, work_function, block_size),
+        );
+        r1.fuse(r2)
+    }
+}
+
+fn schedule_join_context2<A, M>(mut input: A, block_size: usize) -> M
+where
+    A: AdaptiveWork<Output = M>,
+    M: Mergeable,
+{
+    let len = input.remaining_length();
+    if len < block_size {
+        input.work(len);
+        input.output()
+    } else {
+        let (i1, mut i2) = input.split();
+        let (r1, r2) = rayon::join_context(
+            |_| schedule_join_context2(i1, block_size),
+            |c| {
+                if c.migrated() {
+                    schedule_join_context2(i2, block_size)
+                } else {
+                    let len = i2.remaining_length();
+                    i2.work(len);
+                    i2.output()
+                }
+            },
         );
         r1.fuse(r2)
     }
