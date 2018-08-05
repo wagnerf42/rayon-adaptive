@@ -1,8 +1,9 @@
 //! We provide here `EdibleSlice` and `EatingIterator` for better composability.
 
+use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use Divisible;
+use {fuse_slices, Divisible, Mergeable};
 
 /// A slice you can consume slowly.
 pub struct EdibleSlice<'a, T: 'a> {
@@ -85,6 +86,7 @@ impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
 }
 
 /// A mutable slice you can consume slowly.
+#[derive(Debug)]
 pub struct EdibleSliceMut<'a, T: 'a> {
     // the real underlying slice
     slice: &'a mut [T],
@@ -117,6 +119,24 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
             used: &mut self.used,
             iterator: self.slice[used..].iter_mut(),
         }
+    }
+    /// Split remaining part at given index.
+    /// also return used part on the left.
+    /// TODO: unstable api: we will also need split_at for locality
+    /// so it might be better in some kind of `Divisible`.
+    pub fn split_at(self, index: usize) -> (Self, Self) {
+        assert!(index < self.slice.len() - self.used - 1);
+        let (left_slice, right_slice) = self.slice.split_at_mut(index + self.used);
+        (
+            EdibleSliceMut {
+                slice: left_slice,
+                used: self.used,
+            },
+            EdibleSliceMut {
+                slice: right_slice,
+                used: 0,
+            },
+        )
     }
 }
 
@@ -156,5 +176,43 @@ impl<'a, T: 'a> Iterator for EatingIteratorMut<'a, T> {
             *self.used += 1;
         }
         next_one
+    }
+}
+
+/// We implement Mergeable for `EdibleSliceMut`.
+/// The way we go here is to move back data in order to form contiguous slices of data.
+/// It kinds of makes sense but is maybe too closely related to filter_collect's needs.
+/// All that stuff is highly toxic and assumes the final output WILL BE RESIZED to right size.
+impl<'a, T: 'a + Send> Mergeable for EdibleSliceMut<'a, T> {
+    fn fuse(self, other: Self) -> Self {
+        let left_use = self.used;
+        let left_size = self.slice.len();
+        let right_use = other.used;
+        let final_slice = fuse_slices(self.slice, other.slice);
+        if left_size != left_use {
+            if left_size - left_use >= right_use {
+                // we move back the data, fast
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        final_slice.as_ptr().offset(left_size as isize),
+                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        right_use,
+                    );
+                }
+            } else {
+                // we move back the data, slowly
+                unsafe {
+                    ptr::copy(
+                        final_slice.as_ptr().offset(left_size as isize),
+                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        right_use,
+                    );
+                }
+            }
+        }
+        EdibleSliceMut {
+            slice: final_slice,
+            used: left_use + right_use,
+        }
     }
 }

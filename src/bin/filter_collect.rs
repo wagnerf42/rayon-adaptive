@@ -2,39 +2,34 @@ extern crate rand;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 use rand::random;
-use rayon_adaptive::{fuse_slices, Divisible, Mergeable, Policy};
+use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
 use rayon_logs::ThreadPoolBuilder;
+use std::collections::LinkedList;
 
-struct FilterMergeable<'a> {
-    slice: &'a mut [u32],
-    used: usize, // size really used from start
+struct FilterWork<'a> {
+    input: EdibleSlice<'a, u32>,
+    output: EdibleSliceMut<'a, u32>,
 }
 
-impl<'a> Mergeable for FilterMergeable<'a> {
-    fn fuse(self, other: Self) -> Self {
-        if self.slice.len() >= self.used + other.used && self.slice.len() != self.used {
-            // enough space to move data back and moving back required
-            self.slice[self.used..(self.used + other.used)]
-                .copy_from_slice(&other.slice[..other.used])
-        }
-        if self.slice.len() >= self.used + other.used || self.slice.len() == self.used {
-            FilterMergeable {
-                slice: fuse_slices(self.slice, other.slice),
-                used: self.used + other.used,
-            }
-        } else {
-            // hard case, move things by hand
-            let mut j = self.slice.len();
-            let slice = fuse_slices(self.slice, other.slice);
-            for i in (self.used)..(self.used + other.used) {
-                slice[i] = slice[j];
-                j += 1;
-            }
-            FilterMergeable {
-                slice,
-                used: self.used + other.used,
-            }
-        }
+// we need to implement it manually to split output at best index.
+impl<'a> Divisible for FilterWork<'a> {
+    fn len(&self) -> usize {
+        self.input.len()
+    }
+    fn split(self) -> (Self, Self) {
+        let (left_input, right_input) = self.input.split();
+        let remaining_left_size = left_input.len();
+        let (left_output, right_output) = self.output.split_at(remaining_left_size);
+        (
+            FilterWork {
+                input: left_input,
+                output: left_output,
+            },
+            FilterWork {
+                input: right_input,
+                output: right_output,
+            },
+        )
     }
 }
 
@@ -45,43 +40,39 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
         uninitialized_output.set_len(size);
     }
     let used = {
-        let inout = (slice, uninitialized_output.as_mut_slice());
-
-        let output = inout.work(
-            |(input, output), limit| {
-                let mut collected = 0;
-                for (i, o) in input
+        let input = FilterWork {
+            input: EdibleSlice::new(slice),
+            output: EdibleSliceMut::new(uninitialized_output.as_mut_slice()),
+        };
+        let mut output_slices = input.work(
+            |slices, limit| {
+                for (i, o) in slices
+                    .input
                     .iter()
                     .take(limit)
                     .filter(|&i| i % 2 == 0)
-                    .zip(output.iter_mut())
+                    .zip(slices.output.iter_mut())
                 {
                     *o = *i;
-                    collected += 1;
                 }
-                let remaining_input = &input[limit..];
-                if remaining_input.is_empty() {
-                    (
-                        None,
-                        FilterMergeable {
-                            slice: output, // give back all slice to avoid holes
-                            used: collected,
-                        },
-                    )
-                } else {
-                    let (done_output, remaining_output) = output.split_at_mut(collected);
-                    (
-                        Some((remaining_input, remaining_output)),
-                        FilterMergeable {
-                            slice: done_output,
-                            used: collected,
-                        },
-                    )
-                }
+            },
+            |slices| {
+                let mut l = LinkedList::new();
+                l.push_back(slices.output);
+                l
             },
             policy,
         );
-        output.used
+        let first_output_slice = output_slices.pop_front().unwrap();
+        let final_output = output_slices.into_iter().fold(
+            first_output_slice,
+            |left_slice, right_slice| {
+                left_slice.fuse(right_slice) // TODO: this is done in src/slices.rs
+                                             // should we move it back here ?
+                                             // and also, should we do it in parallel ?
+            },
+        );
+        slice.len() - final_output.len()
     };
     unsafe {
         uninitialized_output.set_len(used);
@@ -90,7 +81,7 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
 }
 
 fn main() {
-    let v: Vec<u32> = (0..100_000).map(|_| random::<u32>() % 10).collect();
+    let v: Vec<u32> = (0..1_000_000).map(|_| random::<u32>() % 10).collect();
     let answer: Vec<u32> = v.iter().filter(|&i| i % 2 == 0).cloned().collect();
 
     let pool = ThreadPoolBuilder::new()

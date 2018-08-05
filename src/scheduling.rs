@@ -56,7 +56,7 @@ where
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
-    if len < block_size {
+    if len <= block_size {
         work(&mut input, len);
         output(input)
     } else {
@@ -77,7 +77,7 @@ where
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
-    if len < block_size {
+    if len <= block_size {
         work(&mut input, len);
         output(input)
     } else {
@@ -106,7 +106,7 @@ where
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
-    if len < block_size {
+    if len <= block_size {
         work(&mut input, len);
         output(input)
     } else {
