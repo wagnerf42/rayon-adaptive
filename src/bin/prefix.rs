@@ -49,7 +49,7 @@ fn update(slice: &mut [u32], increment: u32) -> u32 {
                 }
             },
             |_| (),
-            Policy::JoinContext(10000),
+            Policy::Adaptive(10000),
         );
     }
     slice.last().cloned().unwrap()
@@ -69,7 +69,7 @@ fn main() {
         .build()
         .expect("pool creation failed");
     let log = pool.install(|| {
-        prefix(&mut v, Policy::JoinContext(10000));
+        prefix(&mut v, Policy::Adaptive(10000));
     }).1;
     log.save_svg("prefix.svg").expect("saving svg failed");
     assert_eq!(v, answer);

@@ -1,18 +1,5 @@
 - new scheduling algorithm splitting recursively for locality
-- stabilize api (do we need a 'split_at' ? rename Block to Input ? rename compute to work ?)
-   it was nice to only need split (for .chars iterators for example)
-   but we still would still need split_at for locality
-
-   something like :
-     - divisible
-     - indexed_divisible (approximately)
-     - input
-   such that any indexed_divisible impl divisible
-   and any indexed_divisible can be turned into a full input by adjunction of a work function
-
-
 - fully adaptive algorithms (with worker and helper)
    a lot of design is still needed
 - impl find first from existing iterators
-- convenience functions like fusing slices...
 - lots of benches
