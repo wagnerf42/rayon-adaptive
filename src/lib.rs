@@ -4,13 +4,13 @@ extern crate rayon_logs as rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
-pub use traits::{AdaptiveWork, Divisible, Mergeable};
+pub use traits::{Divisible, Mergeable};
 mod scheduling;
 pub use scheduling::Policy;
 mod utils;
 pub use utils::fuse_slices;
 mod slices;
-pub use slices::EdibleSlice;
+pub use slices::{EdibleSlice, EdibleSliceMut};
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.

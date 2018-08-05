@@ -1,5 +1,6 @@
 //! We provide here `EdibleSlice` and `EatingIterator` for better composability.
 
+use std::slice::Iter;
 use std::slice::IterMut;
 use Divisible;
 
@@ -36,10 +37,11 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
     /// assert_eq!(v1, vec![0, 1, 2]);
     /// assert_eq!(v2, vec![3, 4]);
     /// ```
-    pub fn iter<'b>(&'b mut self) -> EatingIterator<'a, 'b, T> {
+    pub fn iter<'b>(&'b mut self) -> EatingIterator<'b, T> {
+        let used = self.used;
         EatingIterator {
-            edible: self,
-            eaten: 0,
+            used: &mut self.used,
+            iterator: self.slice[used..].iter(),
         }
     }
 }
@@ -66,26 +68,19 @@ impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
 
 /// Iterator on `EdibleSlice`.
 /// Updates slice's state on drop.
-pub struct EatingIterator<'a: 'b, 'b, T: 'a> {
-    edible: &'b mut EdibleSlice<'a, T>,
-    eaten: usize,
+pub struct EatingIterator<'a, T: 'a> {
+    used: &'a mut usize,
+    iterator: Iter<'a, T>,
 }
 
-impl<'a: 'b, 'b, T: 'a> Iterator for EatingIterator<'a, 'b, T> {
+impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.edible.remaining_slice().len() == self.eaten {
-            None
-        } else {
-            self.eaten += 1;
-            Some(&self.edible.remaining_slice()[self.eaten - 1])
+        let next_one = self.iterator.next();
+        if next_one.is_some() {
+            *self.used += 1;
         }
-    }
-}
-
-impl<'a: 'b, 'b, T: 'a> Drop for EatingIterator<'a, 'b, T> {
-    fn drop(&mut self) {
-        self.edible.used += self.eaten
+        next_one
     }
 }
 
@@ -102,43 +97,64 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
     pub fn new(slice: &'a mut [T]) -> Self {
         EdibleSliceMut { slice, used: 0 }
     }
+    /// Take a look at next element.
+    pub fn peek<'b>(&'b mut self) -> Option<&'b mut T> {
+        self.slice.get_mut(self.used)
+    }
+    /// Get back the whole slice.
+    pub fn slice(self) -> &'a mut [T] {
+        self.slice
+    }
     /// Return what's left of the inner slice.
     fn remaining_slice<'b>(&'b mut self) -> &'b mut [T] {
         &mut self.slice[self.used..]
     }
     /// Return an iterator on remaining elements (mutable).
     /// When the iterator drops we remember what's left unused.
-    pub fn iter<'b>(&'b mut self) -> EatingIteratorMut<'a, 'b, T> {
+    pub fn iter_mut<'b>(&'b mut self) -> EatingIteratorMut<'b, T> {
+        let used = self.used;
         EatingIteratorMut {
-            edible: self,
-            eaten: 0,
-            iterator: self.remaining_slice().iter_mut(),
+            used: &mut self.used,
+            iterator: self.slice[used..].iter_mut(),
         }
+    }
+}
+
+impl<'a, T: 'a + Sync + Send> Divisible for EdibleSliceMut<'a, T> {
+    fn len(&self) -> usize {
+        self.slice.len() - self.used
+    }
+    fn split(mut self) -> (Self, Self) {
+        let splitting_index = self.used + self.remaining_slice().len() / 2;
+        let (left_slice, right_slice) = self.slice.split_at_mut(splitting_index);
+        (
+            EdibleSliceMut {
+                slice: left_slice,
+                used: self.used,
+            },
+            EdibleSliceMut {
+                slice: right_slice,
+                used: 0,
+            },
+        )
     }
 }
 
 //TODO: factorize with other iterator using some more traits.
 /// Iterator on `EdibleSlice`.
 /// Updates slice's state on drop.
-pub struct EatingIteratorMut<'a: 'b, 'b, T: 'a> {
-    edible: &'b mut EdibleSliceMut<'a, T>,
-    iterator: IterMut<'b, T>,
-    eaten: usize,
+pub struct EatingIteratorMut<'a, T: 'a> {
+    used: &'a mut usize,
+    iterator: IterMut<'a, T>,
 }
 
-impl<'a: 'b, 'b, T: 'a> Iterator for EatingIteratorMut<'a, 'b, T> {
-    type Item = &'b mut T;
+impl<'a, T: 'a> Iterator for EatingIteratorMut<'a, T> {
+    type Item = &'a mut T;
     fn next(&mut self) -> Option<Self::Item> {
         let next_one = self.iterator.next();
         if next_one.is_some() {
-            self.eaten += 1;
+            *self.used += 1;
         }
         next_one
-    }
-}
-
-impl<'a: 'b, 'b, T: 'a> Drop for EatingIteratorMut<'a, 'b, T> {
-    fn drop(&mut self) {
-        self.edible.used += self.eaten
     }
 }
