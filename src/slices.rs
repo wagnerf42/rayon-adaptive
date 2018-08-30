@@ -1,5 +1,6 @@
 //! We provide here `EdibleSlice` and `EatingIterator` for better composability.
 
+use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
@@ -42,7 +43,7 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
         let used = self.used;
         EatingIterator {
             used: &mut self.used,
-            iterator: self.slice[used..].iter(),
+            iterator: self.slice[used..].iter().peekable(),
         }
     }
 }
@@ -71,7 +72,7 @@ impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
 /// Updates slice's state on drop.
 pub struct EatingIterator<'a, T: 'a> {
     used: &'a mut usize,
-    iterator: Iter<'a, T>,
+    iterator: Peekable<Iter<'a, T>>,
 }
 
 impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
@@ -82,6 +83,12 @@ impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
             *self.used += 1;
         }
         next_one
+    }
+}
+
+impl<'a, T: 'a> EatingIterator<'a, T> {
+    pub fn peek<'b>(&'b mut self) -> Option<&'b T> {
+        self.iterator.peek().map(|e| *e)
     }
 }
 
