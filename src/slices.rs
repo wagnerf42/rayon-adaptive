@@ -20,7 +20,7 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
         EdibleSlice { slice, used: 0 }
     }
     /// Return what's left of the inner slice.
-    fn remaining_slice(&self) -> &'a [T] {
+    pub fn remaining_slice(&self) -> &'a [T] {
         &self.slice[self.used..]
     }
     /// Return an iterator on remaining elements.
@@ -115,7 +115,11 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
         self.slice
     }
     /// Return what's left of the inner slice.
-    fn remaining_slice<'b>(&'b mut self) -> &'b mut [T] {
+    pub fn remaining_slice<'b>(&'b mut self) -> &'b mut [T] {
+        &mut self.slice[self.used..]
+    }
+    /// Consume self and return what's left of the inner slice.
+    pub fn into_remaining_slice(self) -> &'a mut [T] {
         &mut self.slice[self.used..]
     }
     /// Return an iterator on remaining elements (mutable).
