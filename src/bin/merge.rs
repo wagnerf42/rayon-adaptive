@@ -1,11 +1,11 @@
-//! let's rewrite parallel merge before parallel merge sort
+//! parallel merge sort, new api. not optimized or pretty
 extern crate itertools;
 extern crate rand;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 
 use rand::random;
-use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
+use rayon_adaptive::{fuse_slices, Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
 use rayon_logs::ThreadPoolBuilder;
 use std::cmp::min;
 use std::iter::repeat;
@@ -243,11 +243,31 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
     fn fuse(self, other: Self) -> Self {
-        unimplemented!()
+        let mut left = self;
+        let mut right = other;
+        let destination_index = (0..3).find(|&x| x != left.i && x != right.i).unwrap();
+        {
+            let left_index = left.i;
+            let right_index = right.i;
+            let (left_input, left_output) = left.mut_couple(left_index, destination_index);
+            let (right_input, right_output) = right.mut_couple(right_index, destination_index);
+            let output_slice = fuse_slices(left_output, right_output);
+            fuse(left_input, right_input, output_slice);
+        }
+        let fused_slices: Vec<_> = left.s
+            .into_iter()
+            .zip(right.s.into_iter())
+            .map(|(left_s, right_s)| fuse_slices(left_s, right_s))
+            .collect();
+        SortingSlices {
+            s: fused_slices,
+            i: destination_index,
+            eaten: 0, //it's a lie but we don't need it anyway
+        }
     }
 }
 
-fn adaptive_sort<T: Ord + Copy + Send + Sync>(slice: &mut [T]) {
+fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
     let mut tmp_slice1 = Vec::with_capacity(slice.len());
     let mut tmp_slice2 = Vec::with_capacity(slice.len());
     unsafe {
@@ -261,20 +281,27 @@ fn adaptive_sort<T: Ord + Copy + Send + Sync>(slice: &mut [T]) {
         eaten: 0,
     };
 
-    let result_slices = slices.work(
+    let mut result_slices = slices.work(
         |slices, limit| {
             let eaten = slices.eaten;
             let new_eaten = min(slices.eaten + limit, slices.s[0].len());
             let input_index = slices.i;
             let output_index = (input_index + 1) % 3;
             {
+                // it is not ok because we fuse in another place but remaining data is not moved
+                // there.
+                // ---> we need two indices, one for everything eaten and one for everything left
+                // ----> maybe have two slices
                 let (in_slice, out_slice) = slices.mut_couple(input_index, output_index);
+                eprintln!("sorting: {:?}", &in_slice[..new_eaten]);
                 in_slice[eaten..new_eaten].sort();
+                eprintln!("still sorting: {:?}", &in_slice[..new_eaten]);
                 sequential_fuse(
                     &in_slice[0..eaten],
                     &in_slice[eaten..new_eaten],
                     &mut out_slice[0..new_eaten],
                 );
+                eprintln!("sorted: {:?}", &out_slice[0..new_eaten]);
             }
             slices.i = output_index;
             slices.eaten = new_eaten;
@@ -283,11 +310,15 @@ fn adaptive_sort<T: Ord + Copy + Send + Sync>(slice: &mut [T]) {
         Policy::Adaptive(2_000),
     );
 
-    unimplemented!()
+    if result_slices.i != 0 {
+        let i = result_slices.i;
+        let (destination, source) = result_slices.mut_couple(0, i);
+        destination.copy_from_slice(source);
+    }
 }
 
 fn main() {
-    let mut v: Vec<u32> = (0..1_000_000).map(|_| random::<u32>() % 100_000).collect();
+    let mut v: Vec<u32> = (0..3000).map(|_| random::<u32>() % 100_000).collect();
     let mut w = v.clone();
     w.sort();
     adaptive_sort(&mut v);
