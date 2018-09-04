@@ -183,19 +183,26 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T]) 
 
 /// We'll need slices of several vectors at once.
 struct SortingSlices<'a, T: 'a> {
-    s: Vec<&'a mut [T]>, // we have 2 input slices and one output slice
-    i: usize,            // index of slice containing the data
-    eaten: usize,        // how much has already been processed
+    s: Vec<&'a mut [T]>,
+    i: usize,
+}
+
+struct SortingState<'a, T: 'a> {
+    slices: SortingSlices<'a, T>,
+    eaten: usize,
+    left_i: usize,
 }
 
 impl<'a, T: 'a> SortingSlices<'a, T> {
+    /// Borrow all mutable slices at once.
+    fn mut_slices<'b>(&'b mut self) -> (&'b mut [T], &'b mut [T], &'b mut [T]) {
+        let (s0, leftover) = self.s.split_first_mut().unwrap();
+        let (s1, s2) = leftover.split_first_mut().unwrap();
+        (s0, s1, s2.get_mut(0).unwrap())
+    }
     /// Return the two mutable slices of given indices.
     fn mut_couple<'b>(&'b mut self, i1: usize, i2: usize) -> (&'b mut [T], &'b mut [T]) {
-        let (s0, s1, s2) = {
-            let (s0, leftover) = self.s.split_first_mut().unwrap();
-            let (s1, s2) = leftover.split_first_mut().unwrap();
-            (s0, s1, s2.get_mut(0).unwrap())
-        };
+        let (s0, s1, s2) = self.mut_slices();
         match (i1, i2) {
             (0, 1) => (s0, s1),
             (0, 2) => (s0, s2),
@@ -216,28 +223,31 @@ impl<'a, T: 'a> SortingSlices<'a, T> {
             },
         );
         (
-            SortingSlices {
-                s: v.0,
-                i: self.i,
-                eaten: self.eaten,
-            },
-            SortingSlices {
-                s: v.1,
-                i: self.i,
-                eaten: 0,
-            },
+            SortingSlices { s: v.0, i: self.i },
+            SortingSlices { s: v.1, i: self.i },
         )
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingState<'a, T> {
     fn len(&self) -> usize {
-        self.s[0].len() - self.eaten
+        self.slices.s[0].len() - self.eaten
     }
     fn split(self) -> (Self, Self) {
-        let mid = (self.s[0].len() - self.eaten) / 2;
-        let eaten = self.eaten;
-        self.split_at(eaten + mid)
+        let mid = self.eaten + (self.slices.s[0].len() - self.eaten) / 2;
+        let (my_half, his_half) = self.slices.split_at(mid);
+        (
+            SortingState {
+                slices: my_half,
+                eaten: self.eaten,
+                left_i: self.left_i,
+            },
+            SortingState {
+                slices: his_half,
+                eaten: 0,
+                left_i: self.left_i,
+            },
+        )
     }
 }
 
@@ -254,7 +264,8 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
             let output_slice = fuse_slices(left_output, right_output);
             fuse(left_input, right_input, output_slice);
         }
-        let fused_slices: Vec<_> = left.s
+        let fused_slices: Vec<_> = left
+            .s
             .into_iter()
             .zip(right.s.into_iter())
             .map(|(left_s, right_s)| fuse_slices(left_s, right_s))
@@ -262,7 +273,6 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
         SortingSlices {
             s: fused_slices,
             i: destination_index,
-            eaten: 0, //it's a lie but we don't need it anyway
         }
     }
 }
@@ -275,38 +285,62 @@ fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T])
         tmp_slice2.set_len(slice.len());
     }
 
-    let slices = SortingSlices {
+    let remaining_slices = SortingSlices {
         s: vec![slice, tmp_slice1.as_mut_slice(), tmp_slice2.as_mut_slice()],
         i: 0,
+    };
+    let slices = SortingState {
+        slices: remaining_slices,
         eaten: 0,
+        left_i: 0,
     };
 
     let mut result_slices = slices.work(
         |slices, limit| {
+            let limit = min(slices.eaten + limit, slices.slices.s[0].len()); //TODO: required ?
             let eaten = slices.eaten;
-            let new_eaten = min(slices.eaten + limit, slices.s[0].len());
-            let input_index = slices.i;
-            let output_index = (input_index + 1) % 3;
-            {
-                // it is not ok because we fuse in another place but remaining data is not moved
-                // there.
-                // ---> we need two indices, one for everything eaten and one for everything left
-                // ----> maybe have two slices
-                let (in_slice, out_slice) = slices.mut_couple(input_index, output_index);
-                eprintln!("sorting: {:?}", &in_slice[..new_eaten]);
-                in_slice[eaten..new_eaten].sort();
-                eprintln!("still sorting: {:?}", &in_slice[..new_eaten]);
-                sequential_fuse(
-                    &in_slice[0..eaten],
-                    &in_slice[eaten..new_eaten],
-                    &mut out_slice[0..new_eaten],
-                );
-                eprintln!("sorted: {:?}", &out_slice[0..new_eaten]);
-            }
-            slices.i = output_index;
-            slices.eaten = new_eaten;
+            let left_i = slices.left_i;
+            let right_i = slices.slices.i;
+            //TODO: we need to switch back to full decomposition instead of work
+            //code would be so much more readable
+            let output_i = {
+                let (s0, s1, s2) = slices.slices.mut_slices();
+                let (left, right, output, output_i) = match (left_i, right_i) {
+                    (0, 0) => {
+                        let (l, r) = s0.split_at_mut(eaten);
+                        (l, &mut r[..limit - eaten], &mut s1[..limit], 1)
+                    }
+                    (1, 1) => {
+                        let (l, r) = s1.split_at_mut(eaten);
+                        (l, &mut r[..limit - eaten], &mut s0[..limit], 0)
+                    }
+                    (2, 2) => {
+                        let (l, r) = s2.split_at_mut(eaten);
+                        (l, &mut r[..limit - eaten], &mut s0[..limit], 0)
+                    }
+                    (0, 1) => (&mut s0[..eaten], &mut s1[eaten..limit], &mut s2[..limit], 2),
+                    (0, 2) => (&mut s0[..eaten], &mut s2[eaten..limit], &mut s1[..limit], 1),
+                    (1, 0) => (&mut s1[..eaten], &mut s0[eaten..limit], &mut s2[..limit], 2),
+                    (1, 2) => (&mut s1[..eaten], &mut s2[eaten..limit], &mut s0[..limit], 0),
+                    (2, 0) => (&mut s2[..eaten], &mut s0[eaten..limit], &mut s1[..limit], 1),
+                    (2, 1) => (&mut s2[..eaten], &mut s1[eaten..limit], &mut s0[..limit], 0),
+                    _ => panic!("no way"),
+                };
+                right.sort();
+                if !left.is_empty() {
+                    sequential_fuse(left, right, output);
+                    output_i
+                } else {
+                    right_i
+                }
+            };
+            slices.eaten = limit;
+            slices.left_i = output_i;
         },
-        |s| s,
+        |mut s| {
+            s.slices.i = s.left_i;
+            s.slices
+        },
         Policy::Adaptive(2_000),
     );
 
@@ -318,18 +352,18 @@ fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T])
 }
 
 fn main() {
-    let mut v: Vec<u32> = (0..3000).map(|_| random::<u32>() % 100_000).collect();
+    let mut v: Vec<u32> = (0..100_000).map(|_| random::<u32>() % 100_000).collect();
     let mut w = v.clone();
     w.sort();
-    adaptive_sort(&mut v);
 
     let pool = ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(2)
         .build()
         .expect("pool creation failed");
-    let log = pool.install(|| {
-        adaptive_sort(&mut v);
-    }).1;
+    let log =
+        pool.install(|| {
+            adaptive_sort(&mut v);
+        }).1;
     log.save_svg("merge.svg").expect("saving svg failed");
 
     assert_eq!(v, w);
