@@ -39,6 +39,12 @@ impl<T: Send> Mergeable for LinkedList<T> {
     }
 }
 
+impl<T: Send> Mergeable for Option<T> {
+    fn fuse(self, other: Self) -> Self {
+        self.or(other)
+    }
+}
+
 impl<'a, T: Sync> Divisible for &'a [T] {
     fn len(&self) -> usize {
         (*self as &[T]).len()
