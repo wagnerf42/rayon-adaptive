@@ -357,7 +357,7 @@ fn main() {
     w.sort();
 
     let pool = ThreadPoolBuilder::new()
-        .num_threads(2)
+        .num_threads(4)
         .build()
         .expect("pool creation failed");
     let log =

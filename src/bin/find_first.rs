@@ -17,7 +17,8 @@ struct FindingSlice<'a> {
 impl<'a> Divisible for FindingSlice<'a> {
     fn len(&self) -> usize {
         if self.found.load(Ordering::SeqCst)
-            || self.previous_worker_found
+            || self
+                .previous_worker_found
                 .as_ref()
                 .map(|f| f.load(Ordering::SeqCst))
                 .unwrap_or(false)
@@ -70,13 +71,13 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
 }
 
 fn main() {
-    let v: Vec<u32> = (0..1_000_000).collect();
+    let v: Vec<u32> = (0..10_000_000).collect();
 
     let pool = ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(4)
         .build()
         .expect("pool creation failed");
-    let (answer, log) = pool.install(|| find_first(&v, 480_000, Policy::Adaptive(10000)));
+    let (answer, log) = pool.install(|| find_first(&v, 4_800_000, Policy::Adaptive(10000)));
     log.save_svg("find_first.svg").expect("saving svg failed");
-    assert_eq!(answer.unwrap(), 480_000);
+    assert_eq!(answer.unwrap(), 4_800_000);
 }

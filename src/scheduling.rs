@@ -187,13 +187,22 @@ where
     //TODO: we still need macro blocks
     fn schedule(mut self) -> M {
         // TODO: automate this min everywhere ?
+        // TODO: factorize a little bit
         // start by computing a little bit in order to get a first output
         let size = min(self.input.len(), self.current_block_size);
 
         if self.input.len() <= self.current_block_size {
             self.cancel_stealing_task(); // no need to keep people waiting for nothing
+            self.work(size);
+            return (self.output_function)(self.input);
+        } else {
+            self.work(size);
+            if self.input.len() == 0 {
+                // it's over
+                self.cancel_stealing_task();
+                return (self.output_function)(self.input);
+            }
         }
-        self.work(size);
 
         // I have this really nice proof as to why I need phi but the margins
         // are too small to write it down here :-)
@@ -201,21 +210,23 @@ where
 
         // loop while not stolen or something left to do
         loop {
-            if self.input.len() == 0 {
-                return (self.output_function)(self.input);
-            }
-
             if self.is_stolen() && self.input.len() > self.initial_block_size {
                 return self.answer_steal();
             }
             self.current_block_size = (self.current_block_size as f64 * phi) as usize;
+            let size = min(self.input.len(), self.current_block_size);
 
             if self.input.len() <= self.current_block_size {
                 self.cancel_stealing_task(); // no need to keep people waiting for nothing
+                self.work(size);
+                return (self.output_function)(self.input);
             }
-
-            let size = min(self.input.len(), self.current_block_size);
             self.work(size);
+            if self.input.len() == 0 {
+                // it's over
+                self.cancel_stealing_task();
+                return (self.output_function)(self.input);
+            }
         }
     }
 }
@@ -251,7 +262,10 @@ where
 
         //TODO depjoin instead of join
         let (o1, maybe_o2) = rayon::join(
-            move || worker.schedule(),
+            move || {
+                let r = worker.schedule();
+                r
+            },
             move || {
                 stolen.store(true, Ordering::Relaxed);
                 let received =
