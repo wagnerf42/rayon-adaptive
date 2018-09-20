@@ -1,6 +1,6 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
-extern crate rayon_logs as rayon;
-//extern crate rayon;
+//extern crate rayon_logs as rayon;
+extern crate rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
@@ -11,6 +11,8 @@ mod utils;
 pub use utils::fuse_slices;
 mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
+mod algorithms;
+pub use algorithms::merge_sort::adaptive_sort;
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.

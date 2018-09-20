@@ -3,3 +3,4 @@
    a lot of design is still needed
 - impl find first from existing iterators
 - lots of benches
+- do find first's logs really make sense ?
