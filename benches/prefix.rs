@@ -18,6 +18,18 @@ fn prefix_adaptive(c: &mut Criterion) {
             },
         )
     });
+    c.bench_function("sequential prefix (size=10_000_000)", move |b| {
+        b.iter_with_setup(
+            || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),
+            |mut v| {
+                v.iter_mut().fold(0, |acc, x| {
+                    *x += acc;
+                    *x
+                });
+            },
+        )
+    });
+
     c.bench_function("rayon prefix (size=10_000_000)", move |b| {
         b.iter_with_setup(
             || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),

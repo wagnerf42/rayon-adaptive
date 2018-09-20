@@ -40,6 +40,33 @@ fn merge_sort_adaptive(c: &mut Criterion) {
     );
 
     c.bench_function(
+        "sequential merge sort (size=1_000_000, reversed input)",
+        move |b| {
+            b.iter_with_setup(
+                || (0..1_000_000).rev().collect::<Vec<u32>>(),
+                |mut v| {
+                    v.sort();
+                },
+            )
+        },
+    );
+    let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
+    c.bench_function(
+        "sequential merge sort (size=1_000_000, random input)",
+        move |b| {
+            b.iter_with_setup(
+                || {
+                    ra.shuffle(&mut all_numbers);
+                    all_numbers.clone()
+                },
+                |mut v| {
+                    v.sort();
+                },
+            )
+        },
+    );
+
+    c.bench_function(
         "rayon merge sort (size=1_000_000, reversed input)",
         move |b| {
             b.iter_with_setup(
