@@ -7,7 +7,7 @@ authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 criterion="*"
 
 [dependencies]
-rayon_logs={path="../rayon-logs"}
+rayon_logs="*"
 rayon="*"
 itertools="*"
 rand="*"
