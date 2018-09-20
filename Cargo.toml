@@ -16,3 +16,6 @@ rand="*"
 name = "merge_sort"
 harness = false
 
+[[bench]]
+name = "prefix"
+harness = false

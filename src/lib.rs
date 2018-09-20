@@ -13,6 +13,7 @@ mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
 mod algorithms;
 pub use algorithms::merge_sort::adaptive_sort;
+pub use algorithms::prefix::adaptive_prefix;
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.
