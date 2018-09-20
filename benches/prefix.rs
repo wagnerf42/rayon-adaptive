@@ -14,7 +14,7 @@ fn prefix_adaptive(c: &mut Criterion) {
         b.iter_with_setup(
             || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),
             |mut v| {
-                adaptive_prefix(&mut v, Policy::Adaptive(10_000));
+                adaptive_prefix(&mut v, |a, b| *a + *b, Policy::Adaptive(10_000));
             },
         )
     });

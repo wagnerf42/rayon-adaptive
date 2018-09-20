@@ -1,24 +1,28 @@
 //! Adaptive prefix algorithm.
-//! No genericity yet and no macro blocks.
+//! No macro blocks.
 use std::collections::LinkedList;
 use {Divisible, EdibleSliceMut, Policy};
 
-pub fn adaptive_prefix(v: &mut [u32], policy: Policy) {
+pub fn adaptive_prefix<T, O>(v: &mut [T], op: O, policy: Policy)
+where
+    T: Send + Sync + Clone,
+    O: Fn(&T, &T) -> T + Sync,
+{
     let input = EdibleSliceMut::new(v);
     let mut list = input.work(
         |slice, limit| {
             let c = {
                 let mut elements = slice.iter_mut().take(limit);
-                let mut c = *elements.next().unwrap();
+                let mut c = elements.next().unwrap().clone();
                 for e in elements {
-                    *e += c;
-                    c = *e;
+                    *e = op(e, &c);
+                    c = e.clone();
                 }
                 c
             };
             // pre-update next one
             if let Some(e) = slice.peek() {
-                *e += c;
+                *e = op(e, &c);
             }
         },
         |slice| {
@@ -32,17 +36,21 @@ pub fn adaptive_prefix(v: &mut [u32], policy: Policy) {
     let first = list.pop_front().unwrap();
     let mut current_value = first.last().cloned().unwrap();
     for slice in list.iter_mut() {
-        current_value = update(slice, current_value);
+        current_value = update(slice, current_value, &op);
     }
 }
 
-fn update(slice: &mut [u32], increment: u32) -> u32 {
+fn update<T, O>(slice: &mut [T], increment: T, op: &O) -> T
+where
+    T: Send + Sync + Clone,
+    O: Fn(&T, &T) -> T + Sync,
+{
     {
         let input = EdibleSliceMut::new(slice);
         input.work(
             |s, limit| {
                 for e in s.iter_mut().take(limit) {
-                    *e += increment
+                    *e = op(e, &increment)
                 }
             },
             |_| (),
