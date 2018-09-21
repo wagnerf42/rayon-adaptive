@@ -253,7 +253,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
         // let's try a nice optimization here for nearly sorted arrays.
         // if slices are already sorted and at same index then we do nothing !
         let destination_index = if left.i == right.i
-            && left.s[left.i].last() <= right.s[right.i].last()
+            && left.s[left.i].last() <= right.s[right.i].first()
         {
             left.i
         } else {
@@ -264,7 +264,16 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
                 let (left_input, left_output) = left.mut_couple(left_index, destination_index);
                 let (right_input, right_output) = right.mut_couple(right_index, destination_index);
                 let output_slice = fuse_slices(left_output, right_output);
-                fuse(left_input, right_input, output_slice);
+                // if slices are nearly sorted we will resort to memcpy
+                if left_input.last() <= right_input.first() {
+                    output_slice[..left_input.len()].copy_from_slice(left_input);
+                    output_slice[left_input.len()..].copy_from_slice(right_input);
+                } else if right_input.last() < left_input.first() {
+                    output_slice[..right_input.len()].copy_from_slice(right_input);
+                    output_slice[right_input.len()..].copy_from_slice(left_input);
+                } else {
+                    fuse(left_input, right_input, output_slice);
+                }
             }
             destination_index
         };
