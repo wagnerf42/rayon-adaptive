@@ -250,15 +250,24 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
     fn fuse(self, other: Self) -> Self {
         let mut left = self;
         let mut right = other;
-        let destination_index = (0..3).find(|&x| x != left.i && x != right.i).unwrap();
+        // let's try a nice optimization here for nearly sorted arrays.
+        // if slices are already sorted and at same index then we do nothing !
+        let destination_index = if left.i == right.i
+            && left.s[left.i].last() <= right.s[right.i].last()
         {
-            let left_index = left.i;
-            let right_index = right.i;
-            let (left_input, left_output) = left.mut_couple(left_index, destination_index);
-            let (right_input, right_output) = right.mut_couple(right_index, destination_index);
-            let output_slice = fuse_slices(left_output, right_output);
-            fuse(left_input, right_input, output_slice);
-        }
+            left.i
+        } else {
+            let destination_index = (0..3).find(|&x| x != left.i && x != right.i).unwrap();
+            {
+                let left_index = left.i;
+                let right_index = right.i;
+                let (left_input, left_output) = left.mut_couple(left_index, destination_index);
+                let (right_input, right_output) = right.mut_couple(right_index, destination_index);
+                let output_slice = fuse_slices(left_output, right_output);
+                fuse(left_input, right_input, output_slice);
+            }
+            destination_index
+        };
         let fused_slices: Vec<_> = left
             .s
             .into_iter()

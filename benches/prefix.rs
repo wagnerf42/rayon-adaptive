@@ -12,18 +12,18 @@ use criterion::Criterion;
 fn prefix_adaptive(c: &mut Criterion) {
     c.bench_function("adaptive prefix (size=10_000_000)", move |b| {
         b.iter_with_setup(
-            || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),
+            || (0..10_000_000).map(|_| 1.0).collect::<Vec<f64>>(),
             |mut v| {
-                adaptive_prefix(&mut v, |a, b| *a + *b, Policy::Adaptive(10_000));
+                adaptive_prefix(&mut v, |a, b| *a * *b, Policy::Adaptive(10_000));
             },
         )
     });
     c.bench_function("sequential prefix (size=10_000_000)", move |b| {
         b.iter_with_setup(
-            || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),
+            || (0..10_000_000).map(|_| 1.0).collect::<Vec<f64>>(),
             |mut v| {
-                v.iter_mut().fold(0, |acc, x| {
-                    *x += acc;
+                v.iter_mut().fold(1.0, |acc, x| {
+                    *x *= acc;
                     *x
                 });
             },
@@ -32,14 +32,14 @@ fn prefix_adaptive(c: &mut Criterion) {
 
     c.bench_function("rayon prefix (size=10_000_000)", move |b| {
         b.iter_with_setup(
-            || (0..10_000_000).map(|_| 1).collect::<Vec<u32>>(),
+            || (0..10_000_000).map(|_| 1.0).collect::<Vec<f64>>(),
             |mut v| {
                 let blocks = v
                     .par_iter_mut()
                     .fold(
-                        || (0, 0),
+                        || (0.0, 0),
                         |(previous_value, count), x| {
-                            *x += previous_value;
+                            *x *= previous_value;
                             (*x, count + 1)
                         },
                     )
@@ -61,7 +61,7 @@ fn prefix_adaptive(c: &mut Criterion) {
                     v[current_position..next_position]
                         .par_iter_mut()
                         .for_each(|x| {
-                            *x += previous_value;
+                            *x *= previous_value;
                         });
                     current_position = next_position;
                 }
