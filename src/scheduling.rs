@@ -9,6 +9,8 @@ use traits::{Divisible, Mergeable};
 
 /// All scheduling available scheduling policies.
 pub enum Policy {
+    /// Do all computations sequentially.
+    Sequential,
     /// Recursively cut in two with join until given block size.
     Join(usize),
     /// Recursively cut in two with join_context until given block size.
@@ -29,10 +31,11 @@ pub(crate) fn schedule<D, M, F, G>(
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     match policy {
+        Policy::Sequential => schedule_sequential(input, work_function, output_function),
         Policy::Join(block_size) => {
             schedule_join(input, work_function, output_function, block_size)
         }
@@ -48,17 +51,27 @@ where
     }
 }
 
-fn schedule_join<D, M, F, G>(mut input: D, work: &F, output: &G, block_size: usize) -> M
+fn schedule_sequential<D, M, F, G>(input: D, work: &F, output: &G) -> M
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
+    G: Fn(D) -> M + Sync,
+{
+    let len = input.len();
+    output(work(input, len))
+}
+
+fn schedule_join<D, M, F, G>(input: D, work: &F, output: &G, block_size: usize) -> M
+where
+    D: Divisible,
+    M: Mergeable,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        work(&mut input, len);
-        output(input)
+        output(work(input, len))
     } else {
         let (i1, i2) = input.split();
         let (r1, r2) = rayon::join(
@@ -69,19 +82,18 @@ where
     }
 }
 
-fn schedule_join_context<D, M, F, G>(mut input: D, work: &F, output: &G, block_size: usize) -> M
+fn schedule_join_context<D, M, F, G>(input: D, work: &F, output: &G, block_size: usize) -> M
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        work(&mut input, len);
-        output(input)
+        output(work(input, len))
     } else {
-        let (i1, mut i2) = input.split();
+        let (i1, i2) = input.split();
         let (r1, r2) = rayon::join_context(
             |_| schedule_join_context(i1, work, output, block_size),
             |c| {
@@ -89,8 +101,7 @@ where
                     schedule_join_context(i2, work, output, block_size)
                 } else {
                     let len = i2.len();
-                    work(&mut i2, len);
-                    output(i2)
+                    output(work(i2, len))
                 }
             },
         );
@@ -98,17 +109,16 @@ where
     }
 }
 
-fn schedule_depjoin<D, M, F, G>(mut input: D, work: &F, output: &G, block_size: usize) -> M
+fn schedule_depjoin<D, M, F, G>(input: D, work: &F, output: &G, block_size: usize) -> M
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        work(&mut input, len);
-        output(input)
+        output(work(input, len))
     } else {
         let (i1, i2) = input.split();
         depjoin(
@@ -124,7 +134,7 @@ struct AdaptiveWorker<
     'b,
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync + 'b,
+    F: Fn(D, usize) -> D + Sync + 'b,
     G: Fn(D) -> M + Sync + 'b,
 > {
     input: D,
@@ -141,7 +151,7 @@ impl<'a, 'b, D, M, F, G> AdaptiveWorker<'a, 'b, D, M, F, G>
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     fn new(
@@ -162,9 +172,6 @@ where
             output_function,
             phantom: PhantomData,
         }
-    }
-    fn work(&mut self, limit: usize) {
-        (self.work_function)(&mut self.input, limit)
     }
     fn is_stolen(&self) -> bool {
         self.stolen.load(Ordering::Relaxed)
@@ -193,10 +200,10 @@ where
 
         if self.input.len() <= self.current_block_size {
             self.cancel_stealing_task(); // no need to keep people waiting for nothing
-            self.work(size);
+            self.input = (self.work_function)(self.input, size);
             return (self.output_function)(self.input);
         } else {
-            self.work(size);
+            self.input = (self.work_function)(self.input, size);
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
@@ -218,10 +225,10 @@ where
 
             if self.input.len() <= self.current_block_size {
                 self.cancel_stealing_task(); // no need to keep people waiting for nothing
-                self.work(size);
+                self.input = (self.work_function)(self.input, size);
                 return (self.output_function)(self.input);
             }
-            self.work(size);
+            self.input = (self.work_function)(self.input, size);
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
@@ -232,7 +239,7 @@ where
 }
 
 fn schedule_adaptive<D, M, F, G>(
-    mut input: D,
+    input: D,
     work_function: &F,
     output_function: &G,
     initial_block_size: usize,
@@ -240,13 +247,12 @@ fn schedule_adaptive<D, M, F, G>(
 where
     D: Divisible,
     M: Mergeable,
-    F: Fn(&mut D, usize) + Sync,
+    F: Fn(D, usize) -> D + Sync,
     G: Fn(D) -> M + Sync,
 {
     let size = input.len();
     if size <= initial_block_size {
-        work_function(&mut input, size);
-        output_function(input)
+        output_function(work_function(input, size))
     } else {
         let stolen = &AtomicBool::new(false);
         let (sender, receiver) = channel();

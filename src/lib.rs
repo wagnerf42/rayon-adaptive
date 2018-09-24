@@ -4,7 +4,7 @@ extern crate rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
-pub use traits::{Divisible, Mergeable};
+pub use traits::{Divisible, DivisibleAtIndex, Mergeable};
 mod scheduling;
 pub use scheduling::Policy;
 mod utils;

@@ -54,7 +54,7 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
         previous_worker_found: None,
     };
     input.work(
-        |slice, limit| {
+        |mut slice, limit| {
             slice.result = slice
                 .slice
                 .iter()
@@ -64,6 +64,7 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
             if slice.result.is_some() {
                 slice.found.store(true, Ordering::SeqCst)
             }
+            slice
         },
         |slice| slice.result,
         policy,
