@@ -1,9 +1,8 @@
-//! parallel merge sort, new api. not optimized or pretty
+//! adaptive parallel merge sort.
 
 use std;
-use std::cmp::min;
 use std::iter::repeat;
-use {fuse_slices, Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
+use {fuse_slices, Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
 
 // main related code
 
@@ -126,25 +125,7 @@ impl<'a, T: 'a + Send + Sync + Ord + Copy> Divisible for FusionSlice<'a, T> {
     }
 }
 
-fn sequential_fuse<T: Ord + Copy>(left: &[T], right: &[T], output: &mut [T]) {
-    let mut left_iterator = left.iter().peekable();
-    let mut right_iterator = right.iter().peekable();
-    for o in output {
-        let go_left = match (left_iterator.peek(), right_iterator.peek()) {
-            (Some(l), Some(r)) => l <= r,
-            (Some(_), None) => true,
-            (None, Some(_)) => false,
-            (None, None) => panic!("not enough input when merging"),
-        };
-        *o = if go_left {
-            *left_iterator.next().unwrap()
-        } else {
-            *right_iterator.next().unwrap()
-        };
-    }
-}
-
-fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T]) {
+fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], policy: Policy) {
     let slices = FusionSlice {
         left: EdibleSlice::new(left),
         right: EdibleSlice::new(right),
@@ -173,7 +154,7 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T]) 
             slices
         },
         |_| (),
-        Policy::Adaptive(10_000),
+        policy,
     );
 }
 
@@ -183,12 +164,6 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T]) 
 struct SortingSlices<'a, T: 'a> {
     s: Vec<&'a mut [T]>,
     i: usize,
-}
-
-struct SortingState<'a, T: 'a> {
-    slices: SortingSlices<'a, T>,
-    eaten: usize,
-    left_i: usize,
 }
 
 impl<'a, T: 'a> SortingSlices<'a, T> {
@@ -227,30 +202,27 @@ impl<'a, T: 'a> SortingSlices<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingState<'a, T> {
+impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
     fn len(&self) -> usize {
-        self.slices.s[0].len() - self.eaten
+        self.s[0].len()
     }
     fn split(self) -> (Self, Self) {
-        let mid = self.eaten + (self.slices.s[0].len() - self.eaten) / 2;
-        let (my_half, his_half) = self.slices.split_at(mid);
-        (
-            SortingState {
-                slices: my_half,
-                eaten: self.eaten,
-                left_i: self.left_i,
-            },
-            SortingState {
-                slices: his_half,
-                eaten: 0,
-                left_i: self.left_i,
-            },
-        )
+        let mid = self.s[0].len() / 2;
+        self.split_at(mid)
+    }
+}
+
+impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a, T> {
+    fn split_at(self, i: usize) -> (Self, Self) {
+        self.split_at(i)
     }
 }
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
     fn fuse(self, other: Self) -> Self {
+        self.fuse_with_policy(other, Policy::Adaptive(10_000))
+    }
+    fn fuse_with_policy(self, other: Self, policy: Policy) -> Self {
         let mut left = self;
         let mut right = other;
         // let's try a nice optimization here for nearly sorted arrays.
@@ -275,7 +247,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
                     output_slice[..right_input.len()].copy_from_slice(right_input);
                     output_slice[right_input.len()..].copy_from_slice(left_input);
                 } else {
-                    fuse(left_input, right_input, output_slice);
+                    fuse(left_input, right_input, output_slice, policy);
                 }
             }
             destination_index
@@ -301,65 +273,15 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut 
         tmp_slice2.set_len(slice.len());
     }
 
-    let remaining_slices = SortingSlices {
+    let slices = SortingSlices {
         s: vec![slice, tmp_slice1.as_mut_slice(), tmp_slice2.as_mut_slice()],
         i: 0,
     };
-    let slices = SortingState {
-        slices: remaining_slices,
-        eaten: 0,
-        left_i: 0,
-    };
 
-    let mut result_slices = slices.work(
-        |mut slices, limit| {
-            let limit = min(slices.eaten + limit, slices.slices.s[0].len()); //TODO: required ?
-            let eaten = slices.eaten;
-            let left_i = slices.left_i;
-            let right_i = slices.slices.i;
-            //TODO: we need to switch back to full decomposition instead of work
-            //code would be so much more readable
-            let output_i = {
-                let (s0, s1, s2) = slices.slices.mut_slices();
-                let (left, right, output, output_i) = match (left_i, right_i) {
-                    (0, 0) => {
-                        let (l, r) = s0.split_at_mut(eaten);
-                        (l, &mut r[..limit - eaten], &mut s1[..limit], 1)
-                    }
-                    (1, 1) => {
-                        let (l, r) = s1.split_at_mut(eaten);
-                        (l, &mut r[..limit - eaten], &mut s0[..limit], 0)
-                    }
-                    (2, 2) => {
-                        let (l, r) = s2.split_at_mut(eaten);
-                        (l, &mut r[..limit - eaten], &mut s0[..limit], 0)
-                    }
-                    (0, 1) => (&mut s0[..eaten], &mut s1[eaten..limit], &mut s2[..limit], 2),
-                    (0, 2) => (&mut s0[..eaten], &mut s2[eaten..limit], &mut s1[..limit], 1),
-                    (1, 0) => (&mut s1[..eaten], &mut s0[eaten..limit], &mut s2[..limit], 2),
-                    (1, 2) => (&mut s1[..eaten], &mut s2[eaten..limit], &mut s0[..limit], 0),
-                    (2, 0) => (&mut s2[..eaten], &mut s0[eaten..limit], &mut s1[..limit], 1),
-                    (2, 1) => (&mut s2[..eaten], &mut s1[eaten..limit], &mut s0[..limit], 0),
-                    _ => panic!("no way"),
-                };
-                right.sort();
-                if !left.is_empty() {
-                    sequential_fuse(left, right, output);
-                    output_i
-                } else {
-                    right_i
-                }
-            };
-            slices.eaten = limit;
-            slices.left_i = output_i;
-            slices
-        },
-        |mut s| {
-            s.slices.i = s.left_i;
-            s.slices
-        },
-        Policy::Adaptive(2_000),
-    );
+    let mut result_slices = slices.map_reduce(|mut slices| {
+        slices.s[slices.i].sort();
+        slices
+    });
 
     if result_slices.i != 0 {
         let i = result_slices.i;
