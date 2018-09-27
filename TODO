@@ -1,6 +1,0 @@
-- new scheduling algorithm splitting recursively for locality
-- fully adaptive algorithms (with worker and helper)
-   a lot of design is still needed
-- impl find first from existing iterators
-- lots of benches
-- do find first's logs really make sense ?

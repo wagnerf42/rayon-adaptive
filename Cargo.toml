@@ -1,5 +1,5 @@
 [package]
-name = "rayon-adaptive"
+name = "rayon_adaptive"
 version = "0.1.0"
 authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 
@@ -7,10 +7,11 @@ authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 criterion="*"
 
 [dependencies]
-rayon_logs="*"
+rayon_logs= {path="../rayon-logs"}
 rayon="*"
 itertools="*"
 rand="*"
+time = "0.1"
 
 [[bench]]
 name = "merge_sort"
@@ -18,4 +19,8 @@ harness = false
 
 [[bench]]
 name = "prefix"
+harness = false
+
+[[bench]]
+name = "infix"
 harness = false

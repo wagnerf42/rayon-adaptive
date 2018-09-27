@@ -1,0 +1,7 @@
+*.html
+.gitignore
+*.svg
+Cargo.lock
+TODO
+target/
+.vim/

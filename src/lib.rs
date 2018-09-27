@@ -1,6 +1,6 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
-//extern crate rayon_logs as rayon;
-extern crate rayon;
+extern crate rayon_logs as rayon;
+//extern crate rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;

@@ -1,12 +1,12 @@
+#[macro_use]
+extern crate criterion;
 extern crate rand;
 extern crate rayon;
 extern crate rayon_adaptive;
-extern crate rayon_logs;
-extern crate time;
+use criterion::Criterion;
+use criterion::Fun;
 use rayon::prelude::*;
 use rayon_adaptive::*;
-use rayon_logs::ThreadPoolBuilder;
-use time::*;
 use {Divisible, EdibleSlice, Policy};
 
 struct InfixSlice<'a> {
@@ -188,86 +188,22 @@ fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
         .evaluate()
 }
 
-fn main() {
-    let testin = vec_gen();
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(8)
-        .build()
-        .expect("Pool creation failed");
-
-    let answer = solver_seq(&testin);
-
-    pool.compare(
-        "sequential",
-        "adaptive",
-        || {
-            let count = solver_seq(&testin);
-            assert_eq!(count, answer);
-        },
-        || {
-            let count = solver_adaptive(&testin, Policy::Adaptive(1000));
-            assert_eq!(count, answer);
-        },
-        "seq_adapt.html",
-    ).expect("logging failed");
-
-    pool.compare(
-        "adaptive",
-        "rayon split",
-        || {
-            let count = solver_adaptive(&testin, Policy::Adaptive(1000));
-            assert_eq!(count, answer);
-        },
-        || {
-            let count = solver_par_split(&testin);
-            assert_eq!(count, answer);
-        },
-        "adapt_split.html",
-    ).expect("logging failed");
-
-    pool.compare(
-        "adaptive",
-        "rayon fold",
-        || {
-            let count = solver_adaptive(&testin, Policy::Adaptive(1000));
-            assert_eq!(count, answer);
-        },
-        || {
-            let count = solver_par_fold(&testin);
-            assert_eq!(count, answer);
-        },
-        "adapt_fold.html",
-    ).expect("logging failed");
-
-    //  let seq_time_start = precise_time_ns();
-    //  let seq_out = solver_seq(&testin);
-    //  let seq_time_end = precise_time_ns();
-
-    //  let par_time_start = precise_time_ns();
-    //  let (paradaptive_out, log) = pool.install(|| solver_adaptive(&testin, Policy::Adaptive(9000)));
-    //  let par_time_end = precise_time_ns();
-
-    //  let parsplit_time_start = precise_time_ns();
-    //  let parsplit_out = solver_par_split(&testin);
-    //  let parsplit_time_end = precise_time_ns();
-
-    //  let parfold_time_start = precise_time_ns();
-    //  let parfold_out = solver_par_fold(&testin);
-    //  let parfold_time_end = precise_time_ns();
-
-    //  let seq_time_start = seq_time_end - seq_time_start;
-    //  let par_time_start = par_time_end - par_time_start;
-    //  let parsplit_time_start = parsplit_time_end - parsplit_time_start;
-    //  let parfold_time_start = parfold_time_end - parfold_time_start;
-    //  assert_eq!(paradaptive_out, seq_out);
-    //  assert_eq!(parfold_out, seq_out);
-    //  assert_eq!(parsplit_out, seq_out);
-    //  println!(
-    //      "seq time {}\nadaptive par time {}\nparsplit time {}\nparfold time {}",
-    //      (seq_time_start as f64) / 1_000_000.0,
-    //      (par_time_start as f64) / 1_000_000.0,
-    //      (parsplit_time_start as f64) / 1_000_000.0,
-    //      (parfold_time_start as f64) / 1_000_000.0
-    //  );
-    //  log.save_svg("infix.svg").expect("saving failed");
+fn infix_solver_bench(c: &mut Criterion) {
+    c.bench_function("adaptive infix (size=4_000_000)", |b| {
+        b.iter_with_setup(
+            || vec_gen(),
+            |testin| solver_adaptive(&testin, Policy::Adaptive(2000)),
+        )
+    });
+    c.bench_function("parallel split infix (size=4_000_000)", |b| {
+        b.iter_with_setup(|| vec_gen(), |testin| solver_par_split(&testin))
+    });
+    c.bench_function("sequential infix (size=4_000_000)", |b| {
+        b.iter_with_setup(|| vec_gen(), |testin| solver_seq(&testin))
+    });
+    c.bench_function("parallel fold infix (size=4_000_000)", |b| {
+        b.iter_with_setup(|| vec_gen(), |testin| solver_par_fold(&testin))
+    });
 }
+criterion_group!(benches, infix_solver_bench);
+criterion_main!(benches);
