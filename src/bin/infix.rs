@@ -3,10 +3,10 @@ extern crate rayon;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 extern crate time;
-use rayon::prelude::*;
+use rayon::prelude::ParallelSlice;
 use rayon_adaptive::*;
+use rayon_logs::prelude::*;
 use rayon_logs::ThreadPoolBuilder;
-use time::*;
 use {Divisible, EdibleSlice, Policy};
 
 struct InfixSlice<'a> {
@@ -146,7 +146,7 @@ fn solver_par_split(inp: &[Token]) -> u64 {
 }
 
 fn solver_par_fold(inp: &[Token]) -> u64 {
-    inp.into_par_iter()
+    inp.par_iter()
         .fold(
             || PartialProducts::new(),
             |mut products, tok| match *tok {
