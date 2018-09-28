@@ -192,7 +192,7 @@ fn infix_solver_bench(c: &mut Criterion) {
     c.bench_function("adaptive infix (size=4_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
-            |testin| solver_adaptive(&testin, Policy::Adaptive(2000)),
+            |testin| solver_adaptive(&testin, Policy::Adaptive(1000)),
         )
     });
     c.bench_function("parallel split infix (size=4_000_000)", |b| {
