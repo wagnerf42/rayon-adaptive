@@ -3,9 +3,11 @@ extern crate rayon;
 extern crate rayon_adaptive;
 extern crate rayon_logs;
 extern crate time;
+//use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::ParallelSlice;
 use rayon_adaptive::*;
 use rayon_logs::prelude::*;
+use rayon_logs::sequential_task;
 use rayon_logs::ThreadPoolBuilder;
 use {Divisible, EdibleSlice, Policy};
 
@@ -129,7 +131,7 @@ fn solver_seq(inp: &[Token]) -> u64 {
     });
     ans.0 + ans.1
 }
-
+//Not logged by rayon_logs.
 fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
@@ -144,9 +146,9 @@ fn solver_par_split(inp: &[Token]) -> u64 {
         })
         .sum::<u64>()
 }
-
+//Logged
 fn solver_par_fold(inp: &[Token]) -> u64 {
-    inp.par_iter()
+    inp.into_par_iter()
         .fold(
             || PartialProducts::new(),
             |mut products, tok| match *tok {
@@ -181,7 +183,11 @@ fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
     };
     input
         .work(
-            |input, limit| infix(&mut input.input, &mut input.output, limit),
+            |input, limit| {
+                sequential_task(0, limit, || {
+                    infix(&mut input.input, &mut input.output, limit)
+                })
+            },
             |slice| slice.output,
             policy,
         )
@@ -191,7 +197,7 @@ fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
 fn main() {
     let testin = vec_gen();
     let pool = ThreadPoolBuilder::new()
-        .num_threads(8)
+        .num_threads(3)
         .build()
         .expect("Pool creation failed");
 
