@@ -3,10 +3,11 @@ use rayon_adaptive::*;
 extern crate rayon_logs;
 extern crate time;
 use rayon_logs::ThreadPoolBuilder;
+const NUM_THREADS: usize = 3;
 fn main() {
     let testin = vec_gen();
     let pool = ThreadPoolBuilder::new()
-        .num_threads(3)
+        .num_threads(NUM_THREADS)
         .build()
         .expect("Pool creation failed");
 
@@ -39,7 +40,6 @@ fn main() {
         },
         "adapt_split.html",
     ).expect("logging failed");
-
     pool.compare(
         "adaptive",
         "rayon fold",

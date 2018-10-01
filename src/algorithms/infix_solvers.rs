@@ -1,8 +1,6 @@
 extern crate rand;
-extern crate rayon;
-extern crate rayon_logs;
-extern crate time;
-use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
+extern crate rayon as real_rayon;
+use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
 use rayon::prelude::*;
 use rayon::sequential_task;
 use {Divisible, EdibleSlice, Mergeable, Policy};
@@ -70,25 +68,10 @@ impl<'a> Divisible for InfixSlice<'a> {
 
 impl Mergeable for PartialProducts {
     fn fuse(mut self, right: Self) -> Self {
-        //let leftlen = self.products.len();
-        //let rightlen = right.products.len();
         *self.products.last_mut().unwrap() *= right.products.first().unwrap();
-        //let join_elem: u64 = self.products[leftlen - 1] * right.products[0];
-        //self.products[leftlen - 1] = join_elem;
         self.products.extend(&right.products[1..]);
         self.reduce_products();
         self
-        //let result = self
-        //    .products
-        //    .into_iter()
-        //    .chain(right.products.into_iter().skip(1))
-        //    .collect::<Vec<u64>>();
-        //let mut res = PartialProducts {
-        //    products: result,
-        //    len: leftlen + rightlen - 1,
-        //};
-        //res.reduce_products();
-        //res
     }
 }
 
@@ -132,12 +115,12 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
         .map(|slice| {
-            slice
-                .iter()
-                .filter_map(|tok| match tok {
-                    Token::Mult | Token::Add => None,
-                    Token::Num(i) => Some(i),
-                })
+            ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(
+                slice,
+            ).filter_map(|tok| match tok {
+                Token::Mult | Token::Add => None,
+                Token::Num(i) => Some(i),
+            })
                 .product::<u64>()
         })
         .sum::<u64>()

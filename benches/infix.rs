@@ -6,7 +6,13 @@ extern crate rayon_adaptive;
 use criterion::Criterion;
 use rayon_adaptive::*;
 
+const NUM_THREADS: usize = 3;
+
 fn infix_solver_bench(c: &mut Criterion) {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(NUM_THREADS)
+        .build_global()
+        .expect("Rayon global pool initialisation failed");
     c.bench_function("adaptive infix (size=4_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
