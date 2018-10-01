@@ -6,8 +6,12 @@ authors = ["frederic wagner <frederic.wagner@imag.fr>"]
 [dev-dependencies]
 criterion="*"
 
+[features]
+# enable this to log using rayon_logs
+logs = ["rayon_logs"]
+
 [dependencies]
-rayon_logs="*"
+rayon_logs={version="*", optional=true}
 rayon="*"
 itertools="*"
 rand="*"

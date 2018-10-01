@@ -1,7 +1,10 @@
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
 extern crate rayon_adaptive;
-extern crate rayon_logs;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+use rayon::ThreadPoolBuilder;
 use rayon_adaptive::{Divisible, EdibleSlice, Policy};
-use rayon_logs::ThreadPoolBuilder;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -16,12 +19,11 @@ struct FindingSlice<'a> {
 
 impl<'a> Divisible for FindingSlice<'a> {
     fn len(&self) -> usize {
-        if self.found.load(Ordering::SeqCst)
-            || self
-                .previous_worker_found
-                .as_ref()
-                .map(|f| f.load(Ordering::SeqCst))
-                .unwrap_or(false)
+        if self.found.load(Ordering::SeqCst) || self
+            .previous_worker_found
+            .as_ref()
+            .map(|f| f.load(Ordering::SeqCst))
+            .unwrap_or(false)
         {
             0
         } else {
@@ -78,7 +80,15 @@ fn main() {
         .num_threads(4)
         .build()
         .expect("pool creation failed");
-    let (answer, log) = pool.install(|| find_first(&v, 4_800_000, Policy::Adaptive(10000)));
-    log.save_svg("find_first.svg").expect("saving svg failed");
-    assert_eq!(answer.unwrap(), 4_800_000);
+    #[cfg(feature = "logs")]
+    {
+        let (answer, log) = pool.install(|| find_first(&v, 4_800_000, Policy::Adaptive(10000)));
+        log.save_svg("find_first.svg").expect("saving svg failed");
+        assert_eq!(answer.unwrap(), 4_800_000);
+    }
+    #[cfg(not(feature = "logs"))]
+    {
+        let answer = pool.install(|| find_first(&v, 4_800_000, Policy::Adaptive(10000)));
+        assert_eq!(answer.unwrap(), 4_800_000);
+    }
 }

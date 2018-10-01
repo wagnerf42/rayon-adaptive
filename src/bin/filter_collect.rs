@@ -1,9 +1,13 @@
 extern crate rand;
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
 extern crate rayon_adaptive;
-extern crate rayon_logs;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+
 use rand::random;
+use rayon::ThreadPoolBuilder;
 use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
-use rayon_logs::ThreadPoolBuilder;
 use std::collections::LinkedList;
 
 struct FilterWork<'a> {
@@ -65,14 +69,14 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
             policy,
         );
         let first_output_slice = output_slices.pop_front().unwrap();
-        let final_output = output_slices.into_iter().fold(
-            first_output_slice,
-            |left_slice, right_slice| {
-                left_slice.fuse(right_slice) // TODO: this is done in src/slices.rs
-                                             // should we move it back here ?
-                                             // and also, should we do it in parallel ?
-            },
-        );
+        let final_output =
+            output_slices
+                .into_iter()
+                .fold(first_output_slice, |left_slice, right_slice| {
+                    left_slice.fuse(right_slice) // TODO: this is done in src/slices.rs
+                                                 // should we move it back here ?
+                                                 // and also, should we do it in parallel ?
+                });
         slice.len() - final_output.len()
     };
     unsafe {
@@ -89,7 +93,15 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("failed building pool");
-    let (filtered, log) = pool.install(|| filter_collect(&v, Policy::Adaptive(2000)));
-    assert_eq!(filtered, answer);
-    log.save_svg("filter.svg").expect("failed saving svg");
+    #[cfg(feature = "logs")]
+    {
+        let (filtered, log) = pool.install(|| filter_collect(&v, Policy::Adaptive(2000)));
+        assert_eq!(filtered, answer);
+        log.save_svg("filter.svg").expect("failed saving svg");
+    }
+    #[cfg(not(feature = "logs"))]
+    {
+        let filtered = pool.install(|| filter_collect(&v, Policy::Adaptive(2000)));
+        assert_eq!(filtered, answer);
+    }
 }

@@ -274,8 +274,10 @@ where
             },
             move || {
                 stolen.store(true, Ordering::Relaxed);
-                //let received =
-                //    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
+                #[cfg(feature = "logs")]
+                let received =
+                    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
+                #[cfg(not(feature = "logs"))]
                 let received = receiver.recv().expect("receiving failed");
                 if received.is_none() {
                     return None;

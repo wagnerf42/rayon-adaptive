@@ -1,6 +1,8 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
-//extern crate rayon_logs as rayon;
+#[cfg(not(feature = "logs"))]
 extern crate rayon;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
