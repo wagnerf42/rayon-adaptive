@@ -51,6 +51,7 @@ fn merge_sort_adaptive(c: &mut Criterion) {
         },
     );
     let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
+    let mut ra = ChaChaRng::new_unseeded();
     c.bench_function(
         "sequential merge sort (size=1_000_000, random input)",
         move |b| {
@@ -78,6 +79,7 @@ fn merge_sort_adaptive(c: &mut Criterion) {
         },
     );
     let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
+    let mut ra = ChaChaRng::new_unseeded();
     c.bench_function(
         "rayon merge sort (size=1_000_000, random input)",
         move |b| {
