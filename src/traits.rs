@@ -1,7 +1,6 @@
 //! This module contains all traits enabling us to express some parallelism.
 use scheduling::{schedule, Policy};
 use std;
-use std::collections::LinkedList;
 
 pub trait Divisible: Sized + Send {
     /// Divide ourselves.
@@ -9,23 +8,36 @@ pub trait Divisible: Sized + Send {
     /// Return our length.
     fn len(&self) -> usize;
     /// Use this function when splitting generates a tangible work overhead.
-    fn work<F, G, M>(self, work_function: F, output_function: G, policy: Policy) -> M
+    fn work<O, WF, OF, MF>(
+        self,
+        work_function: WF,
+        output_function: OF,
+        merge_function: MF,
+        policy: Policy,
+    ) -> O
     where
-        F: Fn(Self, usize) -> Self + Sync,
-        G: Fn(Self) -> M + Sync,
-        M: Mergeable,
+        WF: Fn(Self, usize) -> Self + Sync,
+        OF: Fn(Self) -> O + Sync,
+        MF: Fn(O, O) -> O + Sync,
+        O: Sized + Send,
     {
-        schedule(self, &work_function, &output_function, policy)
+        schedule(
+            self,
+            &work_function,
+            &output_function,
+            &merge_function,
+            policy,
+        )
     }
 }
 
 /// Some genericity to use only one scheduler for all different input types.
-struct LocalWork<I: DivisibleAtIndex, M: Mergeable> {
+struct LocalWork<I: DivisibleAtIndex, O> {
     remaining_work: I,
-    output: Option<M>,
+    output: Option<O>,
 }
 
-impl<I: DivisibleAtIndex, M: Mergeable> Divisible for LocalWork<I, M> {
+impl<I: DivisibleAtIndex, O: Send> Divisible for LocalWork<I, O> {
     fn split(self) -> (Self, Self) {
         let (left_work, right_work) = self.remaining_work.split();
         (
@@ -48,64 +60,35 @@ pub trait DivisibleAtIndex: Divisible {
     /// Divide ourselves where requested.
     fn split_at(self, index: usize) -> (Self, Self);
     /// Easy api but use only when splitting generates no tangible work overhead.
-    /// TODO: have the same with Mergeable ?
-    fn map_reduce<F, M>(self, map_function: F) -> M
+    fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
     where
-        F: Fn(Self) -> M + Sync,
-        M: Mergeable,
+        MF: Fn(Self) -> O + Sync,
+        RF: Fn(O, O) -> O + Sync,
+        O: Send,
     {
         let full_work = LocalWork {
             remaining_work: self,
             output: None,
         };
         full_work.work(
-            |w, limit| -> LocalWork<Self, M> {
+            |w, limit| -> LocalWork<Self, O> {
                 let (todo_now, remaining) = w.remaining_work.split_at(limit);
                 let new_result = map_function(todo_now);
 
                 LocalWork {
                     remaining_work: remaining,
                     output: if let Some(output) = w.output {
-                        Some(output.fuse_with_policy(new_result, Policy::Sequential))
+                        //TODO: force sequential ? Some(output.fuse_with_policy(new_result, Policy::Sequential))
+                        Some(reduce_function(output, new_result))
                     } else {
                         Some(new_result)
                     },
                 }
             },
             |w| w.output.unwrap(),
+            |left, right| reduce_function(left, right),
             Policy::Adaptive(1000),
         )
-    }
-}
-
-/// All outputs must implement this trait.
-pub trait Mergeable: Sized + Send {
-    /// Merge two outputs into one.
-    fn fuse(self, other: Self) -> Self;
-    /// Merge two outputs into one, the way we are told.
-    fn fuse_with_policy(self, other: Self, _policy: Policy) -> Self {
-        self.fuse(other)
-    }
-}
-
-impl Mergeable for () {
-    fn fuse(self, _other: Self) -> Self {
-        ()
-    }
-}
-
-impl<T: Send> Mergeable for LinkedList<T> {
-    fn fuse(self, other: Self) -> Self {
-        let mut left = self;
-        let mut right = other; // TODO: change type of self and other ?
-        left.append(&mut right);
-        left
-    }
-}
-
-impl<T: Send> Mergeable for Option<T> {
-    fn fuse(self, other: Self) -> Self {
-        self.or(other)
     }
 }
 

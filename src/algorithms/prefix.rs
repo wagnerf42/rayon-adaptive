@@ -31,6 +31,10 @@ where
             list.push_back(slice.slice());
             list
         },
+        |mut left, mut right| {
+            left.append(&mut right);
+            left
+        },
         policy,
     );
 
@@ -56,6 +60,7 @@ where
                 s
             },
             |_| (),
+            |_, _| (),
             Policy::Adaptive(10000),
         );
     }

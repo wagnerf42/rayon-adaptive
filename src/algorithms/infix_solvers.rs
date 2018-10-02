@@ -2,8 +2,7 @@ extern crate rand;
 extern crate rayon as real_rayon;
 use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
 use rayon::prelude::*;
-use rayon::sequential_task;
-use {Divisible, EdibleSlice, Mergeable, Policy};
+use {Divisible, EdibleSlice, Policy};
 
 pub struct InfixSlice<'a> {
     input: EdibleSlice<'a, Token>,
@@ -17,6 +16,12 @@ pub struct PartialProducts {
 impl PartialProducts {
     fn new() -> Self {
         PartialProducts { products: vec![1] }
+    }
+    fn fuse(mut self, other: Self) -> Self {
+        *self.products.last_mut().unwrap() *= other.products.first().unwrap();
+        self.products.extend(&other.products[1..]);
+        self.reduce_products();
+        self
     }
     fn evaluate(self) -> u64 {
         self.products.iter().sum::<u64>()
@@ -66,15 +71,6 @@ impl<'a> Divisible for InfixSlice<'a> {
     }
 }
 
-impl Mergeable for PartialProducts {
-    fn fuse(mut self, right: Self) -> Self {
-        *self.products.last_mut().unwrap() *= right.products.first().unwrap();
-        self.products.extend(&right.products[1..]);
-        self.reduce_products();
-        self
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Mult,
@@ -97,8 +93,7 @@ pub fn vec_gen() -> Vec<Token> {
                     Token::Mult
                 }
             }
-        })
-        .collect::<Vec<Token>>();
+        }).collect::<Vec<Token>>();
     expr
 }
 
@@ -120,10 +115,8 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
             ).filter_map(|tok| match tok {
                 Token::Mult | Token::Add => None,
                 Token::Num(i) => Some(i),
-            })
-                .product::<u64>()
-        })
-        .sum::<u64>()
+            }).product::<u64>()
+        }).sum::<u64>()
 }
 //Logged
 pub fn solver_par_fold(inp: &[Token]) -> u64 {
@@ -141,8 +134,7 @@ pub fn solver_par_fold(inp: &[Token]) -> u64 {
                 }
                 Token::Mult => products,
             },
-        )
-        .reduce(|| PartialProducts::new(), |left, right| left.fuse(right))
+        ).reduce(|| PartialProducts::new(), |left, right| left.fuse(right))
         .evaluate()
 }
 
@@ -162,13 +154,12 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
     };
     input
         .work(
-            |input, limit| {
-                sequential_task(0, limit, || {
-                    infix(&mut input.input, &mut input.output, limit)
-                })
+            |mut input, limit| {
+                infix(&mut input.input, &mut input.output, limit);
+                input
             },
             |slice| slice.output,
+            |left, right| left.fuse(right),
             policy,
-        )
-        .evaluate()
+        ).evaluate()
 }

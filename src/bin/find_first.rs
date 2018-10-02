@@ -69,6 +69,7 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
             slice
         },
         |slice| slice.result,
+        |left, right| left.or(right),
         policy,
     )
 }
