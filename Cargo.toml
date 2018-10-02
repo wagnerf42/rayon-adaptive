@@ -11,7 +11,7 @@ criterion="*"
 logs = ["rayon_logs"]
 
 [dependencies]
-rayon_logs={version="*", optional=true}
+rayon_logs={optional=true, path="../rayon-logs"}
 rayon="*"
 itertools="*"
 rand="*"
