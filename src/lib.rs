@@ -1,10 +1,13 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
+
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
+#[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
-//extern crate rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
-pub use traits::{Divisible, Mergeable};
+pub use traits::{Divisible, DivisibleAtIndex, Mergeable};
 mod scheduling;
 pub use scheduling::Policy;
 mod utils;

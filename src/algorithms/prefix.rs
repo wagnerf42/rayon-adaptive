@@ -10,7 +10,7 @@ where
 {
     let input = EdibleSliceMut::new(v);
     let mut list = input.work(
-        |slice, limit| {
+        |mut slice, limit| {
             let c = {
                 let mut elements = slice.iter_mut().take(limit);
                 let mut c = elements.next().unwrap().clone();
@@ -24,6 +24,7 @@ where
             if let Some(e) = slice.peek() {
                 *e = op(e, &c);
             }
+            slice
         },
         |slice| {
             let mut list = LinkedList::new();
@@ -48,10 +49,11 @@ where
     {
         let input = EdibleSliceMut::new(slice);
         input.work(
-            |s, limit| {
+            |mut s, limit| {
                 for e in s.iter_mut().take(limit) {
                     *e = op(e, &increment)
                 }
+                s
             },
             |_| (),
             Policy::Adaptive(10000),
