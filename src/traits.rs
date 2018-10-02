@@ -29,6 +29,13 @@ pub trait Divisible: Sized + Send {
             policy,
         )
     }
+    /// Easy api when we return no results.
+    fn for_each<WF>(self, work_function: WF, policy: Policy)
+    where
+        WF: Fn(Self, usize) -> Self + Sync,
+    {
+        self.work(work_function, |_| (), |_, _| (), policy)
+    }
 }
 
 /// Some genericity to use only one scheduler for all different input types.

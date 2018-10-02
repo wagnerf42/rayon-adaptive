@@ -130,7 +130,7 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
         output: EdibleSliceMut::new(output),
     };
 
-    slices.work(
+    slices.for_each(
         |mut slices, limit| {
             {
                 let mut left_i = slices.left.iter();
@@ -151,8 +151,6 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
             }
             slices
         },
-        |_| (),
-        |_, _| (),
         policy,
     );
 }
