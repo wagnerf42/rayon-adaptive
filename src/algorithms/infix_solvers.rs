@@ -1,13 +1,21 @@
 extern crate rand;
+
 #[cfg(not(feature = "logs"))]
 extern crate rayon;
+#[cfg(not(feature = "logs"))]
+use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
+#[cfg(feature = "logs")]
+extern crate rayon as real_rayon;
+#[cfg(feature = "logs")]
+use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
-use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
+
 use rayon::prelude::*;
+
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
-use {Divisible, EdibleSlice, Mergeable, Policy};
+use {Divisible, EdibleSlice, Policy};
 
 pub struct InfixSlice<'a> {
     input: EdibleSlice<'a, Token>,
@@ -21,6 +29,12 @@ pub struct PartialProducts {
 impl PartialProducts {
     fn new() -> Self {
         PartialProducts { products: vec![1] }
+    }
+    fn fuse(mut self, other: Self) -> Self {
+        *self.products.last_mut().unwrap() *= other.products.first().unwrap();
+        self.products.extend(&other.products[1..]);
+        self.reduce_products();
+        self
     }
     fn evaluate(self) -> u64 {
         self.products.iter().sum::<u64>()
@@ -70,15 +84,6 @@ impl<'a> Divisible for InfixSlice<'a> {
     }
 }
 
-impl Mergeable for PartialProducts {
-    fn fuse(mut self, right: Self) -> Self {
-        *self.products.last_mut().unwrap() *= right.products.first().unwrap();
-        self.products.extend(&right.products[1..]);
-        self.reduce_products();
-        self
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Mult,
@@ -119,7 +124,12 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
         .map(|slice| {
-            ::algorithms::infix_solvers::rayon::prelude::IntoParallelIterator::into_par_iter(slice)
+            // It's tricky because rayon-logs does not support par_split right now
+            #[cfg(not(feature = "logs"))]
+            let iterator = slice.into_par_iter();
+            #[cfg(feature = "logs")]
+            let iterator = ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(slice);
+            iterator
                 .filter_map(|tok| match tok {
                     Token::Mult | Token::Add => None,
                     Token::Num(i) => Some(i),
@@ -163,31 +173,20 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
         input: EdibleSlice::new(inp),
         output: PartialProducts::new(),
     };
-    #[cfg(feature = "logs")]
-    {
-        input
-            .work(
-                |input, limit| {
-                    sequential_task(0, limit, || {
-                        infix(&mut input.input, &mut input.output, limit)
-                    })
-                },
-                |slice| slice.output,
-                policy,
-            )
-            .evaluate()
-    }
-    #[cfg(not(feature = "logs"))]
-    {
-        input
-            .work(
-                |mut input, limit| {
-                    infix(&mut input.input, &mut input.output, limit);
-                    input
-                },
-                |slice| slice.output,
-                policy,
-            )
-            .evaluate()
-    }
+    input
+        .work(
+            |mut input, limit| {
+                #[cfg(feature = "logs")]
+                sequential_task(0, limit, || {
+                    infix(&mut input.input, &mut input.output, limit)
+                });
+                #[cfg(not(feature = "logs"))]
+                infix(&mut input.input, &mut input.output, limit);
+                input
+            },
+            |slice| slice.output,
+            |left, right| left.fuse(right),
+            policy,
+        )
+        .evaluate()
 }

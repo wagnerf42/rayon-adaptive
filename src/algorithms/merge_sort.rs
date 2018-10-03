@@ -2,7 +2,7 @@
 
 use std;
 use std::iter::repeat;
-use {fuse_slices, Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
+use {fuse_slices, Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Policy};
 
 // main related code
 
@@ -24,8 +24,7 @@ fn subslice_without_last_value<T: Eq>(slice: &[T]) -> &[T] {
                     } else {
                         std::cmp::Ordering::Less
                     }
-                })
-                .unwrap_err();
+                }).unwrap_err();
             &slice[0..(searching_range_start + index)]
         }
         None => slice,
@@ -49,8 +48,7 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
                     } else {
                         std::cmp::Ordering::Greater
                     }
-                })
-                .unwrap_err();
+                }).unwrap_err();
             &slice[index..]
         }
         None => slice,
@@ -132,7 +130,7 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
         output: EdibleSliceMut::new(output),
     };
 
-    slices.work(
+    slices.for_each(
         |mut slices, limit| {
             {
                 let mut left_i = slices.left.iter();
@@ -153,7 +151,6 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
             }
             slices
         },
-        |_| (),
         policy,
     );
 }
@@ -166,7 +163,50 @@ struct SortingSlices<'a, T: 'a> {
     i: usize,
 }
 
-impl<'a, T: 'a> SortingSlices<'a, T> {
+impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
+    /// Call parallel merge on the right slices.
+    fn fuse_with_policy(self, other: Self, policy: Policy) -> Self {
+        let mut left = self;
+        let mut right = other;
+        // let's try a nice optimization here for nearly sorted arrays.
+        // if slices are already sorted and at same index then we do nothing !
+        let destination_index = if left.i == right.i
+            && left.s[left.i].last() <= right.s[right.i].first()
+        {
+            left.i
+        } else {
+            let destination_index = (0..3).find(|&x| x != left.i && x != right.i).unwrap();
+            {
+                let left_index = left.i;
+                let right_index = right.i;
+                let (left_input, left_output) = left.mut_couple(left_index, destination_index);
+                let (right_input, right_output) = right.mut_couple(right_index, destination_index);
+                let output_slice = fuse_slices(left_output, right_output);
+                // if slices are nearly sorted we will resort to memcpy
+                if left_input.last() <= right_input.first() {
+                    output_slice[..left_input.len()].copy_from_slice(left_input);
+                    output_slice[left_input.len()..].copy_from_slice(right_input);
+                } else if right_input.last() < left_input.first() {
+                    output_slice[..right_input.len()].copy_from_slice(right_input);
+                    output_slice[right_input.len()..].copy_from_slice(left_input);
+                } else {
+                    fuse(left_input, right_input, output_slice, policy);
+                }
+            }
+            destination_index
+        };
+        let fused_slices: Vec<_> = left
+            .s
+            .into_iter()
+            .zip(right.s.into_iter())
+            .map(|(left_s, right_s)| fuse_slices(left_s, right_s))
+            .collect();
+        SortingSlices {
+            s: fused_slices,
+            i: destination_index,
+        }
+    }
+
     /// Borrow all mutable slices at once.
     fn mut_slices<'b>(&'b mut self) -> (&'b mut [T], &'b mut [T], &'b mut [T]) {
         let (s0, leftover) = self.s.split_first_mut().unwrap();
@@ -218,53 +258,6 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> Mergeable for SortingSlices<'a, T> {
-    fn fuse(self, other: Self) -> Self {
-        self.fuse_with_policy(other, Policy::Adaptive(10_000))
-    }
-    fn fuse_with_policy(self, other: Self, policy: Policy) -> Self {
-        let mut left = self;
-        let mut right = other;
-        // let's try a nice optimization here for nearly sorted arrays.
-        // if slices are already sorted and at same index then we do nothing !
-        let destination_index = if left.i == right.i
-            && left.s[left.i].last() <= right.s[right.i].first()
-        {
-            left.i
-        } else {
-            let destination_index = (0..3).find(|&x| x != left.i && x != right.i).unwrap();
-            {
-                let left_index = left.i;
-                let right_index = right.i;
-                let (left_input, left_output) = left.mut_couple(left_index, destination_index);
-                let (right_input, right_output) = right.mut_couple(right_index, destination_index);
-                let output_slice = fuse_slices(left_output, right_output);
-                // if slices are nearly sorted we will resort to memcpy
-                if left_input.last() <= right_input.first() {
-                    output_slice[..left_input.len()].copy_from_slice(left_input);
-                    output_slice[left_input.len()..].copy_from_slice(right_input);
-                } else if right_input.last() < left_input.first() {
-                    output_slice[..right_input.len()].copy_from_slice(right_input);
-                    output_slice[right_input.len()..].copy_from_slice(left_input);
-                } else {
-                    fuse(left_input, right_input, output_slice, policy);
-                }
-            }
-            destination_index
-        };
-        let fused_slices: Vec<_> = left
-            .s
-            .into_iter()
-            .zip(right.s.into_iter())
-            .map(|(left_s, right_s)| fuse_slices(left_s, right_s))
-            .collect();
-        SortingSlices {
-            s: fused_slices,
-            i: destination_index,
-        }
-    }
-}
-
 pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
     let mut tmp_slice1 = Vec::with_capacity(slice.len());
     let mut tmp_slice2 = Vec::with_capacity(slice.len());
@@ -278,10 +271,13 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut 
         i: 0,
     };
 
-    let mut result_slices = slices.map_reduce(|mut slices| {
-        slices.s[slices.i].sort();
-        slices
-    });
+    let mut result_slices = slices.map_reduce(
+        |mut slices| {
+            slices.s[slices.i].sort();
+            slices
+        },
+        |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
+    );
 
     if result_slices.i != 0 {
         let i = result_slices.i;

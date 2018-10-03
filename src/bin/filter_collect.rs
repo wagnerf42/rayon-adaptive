@@ -7,7 +7,7 @@ extern crate rayon_logs as rayon;
 
 use rand::random;
 use rayon::ThreadPoolBuilder;
-use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Mergeable, Policy};
+use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Policy};
 use std::collections::LinkedList;
 
 struct FilterWork<'a> {
@@ -65,6 +65,10 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
                 let mut l = LinkedList::new();
                 l.push_back(slices.output);
                 l
+            },
+            |mut left, mut right| {
+                left.append(&mut right);
+                left
             },
             policy,
         );

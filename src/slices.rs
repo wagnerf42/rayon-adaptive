@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use {fuse_slices, Divisible, Mergeable};
+use {fuse_slices, Divisible};
 
 /// A slice you can consume slowly.
 pub struct EdibleSlice<'a, T: 'a> {
@@ -149,6 +149,42 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
             },
         )
     }
+
+    /// Fuse two *contiguous* edibleslices back together.
+    /// The way we go here is to move back data in order to form contiguous slices of data.
+    /// It kinds of makes sense but is maybe too closely related to filter_collect's needs.
+    /// All that stuff is highly toxic and assumes the final output WILL BE RESIZED to right size.
+    pub fn fuse(self, other: Self) -> Self {
+        let left_use = self.used;
+        let left_size = self.slice.len();
+        let right_use = other.used;
+        let final_slice = fuse_slices(self.slice, other.slice);
+        if left_size != left_use {
+            if left_size - left_use >= right_use {
+                // we move back the data, fast
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        final_slice.as_ptr().offset(left_size as isize),
+                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        right_use,
+                    );
+                }
+            } else {
+                // we move back the data, slowly
+                unsafe {
+                    ptr::copy(
+                        final_slice.as_ptr().offset(left_size as isize),
+                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        right_use,
+                    );
+                }
+            }
+        }
+        EdibleSliceMut {
+            slice: final_slice,
+            used: left_use + right_use,
+        }
+    }
 }
 
 impl<'a, T: 'a + Sync + Send> Divisible for EdibleSliceMut<'a, T> {
@@ -187,43 +223,5 @@ impl<'a, T: 'a> Iterator for EatingIteratorMut<'a, T> {
             *self.used += 1;
         }
         next_one
-    }
-}
-
-/// We implement Mergeable for `EdibleSliceMut`.
-/// The way we go here is to move back data in order to form contiguous slices of data.
-/// It kinds of makes sense but is maybe too closely related to filter_collect's needs.
-/// All that stuff is highly toxic and assumes the final output WILL BE RESIZED to right size.
-impl<'a, T: 'a + Send> Mergeable for EdibleSliceMut<'a, T> {
-    fn fuse(self, other: Self) -> Self {
-        let left_use = self.used;
-        let left_size = self.slice.len();
-        let right_use = other.used;
-        let final_slice = fuse_slices(self.slice, other.slice);
-        if left_size != left_use {
-            if left_size - left_use >= right_use {
-                // we move back the data, fast
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        final_slice.as_ptr().offset(left_size as isize),
-                        final_slice.as_mut_ptr().offset(left_use as isize),
-                        right_use,
-                    );
-                }
-            } else {
-                // we move back the data, slowly
-                unsafe {
-                    ptr::copy(
-                        final_slice.as_ptr().offset(left_size as isize),
-                        final_slice.as_mut_ptr().offset(left_use as isize),
-                        right_use,
-                    );
-                }
-            }
-        }
-        EdibleSliceMut {
-            slice: final_slice,
-            used: left_use + right_use,
-        }
     }
 }
