@@ -6,7 +6,7 @@ extern crate rayon_adaptive;
 use criterion::Criterion;
 use rayon_adaptive::*;
 
-const NUM_THREADS: usize = 3;
+const NUM_THREADS: usize = 8;
 
 fn infix_solver_bench(c: &mut Criterion) {
     rayon::ThreadPoolBuilder::new()
