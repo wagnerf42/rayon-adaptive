@@ -1,40 +1,65 @@
 //! This module contains all traits enabling us to express some parallelism.
 use scheduling::{schedule, Policy};
 use std;
+use std::marker::PhantomData;
+
+pub struct DivisibleWork<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
+    input: I,
+    work_function: WF,
+}
+
+pub struct MappedWork<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> {
+    input: I,
+    work_function: WF,
+    output_function: OF, // TODO: rename to map
+    output_type: PhantomData<O>,
+}
+
+impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
+    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(self, map_function: OF) -> MappedWork<I, O, WF, OF> {
+        MappedWork {
+            input: self.input,
+            work_function: self.work_function,
+            output_function: map_function,
+            output_type: PhantomData,
+        }
+    }
+}
+
+impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
+    MappedWork<I, O, WF, OF>
+{
+    pub fn reduce<MF: Fn(O, O) -> O + Sync>(self, merge_function: MF, policy: Policy) -> O {
+        schedule(
+            self.input,
+            &self.work_function,
+            &self.output_function,
+            &merge_function,
+            policy,
+        )
+    }
+}
 
 pub trait Divisible: Sized + Send {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
     /// Return our length.
     fn len(&self) -> usize;
-    /// Use this function when splitting generates a tangible work overhead.
-    fn work<O, WF, OF, MF>(
+    fn work<WF: Fn(Self, usize) -> Self + Sync>(
         self,
         work_function: WF,
-        output_function: OF,
-        merge_function: MF,
-        policy: Policy,
-    ) -> O
-    where
-        WF: Fn(Self, usize) -> Self + Sync,
-        OF: Fn(Self) -> O + Sync,
-        MF: Fn(O, O) -> O + Sync,
-        O: Sized + Send,
-    {
-        schedule(
-            self,
-            &work_function,
-            &output_function,
-            &merge_function,
-            policy,
-        )
+    ) -> DivisibleWork<Self, WF> {
+        DivisibleWork {
+            input: self,
+            work_function,
+        }
     }
     /// Easy api when we return no results.
     fn for_each<WF>(self, work_function: WF, policy: Policy)
     where
         WF: Fn(Self, usize) -> Self + Sync,
     {
-        self.work(work_function, |_| (), |_, _| (), policy)
+        schedule(self, &work_function, &|_| (), &|_, _| (), policy)
     }
 }
 
@@ -77,8 +102,9 @@ pub trait DivisibleAtIndex: Divisible {
             remaining_work: self,
             output: None,
         };
-        full_work.work(
-            |w, limit| -> LocalWork<Self, O> {
+        schedule(
+            full_work,
+            &|w, limit| -> LocalWork<Self, O> {
                 let (todo_now, remaining) = w.remaining_work.split_at(limit);
                 let new_result = map_function(todo_now);
 
@@ -92,8 +118,8 @@ pub trait DivisibleAtIndex: Divisible {
                     },
                 }
             },
-            |w| w.output.unwrap(),
-            |left, right| reduce_function(left, right),
+            &|w| w.output.unwrap(),
+            &|left, right| reduce_function(left, right),
             Policy::Adaptive(1000),
         )
     }

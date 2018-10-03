@@ -55,8 +55,8 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
         found: Arc::new(AtomicBool::new(false)),
         previous_worker_found: None,
     };
-    input.work(
-        |mut slice, limit| {
+    input
+        .work(|mut slice, limit| {
             slice.result = slice
                 .slice
                 .iter()
@@ -67,11 +67,8 @@ fn find_first(v: &[u32], target: u32, policy: Policy) -> Option<u32> {
                 slice.found.store(true, Ordering::SeqCst)
             }
             slice
-        },
-        |slice| slice.result,
-        |left, right| left.or(right),
-        policy,
-    )
+        }).map(|slice| slice.result)
+        .reduce(|left, right| left.or(right), policy)
 }
 
 fn main() {

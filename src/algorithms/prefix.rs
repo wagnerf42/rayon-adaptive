@@ -9,8 +9,8 @@ where
     O: Fn(&T, &T) -> T + Sync,
 {
     let input = EdibleSliceMut::new(v);
-    let mut list = input.work(
-        |mut slice, limit| {
+    let mut list = input
+        .work(|mut slice, limit| {
             let c = {
                 let mut elements = slice.iter_mut().take(limit);
                 let mut c = elements.next().unwrap().clone();
@@ -25,18 +25,17 @@ where
                 *e = op(e, &c);
             }
             slice
-        },
-        |slice| {
+        }).map(|slice| {
             let mut list = LinkedList::new();
             list.push_back(slice.slice());
             list
-        },
-        |mut left, mut right| {
-            left.append(&mut right);
-            left
-        },
-        policy,
-    );
+        }).reduce(
+            |mut left, mut right| {
+                left.append(&mut right);
+                left
+            },
+            policy,
+        );
 
     let first = list.pop_front().unwrap();
     let mut current_value = first.last().cloned().unwrap();

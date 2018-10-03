@@ -48,8 +48,8 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
             input: EdibleSlice::new(slice),
             output: EdibleSliceMut::new(uninitialized_output.as_mut_slice()),
         };
-        let mut output_slices = input.work(
-            |mut slices, limit| {
+        let mut output_slices = input
+            .work(|mut slices, limit| {
                 for (i, o) in slices
                     .input
                     .iter()
@@ -60,18 +60,17 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
                     *o = *i;
                 }
                 slices
-            },
-            |slices| {
+            }).map(|slices| {
                 let mut l = LinkedList::new();
                 l.push_back(slices.output);
                 l
-            },
-            |mut left, mut right| {
-                left.append(&mut right);
-                left
-            },
-            policy,
-        );
+            }).reduce(
+                |mut left, mut right| {
+                    left.append(&mut right);
+                    left
+                },
+                policy,
+            );
         let first_output_slice = output_slices.pop_front().unwrap();
         let final_output =
             output_slices

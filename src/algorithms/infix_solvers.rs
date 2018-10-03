@@ -153,13 +153,10 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
         output: PartialProducts::new(),
     };
     input
-        .work(
-            |mut input, limit| {
-                infix(&mut input.input, &mut input.output, limit);
-                input
-            },
-            |slice| slice.output,
-            |left, right| left.fuse(right),
-            policy,
-        ).evaluate()
+        .work(|mut input, limit| {
+            infix(&mut input.input, &mut input.output, limit);
+            input
+        }).map(|slice| slice.output)
+        .reduce(|left, right| left.fuse(right), policy)
+        .evaluate()
 }
