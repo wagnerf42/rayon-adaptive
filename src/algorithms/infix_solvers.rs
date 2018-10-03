@@ -1,7 +1,11 @@
 extern crate rand;
-extern crate rayon as real_rayon;
-use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
 use rayon::prelude::*;
+#[cfg(feature = "logs")]
 use rayon::sequential_task;
 use {Divisible, EdibleSlice, Mergeable, Policy};
 
@@ -115,12 +119,11 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
         .map(|slice| {
-            ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(
-                slice,
-            ).filter_map(|tok| match tok {
-                Token::Mult | Token::Add => None,
-                Token::Num(i) => Some(i),
-            })
+            ::algorithms::infix_solvers::rayon::prelude::IntoParallelIterator::into_par_iter(slice)
+                .filter_map(|tok| match tok {
+                    Token::Mult | Token::Add => None,
+                    Token::Num(i) => Some(i),
+                })
                 .product::<u64>()
         })
         .sum::<u64>()
@@ -160,15 +163,31 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
         input: EdibleSlice::new(inp),
         output: PartialProducts::new(),
     };
-    input
-        .work(
-            |input, limit| {
-                sequential_task(0, limit, || {
-                    infix(&mut input.input, &mut input.output, limit)
-                })
-            },
-            |slice| slice.output,
-            policy,
-        )
-        .evaluate()
+    #[cfg(feature = "logs")]
+    {
+        input
+            .work(
+                |input, limit| {
+                    sequential_task(0, limit, || {
+                        infix(&mut input.input, &mut input.output, limit)
+                    })
+                },
+                |slice| slice.output,
+                policy,
+            )
+            .evaluate()
+    }
+    #[cfg(not(feature = "logs"))]
+    {
+        input
+            .work(
+                |mut input, limit| {
+                    infix(&mut input.input, &mut input.output, limit);
+                    input
+                },
+                |slice| slice.output,
+                policy,
+            )
+            .evaluate()
+    }
 }
