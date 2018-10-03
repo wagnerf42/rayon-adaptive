@@ -258,6 +258,19 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a
     }
 }
 
+/// Sort given slice using an adaptive version of merge sort.
+/// For now we require Copy on T.
+/// Sort is stable.
+///
+/// # Examples
+///
+/// ```
+/// use rayon_adaptive::adaptive_sort;
+/// let v: Vec<u32> = (0..100_000).collect();
+/// let mut inverted_v: Vec<u32> = (0..100_000).rev().collect();
+/// adaptive_sort(&mut inverted_v);
+/// assert_eq!(v, inverted_v);
+/// ```
 pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
     let mut tmp_slice1 = Vec::with_capacity(slice.len());
     let mut tmp_slice2 = Vec::with_capacity(slice.len());
