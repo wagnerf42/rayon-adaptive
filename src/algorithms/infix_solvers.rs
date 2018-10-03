@@ -1,7 +1,20 @@
 extern crate rand;
+
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
+#[cfg(not(feature = "logs"))]
+use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
+#[cfg(feature = "logs")]
 extern crate rayon as real_rayon;
+#[cfg(feature = "logs")]
 use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+
 use rayon::prelude::*;
+
+#[cfg(feature = "logs")]
+use rayon::sequential_task;
 use {Divisible, EdibleSlice, Policy};
 
 pub struct InfixSlice<'a> {
@@ -110,13 +123,19 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
         .map(|slice| {
-            ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(
-                slice,
-            ).filter_map(|tok| match tok {
-                Token::Mult | Token::Add => None,
-                Token::Num(i) => Some(i),
-            }).product::<u64>()
-        }).sum::<u64>()
+            // It's tricky because rayon-logs does not support par_split right now
+            #[cfg(not(feature = "logs"))]
+            let iterator = slice.into_par_iter();
+            #[cfg(feature = "logs")]
+            let iterator = ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(slice);
+            iterator
+                .filter_map(|tok| match tok {
+                    Token::Mult | Token::Add => None,
+                    Token::Num(i) => Some(i),
+                })
+                .product::<u64>()
+        })
+        .sum::<u64>()
 }
 //Logged
 pub fn solver_par_fold(inp: &[Token]) -> u64 {
@@ -154,6 +173,11 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
     };
     input
         .work(|mut input, limit| {
+            #[cfg(feature = "logs")]
+            sequential_task(0, limit, || {
+                infix(&mut input.input, &mut input.output, limit)
+            });
+            #[cfg(not(feature = "logs"))]
             infix(&mut input.input, &mut input.output, limit);
             input
         }).map(|slice| slice.output)
