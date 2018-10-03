@@ -3,6 +3,19 @@
 use std::collections::LinkedList;
 use {Divisible, EdibleSliceMut, Policy};
 
+/// Run adaptive prefix algortihm on given slice.
+/// Each element is replaced by folding with op since beginning of the slice.
+/// It requires an associative operation.
+///
+/// # Example
+///
+/// ```
+/// use rayon_adaptive::{adaptive_prefix, Policy};
+/// let mut v = vec![1u32; 100_000];
+/// adaptive_prefix(&mut v, |e1, e2| e1 + e2, Policy::Adaptive(1000));
+/// let count: Vec<u32> = (1..=100_000).collect();
+/// assert_eq!(v, count);
+/// ```
 pub fn adaptive_prefix<T, O>(v: &mut [T], op: O, policy: Policy)
 where
     T: Send + Sync + Clone,
