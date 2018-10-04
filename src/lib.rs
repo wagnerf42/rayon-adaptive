@@ -1,5 +1,7 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
 
+#[macro_use]
+extern crate smallvec;
 #[cfg(not(feature = "logs"))]
 extern crate rayon;
 #[cfg(feature = "logs")]

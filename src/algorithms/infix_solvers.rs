@@ -12,6 +12,7 @@ use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
 extern crate rayon_logs as rayon;
 
 use rayon::prelude::*;
+use smallvec::SmallVec;
 
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
@@ -23,21 +24,27 @@ pub struct InfixSlice<'a> {
 }
 #[derive(Debug)]
 pub struct PartialProducts {
-    products: Vec<u64>,
+    products: SmallVec<[u64; 3]>,
 }
 
 impl PartialProducts {
     fn new() -> Self {
-        PartialProducts { products: vec![1] }
+        PartialProducts {
+            products: smallvec![1],
+        }
     }
     fn fuse(mut self, other: Self) -> Self {
         *self.products.last_mut().unwrap() *= other.products.first().unwrap();
-        self.products.extend(&other.products[1..]);
+        self.products.extend(other.products[1..].iter().cloned());
         self.reduce_products();
         self
     }
     fn evaluate(self) -> u64 {
-        self.products.iter().sum::<u64>()
+        #[cfg(feature = "logs")]
+        let res = sequential_task(12, 1, || self.products.iter().sum::<u64>());
+        #[cfg(not(feature = "logs"))]
+        let res = self.products.iter().sum::<u64>();
+        res
     }
     fn update_product(&mut self, num: u64) {
         let len = self.products.len();
@@ -56,7 +63,7 @@ impl PartialProducts {
             let sum: u64 = self.products[1..self.products.len() - 1]
                 .iter()
                 .sum::<u64>();
-            self.products = vec![
+            self.products = smallvec![
                 self.products[0],
                 sum,
                 self.products[self.products.len() - 1],
