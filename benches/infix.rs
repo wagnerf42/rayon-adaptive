@@ -16,17 +16,17 @@ fn infix_solver_bench(c: &mut Criterion) {
     c.bench_function("adaptive infix (size=4_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
-            |testin| solver_adaptive(&testin, Policy::Adaptive(1000)),
+            |testin| {solver_adaptive(&testin, Policy::Adaptive(1000); testin}),
         )
     });
     c.bench_function("parallel split infix (size=4_000_000)", |b| {
-        b.iter_with_setup(|| vec_gen(), |testin| solver_par_split(&testin))
+        b.iter_with_setup(|| vec_gen(), |testin| {solver_par_split(&testin);testin})
     });
     c.bench_function("sequential infix (size=4_000_000)", |b| {
-        b.iter_with_setup(|| vec_gen(), |testin| solver_seq(&testin))
+        b.iter_with_setup(|| vec_gen(), |testin| {solver_seq(&testin);testin})
     });
     c.bench_function("parallel fold infix (size=4_000_000)", |b| {
-        b.iter_with_setup(|| vec_gen(), |testin| solver_par_fold(&testin))
+        b.iter_with_setup(|| vec_gen(), |testin| {solver_par_fold(&testin);testin})
     });
 }
 criterion_group!(benches, infix_solver_bench);

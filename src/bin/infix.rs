@@ -9,8 +9,6 @@ use rayon::ThreadPoolBuilder;
 const NUM_THREADS: usize = 3;
 
 fn main() {
-    let testin = vec_gen();
-    let answer = solver_seq(&testin);
     #[cfg(feature = "logs")]
     {
         let pool = ThreadPoolBuilder::new()
@@ -24,24 +22,30 @@ fn main() {
                 || vec_gen(),
                 |vec| {
                     solver_seq(&vec);
+                    vec
                 },
-            )
-            .attach_algorithm_with_setup(
+            ).attach_algorithm_with_setup(
                 "adaptive",
                 || vec_gen(),
                 |vec| {
                     solver_adaptive(&vec, Policy::Adaptive(1000));
+                    vec
                 },
-            )
-            .attach_algorithm("rayon split", || {
-                let count = solver_par_split(&testin);
-                assert_eq!(count, answer);
-            })
-            .attach_algorithm("rayon fold", || {
-                let count = solver_par_fold(&testin);
-                assert_eq!(count, answer);
-            })
-            .generate_logs("comparisons.html")
+            ).attach_algorithm_with_setup(
+                "rayon split",
+                || vec_gen(),
+                |vec| {
+                    solver_par_split(&vec);
+                    vec
+                },
+            ).attach_algorithm_with_setup(
+                "rayon fold",
+                || vec_gen(),
+                |vec| {
+                    solver_par_fold(&vec);
+                    vec
+                },
+            ).generate_logs("comparisons.html")
             .expect("comparison failed");
     }
     #[cfg(not(feature = "logs"))]
@@ -51,9 +55,11 @@ fn main() {
             .build_global()
             .expect("Pool creation failed");
 
-        let adapt_ans = solver_adaptive(&testin, Policy::Adaptive(1000));
-        let parsplit_ans = solver_par_split(&testin);
-        let parfold_ans = solver_par_fold(&testin);
+        let random_expression = vec_gen();
+        let answer = solver_seq(&random_expression);
+        let adapt_ans = solver_adaptive(&random_expression, Policy::Adaptive(1000));
+        let parsplit_ans = solver_par_split(&random_expression);
+        let parfold_ans = solver_par_fold(&random_expression);
         assert_eq!(answer, adapt_ans);
         assert_eq!(answer, parsplit_ans);
         assert_eq!(answer, parfold_ans);

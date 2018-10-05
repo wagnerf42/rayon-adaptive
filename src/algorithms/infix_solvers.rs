@@ -40,11 +40,7 @@ impl PartialProducts {
         self
     }
     fn evaluate(self) -> u64 {
-        #[cfg(feature = "logs")]
-        let res = sequential_task(12, 1, || self.products.iter().sum::<u64>());
-        #[cfg(not(feature = "logs"))]
-        let res = self.products.iter().sum::<u64>();
-        res
+        self.products.iter().sum::<u64>()
     }
     fn update_product(&mut self, num: u64) {
         let len = self.products.len();
