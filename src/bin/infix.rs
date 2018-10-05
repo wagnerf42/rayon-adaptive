@@ -6,7 +6,7 @@ extern crate rayon;
 extern crate rayon_logs as rayon;
 extern crate time;
 use rayon::ThreadPoolBuilder;
-const NUM_THREADS: usize = 8;
+const NUM_THREADS: usize = 3;
 
 fn main() {
     #[cfg(feature = "logs")]
@@ -55,11 +55,11 @@ fn main() {
             .build_global()
             .expect("Pool creation failed");
 
-        let testin = vec_gen();
-        let answer = solver_seq(&testin);
-        let adapt_ans = solver_adaptive(&testin, Policy::Adaptive(1000));
-        let parsplit_ans = solver_par_split(&testin);
-        let parfold_ans = solver_par_fold(&testin);
+        let random_expression = vec_gen();
+        let answer = solver_seq(&random_expression);
+        let adapt_ans = solver_adaptive(&random_expression, Policy::Adaptive(1000));
+        let parsplit_ans = solver_par_split(&random_expression);
+        let parfold_ans = solver_par_fold(&random_expression);
         assert_eq!(answer, adapt_ans);
         assert_eq!(answer, parsplit_ans);
         assert_eq!(answer, parfold_ans);
