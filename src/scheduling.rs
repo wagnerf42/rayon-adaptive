@@ -313,7 +313,7 @@ where
             //TODO: Remove the cap to restore the original version of rayon-adaptive.
             self.current_block_size = min(
                 (self.current_block_size as f64 * phi) as usize,
-                self.input.len() / 2,
+                self.initial_block_size * 100,
             );
             let size = min(self.input.len(), self.current_block_size);
 
