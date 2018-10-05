@@ -9,8 +9,6 @@ use rayon::ThreadPoolBuilder;
 const NUM_THREADS: usize = 8;
 
 fn main() {
-    let testin = vec_gen();
-    let answer = solver_seq(&testin);
     #[cfg(feature = "logs")]
     {
         let pool = ThreadPoolBuilder::new()
@@ -24,30 +22,30 @@ fn main() {
                 || vec_gen(),
                 |vec| {
                     solver_seq(&vec);
+                    vec
                 },
-            )
-            .attach_algorithm_with_setup(
+            ).attach_algorithm_with_setup(
                 "adaptive",
                 || vec_gen(),
                 |vec| {
                     solver_adaptive(&vec, Policy::Adaptive(1000));
+                    vec
                 },
-            )
-            .attach_algorithm_with_setup(
+            ).attach_algorithm_with_setup(
                 "rayon split",
                 || vec_gen(),
                 |vec| {
                     solver_par_split(&vec);
+                    vec
                 },
-            )
-            .attach_algorithm_with_setup(
+            ).attach_algorithm_with_setup(
                 "rayon fold",
                 || vec_gen(),
                 |vec| {
                     solver_par_fold(&vec);
+                    vec
                 },
-            )
-            .generate_logs("comparisons.html")
+            ).generate_logs("comparisons.html")
             .expect("comparison failed");
     }
     #[cfg(not(feature = "logs"))]
@@ -57,6 +55,8 @@ fn main() {
             .build_global()
             .expect("Pool creation failed");
 
+        let testin = vec_gen();
+        let answer = solver_seq(&testin);
         let adapt_ans = solver_adaptive(&testin, Policy::Adaptive(1000));
         let parsplit_ans = solver_par_split(&testin);
         let parfold_ans = solver_par_fold(&testin);
