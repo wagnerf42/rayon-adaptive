@@ -1,6 +1,7 @@
 //! This module contains all traits enabling us to express some parallelism.
 use scheduling::{schedule, Policy};
 use std;
+use std::collections::LinkedList;
 use std::marker::PhantomData;
 
 pub struct DivisibleWork<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
@@ -37,6 +38,31 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
             &merge_function,
             policy,
         )
+    }
+}
+
+// TODO: why on earth do I need Sync on I ?
+impl<I: Divisible + Sync, O: Send + Sync, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
+    MappedWork<I, O, WF, OF>
+{
+    pub fn fold<B, F: FnMut(B, O) -> B>(self, init: B, f: F, policy: Policy) -> B {
+        let (input, work_function, output_function) =
+            (self.input, self.work_function, self.output_function);
+        let outputs_list = schedule(
+            input,
+            &work_function,
+            &|input| {
+                let mut l = LinkedList::new();
+                l.push_back((output_function)(input));
+                l
+            },
+            &|mut left, mut right| {
+                left.append(&mut right);
+                left
+            },
+            policy,
+        );
+        outputs_list.into_iter().fold(init, f)
     }
 }
 

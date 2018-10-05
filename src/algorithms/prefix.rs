@@ -1,6 +1,5 @@
 //! Adaptive prefix algorithm.
 //! No macro blocks.
-use std::collections::LinkedList;
 use {Divisible, EdibleSliceMut, Policy};
 
 /// Run adaptive prefix algortihm on given slice.
@@ -22,7 +21,7 @@ where
     O: Fn(&T, &T) -> T + Sync,
 {
     let input = EdibleSliceMut::new(v);
-    let mut list = input
+    input
         .work(|mut slice, limit| {
             let c = {
                 let mut elements = slice.iter_mut().take(limit);
@@ -38,26 +37,20 @@ where
                 *e = op(e, &c);
             }
             slice
-        }).map(|slice| {
-            let mut list = LinkedList::new();
-            list.push_back(slice.slice());
-            list
-        }).reduce(
-            |mut left, mut right| {
-                left.append(&mut right);
-                left
+        }).map(|slice| slice.slice())
+        .fold(
+            None,
+            |potential_previous_slice: Option<&mut [T]>, current_slice| {
+                if let Some(previous_slice) = potential_previous_slice {
+                    update(current_slice, previous_slice.last().cloned().unwrap(), &op);
+                }
+                Some(current_slice)
             },
             policy,
         );
-
-    let first = list.pop_front().unwrap();
-    let mut current_value = first.last().cloned().unwrap();
-    for slice in list.iter_mut() {
-        current_value = update(slice, current_value, &op);
-    }
 }
 
-fn update<T, O>(slice: &mut [T], increment: T, op: &O) -> T
+fn update<T, O>(slice: &mut [T], increment: T, op: &O)
 where
     T: Send + Sync + Clone,
     O: Fn(&T, &T) -> T + Sync,
@@ -74,5 +67,4 @@ where
             Policy::Adaptive(1000),
         );
     }
-    slice.last().cloned().unwrap()
 }

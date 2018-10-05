@@ -8,7 +8,6 @@ extern crate rayon_logs as rayon;
 use rand::random;
 use rayon::ThreadPoolBuilder;
 use rayon_adaptive::{Divisible, EdibleSlice, EdibleSliceMut, Policy};
-use std::collections::LinkedList;
 
 struct FilterWork<'a> {
     input: EdibleSlice<'a, u32>,
@@ -48,7 +47,7 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
             input: EdibleSlice::new(slice),
             output: EdibleSliceMut::new(uninitialized_output.as_mut_slice()),
         };
-        let mut output_slices = input
+        let final_output = input
             .work(|mut slices, limit| {
                 for (i, o) in slices
                     .input
@@ -60,26 +59,18 @@ fn filter_collect(slice: &[u32], policy: Policy) -> Vec<u32> {
                     *o = *i;
                 }
                 slices
-            }).map(|slices| {
-                let mut l = LinkedList::new();
-                l.push_back(slices.output);
-                l
-            }).reduce(
-                |mut left, mut right| {
-                    left.append(&mut right);
-                    left
+            }).map(|slices| slices.output)
+            .fold(
+                None,
+                |potential_left_slice: Option<EdibleSliceMut<u32>>, right_slice| {
+                    if let Some(left_slice) = potential_left_slice {
+                        Some(left_slice.fuse(right_slice))
+                    } else {
+                        Some(right_slice)
+                    }
                 },
                 policy,
-            );
-        let first_output_slice = output_slices.pop_front().unwrap();
-        let final_output =
-            output_slices
-                .into_iter()
-                .fold(first_output_slice, |left_slice, right_slice| {
-                    left_slice.fuse(right_slice) // TODO: this is done in src/slices.rs
-                                                 // should we move it back here ?
-                                                 // and also, should we do it in parallel ?
-                });
+            ).unwrap();
         slice.len() - final_output.len()
     };
     unsafe {
