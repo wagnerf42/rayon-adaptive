@@ -36,3 +36,7 @@ harness = false
 [[bench]]
 name = "filter_collect"
 harness = false
+
+[[bench]]
+name = "find_first"
+harness = false
