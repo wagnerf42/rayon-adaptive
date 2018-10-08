@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use {Divisible, EdibleSlice, Policy};
+use {Divisible, DivisibleAtIndex, EdibleSlice, Policy};
 
 //TODO: switch to iterators
 struct FindingSlice<'a, T: 'a> {
@@ -42,6 +42,25 @@ impl<'a, T: 'a + Send + Sync> Divisible for FindingSlice<'a, T> {
     }
 }
 
+impl<'a, T: 'a + Send + Sync> DivisibleAtIndex for FindingSlice<'a, T> {
+    fn split_at(self, index: usize) -> (Self, Self) {
+        let (left_slice, right_slice) = self.slice.split_at(index);
+        let my_part = FindingSlice {
+            slice: left_slice,
+            result: None,
+            found: self.found,
+            previous_worker_found: self.previous_worker_found,
+        };
+        let his_part = FindingSlice {
+            slice: right_slice,
+            result: None,
+            found: Arc::new(AtomicBool::new(false)),
+            previous_worker_found: Some(my_part.found.clone()), //TODO: we will not care here
+        };
+        (my_part, his_part)
+    }
+}
+
 /// Return first element for which f returns true.
 pub fn find_first<T, F>(v: &[T], f: F, policy: Policy) -> Option<T>
 where
@@ -62,5 +81,5 @@ where
             }
             slice
         }).map(|slice| slice.result)
-        .reduce(|left, right| left.or(right), policy)
+        .fold_with_blocks(None, |left, right| left.or(right), v.len() / 10, policy)
 }
