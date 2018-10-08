@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use {fuse_slices, Divisible};
+use {fuse_slices, Divisible, DivisibleAtIndex};
 
 /// A slice you can consume slowly.
 pub struct EdibleSlice<'a, T: 'a> {
@@ -54,6 +54,23 @@ impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
     }
     fn split(self) -> (Self, Self) {
         let splitting_index = self.used + self.remaining_slice().len() / 2;
+        let (left_slice, right_slice) = self.slice.split_at(splitting_index);
+        (
+            EdibleSlice {
+                slice: left_slice,
+                used: self.used,
+            },
+            EdibleSlice {
+                slice: right_slice,
+                used: 0,
+            },
+        )
+    }
+}
+
+impl<'a, T: 'a + Sync> DivisibleAtIndex for EdibleSlice<'a, T> {
+    fn split_at(self, index: usize) -> (Self, Self) {
+        let splitting_index = self.used + index;
         let (left_slice, right_slice) = self.slice.split_at(splitting_index);
         (
             EdibleSlice {
@@ -133,10 +150,8 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
     }
     /// Split remaining part at given index.
     /// also return used part on the left.
-    /// TODO: unstable api: we will also need split_at for locality
-    /// so it might be better in some kind of `Divisible`.
     pub fn split_at(self, index: usize) -> (Self, Self) {
-        assert!(index < self.slice.len() - self.used - 1);
+        assert!(index <= self.slice.len() - self.used);
         let (left_slice, right_slice) = self.slice.split_at_mut(index + self.used);
         (
             EdibleSliceMut {

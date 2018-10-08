@@ -66,6 +66,54 @@ impl<I: Divisible + Sync, O: Send + Sync, WF: Fn(I, usize) -> I + Sync, OF: Fn(I
     }
 }
 
+// TODO: why on earth do I need Sync on I ?
+impl<
+        I: DivisibleAtIndex + Sync,
+        O: Send + Sync,
+        WF: Fn(I, usize) -> I + Sync,
+        OF: Fn(I) -> O + Sync,
+    > MappedWork<I, O, WF, OF>
+{
+    pub fn fold_with_blocks<B, F: FnMut(B, O) -> B>(
+        self,
+        init: B,
+        mut f: F,
+        blocks_size: usize,
+        policy: Policy,
+    ) -> B {
+        let (mut input, work_function, output_function) =
+            (self.input, self.work_function, self.output_function);
+
+        //note: we cannot fold (adaptive) since folding consumes all functions
+        let mut output = init;
+        while input.len() > 0 {
+            let size = std::cmp::min(blocks_size, input.len());
+            let (head_block, remaining_input) = input.split_at(size);
+
+            let outputs_list = schedule(
+                head_block,
+                &work_function,
+                &|input| {
+                    let mut l = LinkedList::new();
+                    l.push_back((output_function)(input));
+                    l
+                },
+                &|mut left, mut right| {
+                    left.append(&mut right);
+                    left
+                },
+                policy,
+            );
+            //note: we cannot fold (sequential) since folding consumes f
+            for output_fragment in outputs_list {
+                output = f(output, output_fragment);
+            }
+            input = remaining_input;
+        }
+        output
+    }
+}
+
 pub trait Divisible: Sized + Send {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
