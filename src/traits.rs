@@ -27,6 +27,33 @@ impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
     }
 }
 
+impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> IntoIterator
+    for MappedWork<I, O, WF, OF>
+{
+    type Item = O;
+    type IntoIter = std::collections::linked_list::IntoIter<O>;
+    fn into_iter(self) -> Self::IntoIter {
+        let (input, work_function, output_function) =
+            (self.input, self.work_function, self.output_function);
+        let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+        let outputs_list = schedule(
+            input,
+            &work_function,
+            &|input| {
+                let mut l = LinkedList::new();
+                l.push_back((output_function)(input));
+                l
+            },
+            &|mut left, mut right| {
+                left.append(&mut right);
+                left
+            },
+            Policy::Adaptive(sequential_limit),
+        );
+        outputs_list.into_iter()
+    }
+}
+
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
     MappedWork<I, O, WF, OF>
 {

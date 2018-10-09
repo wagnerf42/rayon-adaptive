@@ -15,7 +15,7 @@ use {Divisible, EdibleSliceMut, Policy};
 /// let count: Vec<u32> = (1..=100_000).collect();
 /// assert_eq!(v, count);
 /// ```
-pub fn adaptive_prefix<T, O>(v: &mut [T], op: O, policy: Policy)
+pub fn adaptive_prefix<T, O>(v: &mut [T], op: O)
 where
     T: Send + Sync + Clone,
     O: Fn(&T, &T) -> T + Sync,
@@ -38,6 +38,7 @@ where
             }
             slice
         }).map(|slice| slice.slice())
+        .into_iter()
         .fold(
             None,
             |potential_previous_slice: Option<&mut [T]>, current_slice| {
@@ -46,7 +47,6 @@ where
                 }
                 Some(current_slice)
             },
-            policy,
         );
 }
 
