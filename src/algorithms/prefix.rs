@@ -9,9 +9,9 @@ use {Divisible, EdibleSliceMut, Policy};
 /// # Example
 ///
 /// ```
-/// use rayon_adaptive::{adaptive_prefix, Policy};
+/// use rayon_adaptive::adaptive_prefix;
 /// let mut v = vec![1u32; 100_000];
-/// adaptive_prefix(&mut v, |e1, e2| e1 + e2, Policy::Adaptive(1000));
+/// adaptive_prefix(&mut v, |e1, e2| e1 + e2);
 /// let count: Vec<u32> = (1..=100_000).collect();
 /// assert_eq!(v, count);
 /// ```

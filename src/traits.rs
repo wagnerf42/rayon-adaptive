@@ -4,21 +4,24 @@ use std;
 use std::collections::LinkedList;
 use std::marker::PhantomData;
 
-pub struct DivisibleWork<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
-    input: I,
-    work_function: WF,
-}
-
-pub struct MappedWork<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> {
+pub struct ActivatedInput<
+    I: Divisible,
+    O: Send,
+    WF: Fn(I, usize) -> I + Sync,
+    OF: Fn(I) -> O + Sync,
+> {
     input: I,
     work_function: WF,
     output_function: OF, // TODO: rename to map
     output_type: PhantomData<O>,
 }
 
-impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
-    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(self, map_function: OF) -> MappedWork<I, O, WF, OF> {
-        MappedWork {
+impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {
+    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(
+        self,
+        map_function: OF,
+    ) -> ActivatedInput<I, O, WF, OF> {
+        ActivatedInput {
             input: self.input,
             work_function: self.work_function,
             output_function: map_function,
@@ -28,7 +31,7 @@ impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
 }
 
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> IntoIterator
-    for MappedWork<I, O, WF, OF>
+    for ActivatedInput<I, O, WF, OF>
 {
     type Item = O;
     type IntoIter = std::collections::linked_list::IntoIter<O>;
@@ -55,7 +58,7 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
 }
 
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
-    MappedWork<I, O, WF, OF>
+    ActivatedInput<I, O, WF, OF>
 {
     pub fn reduce<MF: Fn(O, O) -> O + Sync>(self, merge_function: MF, policy: Policy) -> O {
         schedule(
@@ -69,37 +72,12 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
 }
 
 // TODO: why on earth do I need Sync on I ?
-impl<I: Divisible + Sync, O: Send + Sync, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
-    MappedWork<I, O, WF, OF>
-{
-    pub fn fold<B, F: FnMut(B, O) -> B>(self, init: B, f: F, policy: Policy) -> B {
-        let (input, work_function, output_function) =
-            (self.input, self.work_function, self.output_function);
-        let outputs_list = schedule(
-            input,
-            &work_function,
-            &|input| {
-                let mut l = LinkedList::new();
-                l.push_back((output_function)(input));
-                l
-            },
-            &|mut left, mut right| {
-                left.append(&mut right);
-                left
-            },
-            policy,
-        );
-        outputs_list.into_iter().fold(init, f)
-    }
-}
-
-// TODO: why on earth do I need Sync on I ?
 impl<
         I: DivisibleAtIndex + Sync,
         O: Send + Sync,
         WF: Fn(I, usize) -> I + Sync,
         OF: Fn(I) -> O + Sync,
-    > MappedWork<I, O, WF, OF>
+    > ActivatedInput<I, O, WF, OF>
 {
     pub fn fold_with_blocks<B, F: FnMut(B, O) -> B>(
         self,
@@ -149,10 +127,12 @@ pub trait Divisible: Sized + Send {
     fn work<WF: Fn(Self, usize) -> Self + Sync>(
         self,
         work_function: WF,
-    ) -> DivisibleWork<Self, WF> {
-        DivisibleWork {
+    ) -> ActivatedInput<Self, Self, WF, fn(Self) -> Self> {
+        ActivatedInput {
             input: self,
             work_function,
+            output_function: |i| i,
+            output_type: PhantomData,
         }
     }
     /// Easy api when we return no results.
