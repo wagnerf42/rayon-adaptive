@@ -7,6 +7,7 @@ use std::slice::IterMut;
 use {fuse_slices, Divisible, DivisibleAtIndex};
 
 /// A slice you can consume slowly.
+#[derive(Debug)]
 pub struct EdibleSlice<'a, T: 'a> {
     // the real underlying slice
     slice: &'a [T],

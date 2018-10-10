@@ -1,8 +1,12 @@
 //! This module contains all traits enabling us to express some parallelism.
 use scheduling::{schedule, Policy};
 use std;
+use std::cmp::min;
 use std::collections::LinkedList;
+use std::iter::repeat;
 use std::marker::PhantomData;
+use std::mem;
+use std::ptr;
 
 pub struct ActivatedInput<
     I: Divisible,
@@ -79,24 +83,13 @@ impl<
         OF: Fn(I) -> O + Sync,
     > ActivatedInput<I, O, WF, OF>
 {
-    pub fn fold_with_blocks<B, F: FnMut(B, O) -> B>(
-        self,
-        init: B,
-        mut f: F,
-        blocks_size: usize,
-        policy: Policy,
-    ) -> B {
-        let (mut input, work_function, output_function) =
+    pub fn by_blocks(self, blocks_size: usize) -> impl Iterator<Item = O> {
+        let (input, work_function, output_function) =
             (self.input, self.work_function, self.output_function);
-
-        //note: we cannot fold (adaptive) since folding consumes all functions
-        let mut output = init;
-        while input.len() > 0 {
-            let size = std::cmp::min(blocks_size, input.len());
-            let (head_block, remaining_input) = input.split_at(size);
-
+        input.chunks(repeat(blocks_size)).flat_map(move |input| {
+            let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
             let outputs_list = schedule(
-                head_block,
+                input,
                 &work_function,
                 &|input| {
                     let mut l = LinkedList::new();
@@ -107,15 +100,10 @@ impl<
                     left.append(&mut right);
                     left
                 },
-                policy,
+                Policy::Adaptive(sequential_limit),
             );
-            //note: we cannot fold (sequential) since folding consumes f
-            for output_fragment in outputs_list {
-                output = f(output, output_fragment);
-            }
-            input = remaining_input;
-        }
-        output
+            outputs_list.into_iter()
+        })
     }
 }
 
@@ -169,9 +157,54 @@ impl<I: DivisibleAtIndex, O: Send> Divisible for LocalWork<I, O> {
     }
 }
 
+pub struct Chunks<I: DivisibleAtIndex, S: Iterator<Item = usize>> {
+    remaining: I,
+    remaining_sizes: S,
+}
+
+impl<I: DivisibleAtIndex, S: Iterator<Item = usize>> Iterator for Chunks<I, S> {
+    type Item = I;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining.len() == 0 {
+            None
+        } else {
+            let next_size = min(
+                self.remaining_sizes
+                    .next()
+                    .expect("not enough sizes for chunks"),
+                self.remaining.len(),
+            );
+            let next_chunk = self.remaining.cut_left_at(next_size);
+            Some(next_chunk)
+        }
+    }
+}
+
 pub trait DivisibleAtIndex: Divisible {
     /// Divide ourselves where requested.
     fn split_at(self, index: usize) -> (Self, Self);
+    /// Divide ourselves keeping right part in self.
+    /// Returns the left part.
+    /// NB: this is useful for iterators creation.
+    fn cut_left_at(&mut self, index: usize) -> Self {
+        // there is a lot of unsafe going on here.
+        // I think it's ok. rust uses the same trick for moving iterators (vecs for example)
+        unsafe {
+            let my_copy = ptr::read(self);
+            let (left, right) = my_copy.split_at(index);
+            let pointer_to_self = self as *mut Self;
+            mem::drop(self);
+            ptr::write(pointer_to_self, right);
+            left
+        }
+    }
+    /// Get a sequential iterator on chunks of Self of given sizes.
+    fn chunks<S: Iterator<Item = usize>>(self, sizes: S) -> Chunks<Self, S> {
+        Chunks {
+            remaining: self,
+            remaining_sizes: sizes,
+        }
+    }
     /// Easy api but use only when splitting generates no tangible work overhead.
     fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
     where

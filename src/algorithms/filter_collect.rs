@@ -73,7 +73,8 @@ where
                 }
                 slices
             }).map(|slices| slices.output)
-            .fold_with_blocks(
+            .by_blocks(1_000_000)
+            .fold(
                 None,
                 |potential_left_slice: Option<EdibleSliceMut<T>>, right_slice| {
                     if let Some(left_slice) = potential_left_slice {
@@ -82,8 +83,6 @@ where
                         Some(right_slice)
                     }
                 },
-                1_000_000,
-                policy,
             ).unwrap();
         slice.len() - final_output.len()
     };
