@@ -95,7 +95,7 @@ pub enum Token {
 }
 
 pub fn vec_gen() -> Vec<Token> {
-    let size = 4_000_000;
+    let size = 10_000_000;
     let expr = (1..size)
         .enumerate()
         .map(|(pos, num)| {
@@ -103,7 +103,7 @@ pub fn vec_gen() -> Vec<Token> {
                 Token::Num(num % 5)
             } else {
                 let temp: u32 = rand::random();
-                if temp % 10 == 0 {
+                if temp % 100_000 == 0 {
                     Token::Add
                 } else {
                     Token::Mult
