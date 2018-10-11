@@ -13,7 +13,7 @@ fn infix_solver_bench(c: &mut Criterion) {
         .num_threads(NUM_THREADS)
         .build_global()
         .expect("Rayon global pool initialisation failed");
-    c.bench_function("adaptive infix (size=4_000_000)", |b| {
+    c.bench_function("adaptive infix (size=100_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
             |testin| {
@@ -22,7 +22,7 @@ fn infix_solver_bench(c: &mut Criterion) {
             },
         )
     });
-    c.bench_function("parallel split infix (size=4_000_000)", |b| {
+    c.bench_function("parallel split infix (size=100_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
             |testin| {
@@ -31,7 +31,7 @@ fn infix_solver_bench(c: &mut Criterion) {
             },
         )
     });
-    c.bench_function("sequential infix (size=4_000_000)", |b| {
+    c.bench_function("sequential infix (size=100_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
             |testin| {
@@ -40,7 +40,7 @@ fn infix_solver_bench(c: &mut Criterion) {
             },
         )
     });
-    c.bench_function("parallel fold infix (size=4_000_000)", |b| {
+    c.bench_function("parallel fold infix (size=100_000_000)", |b| {
         b.iter_with_setup(
             || vec_gen(),
             |testin| {
