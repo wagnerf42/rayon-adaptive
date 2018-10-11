@@ -17,6 +17,7 @@ fn main() {
             .expect("Pool creation failed");
 
         pool.compare()
+            .runs_number(500)
             .attach_algorithm_with_setup(
                 "sequential",
                 || vec_gen(),
