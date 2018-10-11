@@ -17,6 +17,8 @@ pub use utils::fuse_slices;
 mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
 mod algorithms;
+pub use algorithms::filter_collect::filter_collect;
+pub use algorithms::find_first::find_first;
 pub use algorithms::infix_solvers::*;
 pub use algorithms::merge_sort::adaptive_sort;
 pub use algorithms::prefix::adaptive_prefix;

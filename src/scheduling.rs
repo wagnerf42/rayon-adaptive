@@ -8,6 +8,7 @@ use std::sync::mpsc::{channel, Sender};
 use traits::Divisible;
 
 /// All scheduling available scheduling policies.
+#[derive(Copy, Clone)]
 pub enum Policy {
     /// Do all computations sequentially.
     Sequential,

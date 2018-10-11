@@ -1,23 +1,31 @@
 //! This module contains all traits enabling us to express some parallelism.
 use scheduling::{schedule, Policy};
 use std;
+use std::cmp::min;
+use std::collections::LinkedList;
+use std::iter::repeat;
 use std::marker::PhantomData;
+use std::mem;
+use std::ptr;
 
-pub struct DivisibleWork<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
-    input: I,
-    work_function: WF,
-}
-
-pub struct MappedWork<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> {
+pub struct ActivatedInput<
+    I: Divisible,
+    O: Send,
+    WF: Fn(I, usize) -> I + Sync,
+    OF: Fn(I) -> O + Sync,
+> {
     input: I,
     work_function: WF,
     output_function: OF, // TODO: rename to map
     output_type: PhantomData<O>,
 }
 
-impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
-    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(self, map_function: OF) -> MappedWork<I, O, WF, OF> {
-        MappedWork {
+impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {
+    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(
+        self,
+        map_function: OF,
+    ) -> ActivatedInput<I, O, WF, OF> {
+        ActivatedInput {
             input: self.input,
             work_function: self.work_function,
             output_function: map_function,
@@ -26,8 +34,35 @@ impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> DivisibleWork<I, WF> {
     }
 }
 
+impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> IntoIterator
+    for ActivatedInput<I, O, WF, OF>
+{
+    type Item = O;
+    type IntoIter = std::collections::linked_list::IntoIter<O>;
+    fn into_iter(self) -> Self::IntoIter {
+        let (input, work_function, output_function) =
+            (self.input, self.work_function, self.output_function);
+        let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+        let outputs_list = schedule(
+            input,
+            &work_function,
+            &|input| {
+                let mut l = LinkedList::new();
+                l.push_back((output_function)(input));
+                l
+            },
+            &|mut left, mut right| {
+                left.append(&mut right);
+                left
+            },
+            Policy::Adaptive(sequential_limit),
+        );
+        outputs_list.into_iter()
+    }
+}
+
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
-    MappedWork<I, O, WF, OF>
+    ActivatedInput<I, O, WF, OF>
 {
     pub fn reduce<MF: Fn(O, O) -> O + Sync>(self, merge_function: MF, policy: Policy) -> O {
         schedule(
@@ -40,6 +75,38 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
     }
 }
 
+// TODO: why on earth do I need Sync on I ?
+impl<
+        I: DivisibleAtIndex + Sync,
+        O: Send + Sync,
+        WF: Fn(I, usize) -> I + Sync,
+        OF: Fn(I) -> O + Sync,
+    > ActivatedInput<I, O, WF, OF>
+{
+    pub fn by_blocks(self, blocks_size: usize) -> impl Iterator<Item = O> {
+        let (input, work_function, output_function) =
+            (self.input, self.work_function, self.output_function);
+        input.chunks(repeat(blocks_size)).flat_map(move |input| {
+            let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+            let outputs_list = schedule(
+                input,
+                &work_function,
+                &|input| {
+                    let mut l = LinkedList::new();
+                    l.push_back((output_function)(input));
+                    l
+                },
+                &|mut left, mut right| {
+                    left.append(&mut right);
+                    left
+                },
+                Policy::Adaptive(sequential_limit),
+            );
+            outputs_list.into_iter()
+        })
+    }
+}
+
 pub trait Divisible: Sized + Send {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
@@ -48,10 +115,12 @@ pub trait Divisible: Sized + Send {
     fn work<WF: Fn(Self, usize) -> Self + Sync>(
         self,
         work_function: WF,
-    ) -> DivisibleWork<Self, WF> {
-        DivisibleWork {
+    ) -> ActivatedInput<Self, Self, WF, fn(Self) -> Self> {
+        ActivatedInput {
             input: self,
             work_function,
+            output_function: |i| i,
+            output_type: PhantomData,
         }
     }
     /// Easy api when we return no results.
@@ -88,9 +157,54 @@ impl<I: DivisibleAtIndex, O: Send> Divisible for LocalWork<I, O> {
     }
 }
 
+pub struct Chunks<I: DivisibleAtIndex, S: Iterator<Item = usize>> {
+    remaining: I,
+    remaining_sizes: S,
+}
+
+impl<I: DivisibleAtIndex, S: Iterator<Item = usize>> Iterator for Chunks<I, S> {
+    type Item = I;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining.len() == 0 {
+            None
+        } else {
+            let next_size = min(
+                self.remaining_sizes
+                    .next()
+                    .expect("not enough sizes for chunks"),
+                self.remaining.len(),
+            );
+            let next_chunk = self.remaining.cut_left_at(next_size);
+            Some(next_chunk)
+        }
+    }
+}
+
 pub trait DivisibleAtIndex: Divisible {
     /// Divide ourselves where requested.
     fn split_at(self, index: usize) -> (Self, Self);
+    /// Divide ourselves keeping right part in self.
+    /// Returns the left part.
+    /// NB: this is useful for iterators creation.
+    fn cut_left_at(&mut self, index: usize) -> Self {
+        // there is a lot of unsafe going on here.
+        // I think it's ok. rust uses the same trick for moving iterators (vecs for example)
+        unsafe {
+            let my_copy = ptr::read(self);
+            let (left, right) = my_copy.split_at(index);
+            let pointer_to_self = self as *mut Self;
+            mem::drop(self);
+            ptr::write(pointer_to_self, right);
+            left
+        }
+    }
+    /// Get a sequential iterator on chunks of Self of given sizes.
+    fn chunks<S: Iterator<Item = usize>>(self, sizes: S) -> Chunks<Self, S> {
+        Chunks {
+            remaining: self,
+            remaining_sizes: sizes,
+        }
+    }
     /// Easy api but use only when splitting generates no tangible work overhead.
     fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
     where

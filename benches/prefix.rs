@@ -14,7 +14,7 @@ fn prefix_adaptive(c: &mut Criterion) {
         b.iter_with_setup(
             || (0..10_000_000).map(|_| 1.0).collect::<Vec<f64>>(),
             |mut v| {
-                adaptive_prefix(&mut v, |a, b| *a * *b, Policy::Adaptive(10_000));
+                adaptive_prefix(&mut v, |a, b| *a * *b);
             },
         )
     });
@@ -42,13 +42,11 @@ fn prefix_adaptive(c: &mut Criterion) {
                             *x *= previous_value;
                             (*x, count + 1)
                         },
-                    )
-                    .map(|(_, count)| {
+                    ).map(|(_, count)| {
                         let mut l = LinkedList::new();
                         l.push_back(count);
                         l
-                    })
-                    .reduce(LinkedList::new, |mut l1, l2| {
+                    }).reduce(LinkedList::new, |mut l1, l2| {
                         l1.extend(l2);
                         l1
                     });
