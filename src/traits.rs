@@ -12,43 +12,43 @@ pub struct ActivatedInput<
     I: Divisible,
     O: Send,
     WF: Fn(I, usize) -> I + Sync,
-    OF: Fn(I) -> O + Sync,
+    MF: Fn(I) -> O + Sync,
 > {
     input: I,
     work_function: WF,
-    output_function: OF, // TODO: rename to map
+    map_function: MF, // TODO: rename to map
     output_type: PhantomData<O>,
 }
 
 impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {
-    pub fn map<O: Send, OF: Fn(I) -> O + Sync>(
+    pub fn map<O: Send, MF: Fn(I) -> O + Sync>(
         self,
-        map_function: OF,
-    ) -> ActivatedInput<I, O, WF, OF> {
+        map_function: MF,
+    ) -> ActivatedInput<I, O, WF, MF> {
         ActivatedInput {
             input: self.input,
             work_function: self.work_function,
-            output_function: map_function,
+            map_function,
             output_type: PhantomData,
         }
     }
 }
 
-impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync> IntoIterator
-    for ActivatedInput<I, O, WF, OF>
+impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync> IntoIterator
+    for ActivatedInput<I, O, WF, MF>
 {
     type Item = O;
     type IntoIter = std::collections::linked_list::IntoIter<O>;
     fn into_iter(self) -> Self::IntoIter {
-        let (input, work_function, output_function) =
-            (self.input, self.work_function, self.output_function);
+        let (input, work_function, map_function) =
+            (self.input, self.work_function, self.map_function);
         let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
         let outputs_list = schedule(
             input,
             &work_function,
             &|input| {
                 let mut l = LinkedList::new();
-                l.push_back((output_function)(input));
+                l.push_back((map_function)(input));
                 l
             },
             &|mut left, mut right| {
@@ -61,15 +61,15 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
     }
 }
 
-impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, OF: Fn(I) -> O + Sync>
-    ActivatedInput<I, O, WF, OF>
+impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
+    ActivatedInput<I, O, WF, MF>
 {
-    pub fn reduce<MF: Fn(O, O) -> O + Sync>(self, merge_function: MF, policy: Policy) -> O {
+    pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
         schedule(
             self.input,
             &self.work_function,
-            &self.output_function,
-            &merge_function,
+            &self.map_function,
+            &reduce_function,
             policy,
         )
     }
@@ -80,12 +80,12 @@ impl<
         I: DivisibleAtIndex + Sync,
         O: Send + Sync,
         WF: Fn(I, usize) -> I + Sync,
-        OF: Fn(I) -> O + Sync,
-    > ActivatedInput<I, O, WF, OF>
+        MF: Fn(I) -> O + Sync,
+    > ActivatedInput<I, O, WF, MF>
 {
     pub fn by_blocks(self, blocks_size: usize) -> impl Iterator<Item = O> {
-        let (input, work_function, output_function) =
-            (self.input, self.work_function, self.output_function);
+        let (input, work_function, map_function) =
+            (self.input, self.work_function, self.map_function);
         input.chunks(repeat(blocks_size)).flat_map(move |input| {
             let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
             let outputs_list = schedule(
@@ -93,7 +93,7 @@ impl<
                 &work_function,
                 &|input| {
                     let mut l = LinkedList::new();
-                    l.push_back((output_function)(input));
+                    l.push_back((map_function)(input));
                     l
                 },
                 &|mut left, mut right| {
@@ -119,7 +119,7 @@ pub trait Divisible: Sized + Send {
         ActivatedInput {
             input: self,
             work_function,
-            output_function: |i| i,
+            map_function: |i| i,
             output_type: PhantomData,
         }
     }
