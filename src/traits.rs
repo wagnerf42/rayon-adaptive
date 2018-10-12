@@ -3,7 +3,6 @@ use scheduling::{schedule, Policy};
 use std;
 use std::cmp::min;
 use std::collections::LinkedList;
-use std::iter::repeat;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
@@ -119,10 +118,10 @@ impl<
         MF: Fn(I) -> O + Sync,
     > ActivatedInput<I, O, WF, MF>
 {
-    pub fn by_blocks(self, blocks_size: usize) -> impl Iterator<Item = O> {
+    pub fn by_blocks<S: Iterator<Item = usize>>(self, blocks_sizes: S) -> impl Iterator<Item = O> {
         let (input, work_function, map_function) =
             (self.input, self.work_function, self.map_function);
-        input.chunks(repeat(blocks_size)).flat_map(move |input| {
+        input.chunks(blocks_sizes).flat_map(move |input| {
             let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
             let outputs_list = schedule(
                 input,
