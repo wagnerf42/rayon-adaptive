@@ -6,6 +6,7 @@ use std::collections::LinkedList;
 use std::iter::repeat;
 use std::marker::PhantomData;
 use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::ptr;
 
 pub struct ActivatedInput<
@@ -18,6 +19,41 @@ pub struct ActivatedInput<
     work_function: WF,
     map_function: MF, // TODO: rename to map
     output_type: PhantomData<O>,
+}
+
+/// When divided, the value stays on the left and the right part
+/// gets the default value.
+/// It is mainly intended for storing results.
+pub struct KeepLeft<T: Default + Send>(pub T);
+
+impl<T: Default + Send> Divisible for KeepLeft<T> {
+    /// Always return max possible size since we can be split infinitely.
+    fn len(&self) -> usize {
+        std::usize::MAX // we lie
+    }
+    /// Value stays on left ; default value on right.
+    fn split(self) -> (Self, Self) {
+        (KeepLeft(self.0), KeepLeft(Default::default()))
+    }
+}
+
+impl<T: Default + Send> DivisibleAtIndex for KeepLeft<T> {
+    fn split_at(self, _index: usize) -> (Self, Self) {
+        (KeepLeft(self.0), KeepLeft(Default::default()))
+    }
+}
+
+impl<T: Send + Default> Deref for KeepLeft<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Send + Default> DerefMut for KeepLeft<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
 }
 
 impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {

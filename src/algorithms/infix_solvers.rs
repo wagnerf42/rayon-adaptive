@@ -16,15 +16,17 @@ use smallvec::SmallVec;
 
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
-use {Divisible, EdibleSlice, Policy};
+use {Divisible, EdibleSlice, KeepLeft, Policy};
 
-pub struct InfixSlice<'a> {
-    input: EdibleSlice<'a, Token>,
-    output: PartialProducts,
-}
 #[derive(Debug)]
 pub struct PartialProducts {
     products: SmallVec<[u64; 3]>,
+}
+
+impl Default for PartialProducts {
+    fn default() -> Self {
+        PartialProducts::new()
+    }
 }
 
 impl PartialProducts {
@@ -65,25 +67,6 @@ impl PartialProducts {
                 self.products[self.products.len() - 1],
             ];
         }
-    }
-}
-
-impl<'a> Divisible for InfixSlice<'a> {
-    fn len(&self) -> usize {
-        self.input.len()
-    }
-    fn split(self) -> (Self, Self) {
-        let (left_part, right_part) = self.input.split();
-        (
-            InfixSlice {
-                input: left_part,
-                output: self.output,
-            },
-            InfixSlice {
-                input: right_part,
-                output: PartialProducts::new(),
-            },
-        )
     }
 }
 
@@ -170,20 +153,15 @@ fn infix(input_slice: &mut EdibleSlice<Token>, output: &mut PartialProducts, lim
 }
 
 pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
-    let input = InfixSlice {
-        input: EdibleSlice::new(inp),
-        output: PartialProducts::new(),
-    };
+    let input = (EdibleSlice::new(inp), KeepLeft(PartialProducts::new()));
     input
         .work(|mut input, limit| {
             #[cfg(feature = "logs")]
-            sequential_task(0, limit, || {
-                infix(&mut input.input, &mut input.output, limit)
-            });
+            sequential_task(0, limit, || infix(&mut input.0, &mut input.1, limit));
             #[cfg(not(feature = "logs"))]
-            infix(&mut input.input, &mut input.output, limit);
+            infix(&mut input.0, &mut input.1, limit);
             input
-        }).map(|slice| slice.output)
+        }).map(|slice| (slice.1).0)
         .reduce(|left, right| left.fuse(right), policy)
         .evaluate()
 }
