@@ -50,3 +50,12 @@ Experiments run with 16 threads:
 <tr><td>100</td><td>16</td><td>6.55</td></tr>
 </table>
 
+## Questions
+
+- why does speedup decrease when sizes increase ?
+- we don't see min input size for which we have speedup
+- we don't see low number of threads : how many cores needed to be efficient ?
+- show me a cloud of points : then we can see stability
+- show me curves : to exhibit behaviours
+- maybe you need less than 500 runs ?
+- many algorithms, only one presented
