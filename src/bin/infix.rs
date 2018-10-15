@@ -47,8 +47,9 @@ fn main() {
                     vec
                 },
             ).generate_logs(format!(
-                "comparison_{}mil_{}threads.html",
-                SIZE, NUM_THREADS
+                "comparisons_{}mil_{}threads.html",
+                SIZE / (1e6 as u64),
+                NUM_THREADS
             )).expect("comparison failed");
     }
     #[cfg(not(feature = "logs"))]

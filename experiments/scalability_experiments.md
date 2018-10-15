@@ -41,12 +41,12 @@ Experiments run with 16 threads:
 <tr><td>10</td><td>13</td><td>5.50</td></tr>
 <tr><td>10</td><td>16</td><td>9.01</td></tr>
 <tr><td>50</td><td>7</td><td>2.85</td></tr>
-<tr><td>50</td><td>8</td><td>2.85</td></tr>
+<tr><td>50</td><td>8</td><td>3.61</td></tr>
 <tr><td>50</td><td>13</td><td>2.74 (Redo)</td></tr>
 <tr><td>50</td><td>16</td><td>3.77 </td></tr>
 <tr><td>100</td><td>7</td><td>2.96</td></tr>
 <tr><td>100</td><td>8</td><td>3.04</td></tr>
 <tr><td>100</td><td>13</td><td>4.27</td></tr>
-<tr><td>100</td><td>16</td><td>Awaited</td></tr>
+<tr><td>100</td><td>16</td><td>6.55</td></tr>
 </table>
 
