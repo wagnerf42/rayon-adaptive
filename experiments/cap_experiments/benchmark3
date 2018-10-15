@@ -1,0 +1,75 @@
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+Benchmarking adaptive infix (size=4_000_000)
+Benchmarking adaptive infix (size=4_000_000): Warming up for 3.0000 s
+Benchmarking adaptive infix (size=4_000_000): Collecting 100 samples in estimated 293.68 s (5050 iterations)
+Benchmarking adaptive infix (size=4_000_000): Analyzing
+adaptive infix (size=4_000_000)
+                        time:   [1.5439 ms 1.5450 ms 1.5461 ms]
+                        change: [-5.8466% -5.6112% -5.4048%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low severe
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+
+Benchmarking parallel split infix (size=4_000_000)
+Benchmarking parallel split infix (size=4_000_000): Warming up for 3.0000 s
+Benchmarking parallel split infix (size=4_000_000): Collecting 100 samples in estimated 392.86 s (5050 iterations)
+Benchmarking parallel split infix (size=4_000_000): Analyzing
+parallel split infix (size=4_000_000)
+                        time:   [21.602 ms 21.746 ms 21.883 ms]
+                        change: [-2.5533% -1.2959% -0.0302%] (p = 0.04 < 0.05)
+                        Change within noise threshold.
+Found 9 outliers among 100 measurements (9.00%)
+  1 (1.00%) low severe
+  5 (5.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking sequential infix (size=4_000_000)
+Benchmarking sequential infix (size=4_000_000): Warming up for 3.0000 s
+Benchmarking sequential infix (size=4_000_000): Collecting 100 samples in estimated 331.81 s (5050 iterations)
+Benchmarking sequential infix (size=4_000_000): Analyzing
+sequential infix (size=4_000_000)
+                        time:   [8.8017 ms 8.8057 ms 8.8103 ms]
+                        change: [+1.8806% +1.9424% +2.0079%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+
+Benchmarking parallel fold infix (size=4_000_000)
+Benchmarking parallel fold infix (size=4_000_000): Warming up for 3.0000 s
+Benchmarking parallel fold infix (size=4_000_000): Collecting 100 samples in estimated 345.60 s (5050 iterations)
+Benchmarking parallel fold infix (size=4_000_000): Analyzing
+parallel fold infix (size=4_000_000)
+                        time:   [11.267 ms 11.278 ms 11.288 ms]
+                        change: [-0.3588% -0.1997% -0.0393%] (p = 0.02 < 0.05)
+                        Change within noise threshold.
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+
