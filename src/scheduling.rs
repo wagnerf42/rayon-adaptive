@@ -264,7 +264,8 @@ where
 
         // I have this really nice proof as to why I need phi but the margins
         // are too small to write it down here :-)
-        let phi: f64 = (1.0 + 5.0f64.sqrt()) / 2.0;
+        // let phi: f64 = (1.0 + 5.0f64.sqrt()) / 2.0;
+        let phi = 2.0;
 
         // loop while not stolen or something left to do
         loop {
@@ -313,6 +314,16 @@ where
     } else {
         let stolen = &AtomicBool::new(false);
         let (sender, receiver) = channel();
+
+        // adjust block size to fit on boundaries
+        //let phi = (1.0 + 5.0f64.sqrt()) / 2.0;
+        //let blocks_number = (((input.len() as f64).ln() - (initial_block_size as f64).ln())
+        //    / phi.ln()).floor() as i32;
+        //let initial_block_size = (input.len() as f64 / phi.powi(blocks_number)).ceil() as usize;
+        let j = (((input.len() as f64) / initial_block_size as f64 + 1.0).log(2.0) - 1.0).floor()
+            as i32;
+        let initial_block_size =
+            ((input.len() as f64) / (2.0f64.powi(j + 1) - 1.0)).ceil() as usize;
 
         let worker = AdaptiveWorker::new(
             input,

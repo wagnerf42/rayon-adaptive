@@ -1,8 +1,9 @@
+use std::cmp::min;
 use std::mem::replace;
 use {Divisible, EdibleSlice, KeepLeft, Policy};
 
-fn powers_of_two() -> impl Iterator<Item = usize> {
-    (0..).scan(1, |state, _| {
+fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
+    (0..).scan(starting_value, |state, _| {
         *state *= 2;
         Some(*state)
     })
@@ -14,6 +15,7 @@ where
     T: Sync + Send + Copy,
     F: Fn(&&T) -> bool + Sync,
 {
+    let base_size = min((v.len() as f64).log(2.0).ceil() as usize, v.len());
     let input = (EdibleSlice::new(v), KeepLeft(None));
     input
         .work(|mut slice, limit| {
@@ -25,7 +27,7 @@ where
             }
             slice
         }).map(|slice| (slice.1).0)
-        .by_blocks(powers_of_two())
+        .by_blocks(powers(base_size))
         .filter_map(|o| o)
         .next()
 }
