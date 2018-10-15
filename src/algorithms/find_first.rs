@@ -1,42 +1,11 @@
-use {Divisible, DivisibleAtIndex, EdibleSlice, Policy};
+use std::mem::replace;
+use {Divisible, EdibleSlice, KeepLeft, Policy};
 
-//TODO: switch to iterators
-struct FindingSlice<'a, T: 'a> {
-    slice: EdibleSlice<'a, T>,
-    result: Option<T>,
-}
-
-impl<'a, T: 'a + Send + Sync> Divisible for FindingSlice<'a, T> {
-    fn len(&self) -> usize {
-        self.slice.len()
-    }
-    fn split(self) -> (Self, Self) {
-        let (left_slice, right_slice) = self.slice.split();
-        let my_part = FindingSlice {
-            slice: left_slice,
-            result: self.result,
-        };
-        let his_part = FindingSlice {
-            slice: right_slice,
-            result: None,
-        };
-        (my_part, his_part)
-    }
-}
-
-impl<'a, T: 'a + Send + Sync> DivisibleAtIndex for FindingSlice<'a, T> {
-    fn split_at(self, index: usize) -> (Self, Self) {
-        let (left_slice, right_slice) = self.slice.split_at(index);
-        let my_part = FindingSlice {
-            slice: left_slice,
-            result: self.result,
-        };
-        let his_part = FindingSlice {
-            slice: right_slice,
-            result: None,
-        };
-        (my_part, his_part)
-    }
+fn powers_of_two() -> impl Iterator<Item = usize> {
+    (0..).scan(1, |state, _| {
+        *state *= 2;
+        Some(*state)
+    })
 }
 
 /// Return first element for which f returns true.
@@ -45,18 +14,18 @@ where
     T: Sync + Send + Copy,
     F: Fn(&&T) -> bool + Sync,
 {
-    let input = FindingSlice {
-        slice: EdibleSlice::new(v),
-        result: None,
-    };
+    let input = (EdibleSlice::new(v), KeepLeft(None));
     input
         .work(|mut slice, limit| {
-            if slice.result.is_none() {
-                slice.result = slice.slice.iter().take(limit).find(|e| f(e)).cloned();
+            if slice.1.is_none() {
+                replace(
+                    &mut (slice.1).0,
+                    slice.0.iter().take(limit).find(|e| f(e)).cloned(),
+                );
             }
             slice
-        }).map(|slice| slice.result)
-        .by_blocks(1_000_000)
+        }).map(|slice| (slice.1).0)
+        .by_blocks(powers_of_two())
         .filter_map(|o| o)
         .next()
 }

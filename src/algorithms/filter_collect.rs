@@ -1,4 +1,6 @@
+use std::iter::repeat;
 use {Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Policy};
+
 struct FilterWork<'a, T: 'a> {
     input: EdibleSlice<'a, T>,
     output: EdibleSliceMut<'a, T>,
@@ -73,7 +75,7 @@ where
                 }
                 slices
             }).map(|slices| slices.output)
-            .by_blocks(1_000_000)
+            .by_blocks(repeat(1_000_000))
             .fold(
                 None,
                 |potential_left_slice: Option<EdibleSliceMut<T>>, right_slice| {
