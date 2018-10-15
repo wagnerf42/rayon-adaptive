@@ -94,8 +94,7 @@ pub enum Token {
     Num(u64),
 }
 
-pub fn vec_gen() -> Vec<Token> {
-    let size = 100_000_000;
+pub fn vec_gen(size: u64) -> Vec<Token> {
     let expr = (1..size)
         .enumerate()
         .map(|(pos, num)| {

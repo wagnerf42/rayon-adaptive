@@ -7,6 +7,7 @@ use criterion::Criterion;
 use rayon_adaptive::*;
 
 const NUM_THREADS: usize = 7;
+const SIZE: u64 = 1_000_000;
 
 fn infix_solver_bench(c: &mut Criterion) {
     rayon::ThreadPoolBuilder::new()
@@ -15,7 +16,7 @@ fn infix_solver_bench(c: &mut Criterion) {
         .expect("Rayon global pool initialisation failed");
     c.bench_function("adaptive infix (size=100_000_000)", |b| {
         b.iter_with_setup(
-            || vec_gen(),
+            || vec_gen(SIZE),
             |testin| {
                 solver_adaptive(&testin, Policy::Adaptive(1000));
                 testin
@@ -24,7 +25,7 @@ fn infix_solver_bench(c: &mut Criterion) {
     });
     c.bench_function("parallel split infix (size=100_000_000)", |b| {
         b.iter_with_setup(
-            || vec_gen(),
+            || vec_gen(SIZE),
             |testin| {
                 solver_par_split(&testin);
                 testin
@@ -33,7 +34,7 @@ fn infix_solver_bench(c: &mut Criterion) {
     });
     c.bench_function("sequential infix (size=100_000_000)", |b| {
         b.iter_with_setup(
-            || vec_gen(),
+            || vec_gen(SIZE),
             |testin| {
                 solver_seq(&testin);
                 testin
@@ -42,7 +43,7 @@ fn infix_solver_bench(c: &mut Criterion) {
     });
     c.bench_function("parallel fold infix (size=100_000_000)", |b| {
         b.iter_with_setup(
-            || vec_gen(),
+            || vec_gen(SIZE),
             |testin| {
                 solver_par_fold(&testin);
                 testin

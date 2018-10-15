@@ -7,7 +7,7 @@ extern crate rayon_logs as rayon;
 extern crate time;
 use rayon::ThreadPoolBuilder;
 const NUM_THREADS: usize = 7;
-
+const SIZE: u64 = 1_000_000;
 fn main() {
     #[cfg(feature = "logs")]
     {
@@ -20,34 +20,36 @@ fn main() {
             .runs_number(500)
             .attach_algorithm_with_setup(
                 "sequential",
-                || vec_gen(),
+                || vec_gen(SIZE),
                 |vec| {
                     solver_seq(&vec);
                     vec
                 },
             ).attach_algorithm_with_setup(
                 "adaptive",
-                || vec_gen(),
+                || vec_gen(SIZE),
                 |vec| {
                     solver_adaptive(&vec, Policy::Adaptive(1000));
                     vec
                 },
             ).attach_algorithm_with_setup(
                 "rayon split",
-                || vec_gen(),
+                || vec_gen(SIZE),
                 |vec| {
                     solver_par_split(&vec);
                     vec
                 },
             ).attach_algorithm_with_setup(
                 "rayon fold",
-                || vec_gen(),
+                || vec_gen(SIZE),
                 |vec| {
                     solver_par_fold(&vec);
                     vec
                 },
-            ).generate_logs("comparisons.html")
-            .expect("comparison failed");
+            ).generate_logs(format!(
+                "comparison_{}mil_{}threads.html",
+                SIZE, NUM_THREADS
+            )).expect("comparison failed");
     }
     #[cfg(not(feature = "logs"))]
     {
@@ -56,7 +58,7 @@ fn main() {
             .build_global()
             .expect("Pool creation failed");
 
-        let random_expression = vec_gen();
+        let random_expression = vec_gen(SIZE);
         let answer = solver_seq(&random_expression);
         let adapt_ans = solver_adaptive(&random_expression, Policy::Adaptive(1000));
         let parsplit_ans = solver_par_split(&random_expression);
