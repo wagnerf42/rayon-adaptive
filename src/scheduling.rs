@@ -1,11 +1,16 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use depjoin;
 use rayon;
+use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use traits::Divisible;
+
+// we use this boolean to prevent fine grain parallelism when coarse grain
+// parallelism is still available in composed algorithms.
+thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
 
 /// All scheduling available scheduling policies.
 #[derive(Copy, Clone)]
@@ -60,13 +65,19 @@ where
             reduce_function,
             block_size,
         ),
-        Policy::Adaptive(block_size) => schedule_adaptive(
-            input,
-            work_function,
-            map_function,
-            reduce_function,
-            block_size,
-        ),
+        Policy::Adaptive(block_size) => SEQUENCE.with(|s| {
+            if *s.borrow() {
+                schedule_sequential(input, work_function, map_function)
+            } else {
+                schedule_adaptive(
+                    input,
+                    work_function,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            }
+        }),
     }
 }
 
@@ -282,7 +293,9 @@ where
                 self.input = (self.work_function)(self.input, size);
                 return (self.map_function)(self.input);
             }
+            SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
             self.input = (self.work_function)(self.input, size);
+            SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
