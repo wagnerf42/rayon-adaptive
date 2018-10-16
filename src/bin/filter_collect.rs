@@ -7,7 +7,7 @@ extern crate rayon_logs as rayon;
 
 use rand::random;
 use rayon::ThreadPoolBuilder;
-use rayon_adaptive::{filter_collect, Policy};
+use rayon_adaptive::filter_collect;
 
 fn main() {
     let v: Vec<u32> = (0..4_000_000).map(|_| random::<u32>() % 10).collect();
@@ -19,15 +19,13 @@ fn main() {
         .expect("failed building pool");
     #[cfg(feature = "logs")]
     {
-        let (filtered, log) =
-            pool.install(|| filter_collect(&v, |&i| *i % 2 == 0, Policy::Adaptive(2000)));
+        let (filtered, log) = pool.install(|| filter_collect(&v, |&i| *i % 2 == 0));
         assert_eq!(filtered, answer);
         log.save_svg("filter.svg").expect("failed saving svg");
     }
     #[cfg(not(feature = "logs"))]
     {
-        let filtered =
-            pool.install(|| filter_collect(&v, |&i| *i % 2 == 0, Policy::Adaptive(2000)));
+        let filtered = pool.install(|| filter_collect(&v, |&i| *i % 2 == 0));
         assert_eq!(filtered, answer);
     }
 }

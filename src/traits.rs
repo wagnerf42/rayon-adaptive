@@ -4,7 +4,6 @@ use std;
 use std::cmp::min;
 use std::collections::LinkedList;
 use std::marker::PhantomData;
-use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::ptr;
 
@@ -147,6 +146,10 @@ pub trait Divisible: Sized + Send {
     fn split(self) -> (Self, Self);
     /// Return our length.
     fn len(&self) -> usize;
+    /// Is there something left to do ?
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn work<WF: Fn(Self, usize) -> Self + Sync>(
         self,
         work_function: WF,
@@ -228,7 +231,6 @@ pub trait DivisibleAtIndex: Divisible {
             let my_copy = ptr::read(self);
             let (left, right) = my_copy.split_at(index);
             let pointer_to_self = self as *mut Self;
-            mem::drop(self);
             ptr::write(pointer_to_self, right);
             left
         }

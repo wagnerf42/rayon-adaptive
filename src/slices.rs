@@ -40,7 +40,7 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
     /// assert_eq!(v1, vec![0, 1, 2]);
     /// assert_eq!(v2, vec![3, 4]);
     /// ```
-    pub fn iter<'b>(&'b mut self) -> EatingIterator<'b, T> {
+    pub fn iter(&mut self) -> EatingIterator<T> {
         let used = self.used;
         EatingIterator {
             used: &mut self.used,
@@ -105,7 +105,7 @@ impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
 }
 
 impl<'a, T: 'a> EatingIterator<'a, T> {
-    pub fn peek<'b>(&'b mut self) -> Option<&'b T> {
+    pub fn peek(&mut self) -> Option<&T> {
         self.iterator.peek().map(|e| *e)
     }
 }
@@ -125,7 +125,7 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
         EdibleSliceMut { slice, used: 0 }
     }
     /// Take a look at next element.
-    pub fn peek<'b>(&'b mut self) -> Option<&'b mut T> {
+    pub fn peek(&mut self) -> Option<&mut T> {
         self.slice.get_mut(self.used)
     }
     /// Get back the whole slice.
@@ -133,7 +133,7 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
         self.slice
     }
     /// Return what's left of the inner slice.
-    pub fn remaining_slice<'b>(&'b mut self) -> &'b mut [T] {
+    pub fn remaining_slice(&mut self) -> &mut [T] {
         &mut self.slice[self.used..]
     }
     /// Consume self and return what's left of the inner slice.
@@ -142,7 +142,7 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
     }
     /// Return an iterator on remaining elements (mutable).
     /// When the iterator drops we remember what's left unused.
-    pub fn iter_mut<'b>(&'b mut self) -> EatingIteratorMut<'b, T> {
+    pub fn iter_mut(&mut self) -> EatingIteratorMut<T> {
         let used = self.used;
         EatingIteratorMut {
             used: &mut self.used,

@@ -208,13 +208,13 @@ impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
     }
 
     /// Borrow all mutable slices at once.
-    fn mut_slices<'b>(&'b mut self) -> (&'b mut [T], &'b mut [T], &'b mut [T]) {
+    fn mut_slices(&mut self) -> (&mut [T], &mut [T], &mut [T]) {
         let (s0, leftover) = self.s.split_first_mut().unwrap();
         let (s1, s2) = leftover.split_first_mut().unwrap();
-        (s0, s1, s2.get_mut(0).unwrap())
+        (s0, s1, s2[0])
     }
     /// Return the two mutable slices of given indices.
-    fn mut_couple<'b>(&'b mut self, i1: usize, i2: usize) -> (&'b mut [T], &'b mut [T]) {
+    fn mut_couple(&mut self, i1: usize, i2: usize) -> (&mut [T], &mut [T]) {
         let (s0, s1, s2) = self.mut_slices();
         match (i1, i2) {
             (0, 1) => (s0, s1),

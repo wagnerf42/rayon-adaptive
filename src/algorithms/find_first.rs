@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::mem::replace;
-use {Divisible, EdibleSlice, KeepLeft, Policy};
+use {Divisible, EdibleSlice, KeepLeft};
 
 fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
     (0..).scan(starting_value, |state, _| {
@@ -10,7 +10,7 @@ fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
 }
 
 /// Return first element for which f returns true.
-pub fn find_first<T, F>(v: &[T], f: F, policy: Policy) -> Option<T>
+pub fn find_first<T, F>(v: &[T], f: F) -> Option<T>
 where
     T: Sync + Send + Copy,
     F: Fn(&&T) -> bool + Sync,
