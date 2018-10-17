@@ -10,7 +10,7 @@ use rayon_adaptive::find_first;
 use criterion::{Criterion, ParameterizedBenchmark};
 
 fn find_first_adaptive(c: &mut Criterion) {
-    let sizes = vec![1_000_000, 2_000_000, 4_000_000, 6_000_000];
+    let sizes = vec![100_000, 200_000, 400_000, 600_000];
     c.bench(
         "find first random element",
         ParameterizedBenchmark::new(
