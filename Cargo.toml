@@ -20,7 +20,8 @@ itertools="*"
 rand="*"
 time = "0.1"
 smallvec = "*"
-
+hwloc = "*"
+libc = "*"
 [[bench]]
 name = "merge_sort"
 harness = false
