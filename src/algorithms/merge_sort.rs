@@ -268,10 +268,13 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a
 /// use rayon_adaptive::adaptive_sort;
 /// let v: Vec<u32> = (0..100_000).collect();
 /// let mut inverted_v: Vec<u32> = (0..100_000).rev().collect();
-/// adaptive_sort(&mut inverted_v);
+/// adaptive_sort(&mut inverted_v, 1000);
 /// assert_eq!(v, inverted_v);
 /// ```
-pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
+pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
+    slice: &mut [T],
+    initial_block_size: usize,
+) {
     let mut tmp_slice1 = Vec::with_capacity(slice.len());
     let mut tmp_slice2 = Vec::with_capacity(slice.len());
     unsafe {
@@ -290,6 +293,7 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut 
             slices
         },
         |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
+        initial_block_size,
     );
 
     if result_slices.i != 0 {

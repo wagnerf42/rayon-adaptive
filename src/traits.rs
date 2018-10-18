@@ -16,6 +16,7 @@ pub struct ActivatedInput<
     input: I,
     work_function: WF,
     map_function: MF, // TODO: rename to map
+    initial_block_size: Option<usize>,
     output_type: PhantomData<O>,
 }
 
@@ -63,6 +64,7 @@ impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) 
             input: self.input,
             work_function: self.work_function,
             map_function,
+            initial_block_size: None,
             output_type: PhantomData,
         }
     }
@@ -98,6 +100,16 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
     ActivatedInput<I, O, WF, MF>
 {
+    /// Sets the initial block size for the adaptive algorithm.
+    pub fn initial_block_size(self, block_size: usize) -> Self {
+        ActivatedInput {
+            input: self.input,
+            work_function: self.work_function,
+            map_function: self.map_function,
+            initial_block_size: Some(block_size),
+            output_type: PhantomData,
+        }
+    }
     pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
         schedule(
             self.input,
@@ -158,6 +170,7 @@ pub trait Divisible: Sized + Send {
             input: self,
             work_function,
             map_function: |i| i,
+            initial_block_size: None,
             output_type: PhantomData,
         }
     }
@@ -243,7 +256,12 @@ pub trait DivisibleAtIndex: Divisible {
         }
     }
     /// Easy api but use only when splitting generates no tangible work overhead.
-    fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
+    fn map_reduce<MF, RF, O>(
+        self,
+        map_function: MF,
+        reduce_function: RF,
+        initial_block_size: usize,
+    ) -> O
     where
         MF: Fn(Self) -> O + Sync,
         RF: Fn(O, O) -> O + Sync,
@@ -271,7 +289,7 @@ pub trait DivisibleAtIndex: Divisible {
             },
             &|w| w.output.unwrap(),
             &|left, right| reduce_function(left, right),
-            Policy::Adaptive(1000),
+            Policy::Adaptive(initial_block_size),
         )
     }
 }

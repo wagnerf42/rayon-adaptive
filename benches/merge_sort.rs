@@ -36,7 +36,7 @@ fn merge_sort_adaptive(c: &mut Criterion) {
                         .collect::<Vec<u32>>()
                 },
                 |mut v| {
-                    adaptive_sort(&mut v);
+                    adaptive_sort(&mut v, 1000);
                 },
             )
         }).with_function("rayon", |b, input_size| {
@@ -70,7 +70,7 @@ fn merge_sort_adaptive(c: &mut Criterion) {
             b.iter_with_setup(
                 || (0..*input_size).rev().collect::<Vec<u32>>(),
                 |mut v| {
-                    adaptive_sort(&mut v);
+                    adaptive_sort(&mut v, 1000);
                 },
             )
         }).with_function("rayon", |b, input_size| {
