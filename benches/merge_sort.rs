@@ -4,95 +4,83 @@ extern crate rand;
 extern crate rayon;
 extern crate rayon_adaptive;
 
-use rand::{ChaChaRng, Rng};
 use rayon::prelude::*;
 use rayon_adaptive::adaptive_sort;
 
-use criterion::Criterion;
+use criterion::{Criterion, ParameterizedBenchmark};
 
 fn merge_sort_adaptive(c: &mut Criterion) {
-    c.bench_function(
-        "adaptive merge sort (size=1_000_000, reversed input)",
-        move |b| {
-            b.iter_with_setup(
-                || (0..1_000_000).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    adaptive_sort(&mut v);
-                },
-            )
-        },
-    );
-    let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
-    let mut ra = ChaChaRng::new_unseeded();
-    c.bench_function(
-        "adaptive merge sort (size=1_000_000, random input)",
-        move |b| {
-            b.iter_with_setup(
-                || {
-                    ra.shuffle(&mut all_numbers);
-                    all_numbers.clone()
-                },
-                |mut v| {
-                    adaptive_sort(&mut v);
-                },
-            )
-        },
-    );
-
-    c.bench_function(
-        "sequential merge sort (size=1_000_000, reversed input)",
-        move |b| {
-            b.iter_with_setup(
-                || (0..1_000_000).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    v.sort();
-                },
-            )
-        },
-    );
-    let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
-    let mut ra = ChaChaRng::new_unseeded();
-    c.bench_function(
-        "sequential merge sort (size=1_000_000, random input)",
-        move |b| {
+    let sizes = vec![20_000, 50_000, 100_000, 150_000];
+    c.bench(
+        "merge sort (random input)",
+        ParameterizedBenchmark::new(
+            "sequential",
+            |b, input_size| {
+                b.iter_with_setup(
+                    || {
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>()
+                    },
+                    |mut v| {
+                        v.sort();
+                    },
+                )
+            },
+            sizes.clone(),
+        ).with_function("adaptive", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    ra.shuffle(&mut all_numbers);
-                    all_numbers.clone()
+                    (0..*input_size)
+                        .map(|_| rand::random())
+                        .collect::<Vec<u32>>()
                 },
                 |mut v| {
-                    v.sort();
+                    adaptive_sort(&mut v, 1000);
                 },
             )
-        },
-    );
-
-    c.bench_function(
-        "rayon merge sort (size=1_000_000, reversed input)",
-        move |b| {
-            b.iter_with_setup(
-                || (0..1_000_000).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    v.par_sort();
-                },
-            )
-        },
-    );
-    let mut all_numbers: Vec<u32> = (0..1_000_000).collect();
-    let mut ra = ChaChaRng::new_unseeded();
-    c.bench_function(
-        "rayon merge sort (size=1_000_000, random input)",
-        move |b| {
+        }).with_function("rayon", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    ra.shuffle(&mut all_numbers);
-                    all_numbers.clone()
+                    (0..*input_size)
+                        .map(|_| rand::random())
+                        .collect::<Vec<u32>>()
                 },
                 |mut v| {
                     v.par_sort();
                 },
             )
-        },
+        }),
+    );
+
+    c.bench(
+        "merge sort (reversed input)",
+        ParameterizedBenchmark::new(
+            "sequential",
+            |b, input_size| {
+                b.iter_with_setup(
+                    || (0..*input_size).rev().collect::<Vec<u32>>(),
+                    |mut v| {
+                        v.sort();
+                    },
+                )
+            },
+            sizes,
+        ).with_function("adaptive", |b, input_size| {
+            b.iter_with_setup(
+                || (0..*input_size).rev().collect::<Vec<u32>>(),
+                |mut v| {
+                    adaptive_sort(&mut v, 1000);
+                },
+            )
+        }).with_function("rayon", |b, input_size| {
+            b.iter_with_setup(
+                || (0..*input_size).rev().collect::<Vec<u32>>(),
+                |mut v| {
+                    v.par_sort();
+                },
+            )
+        }),
     );
 }
 

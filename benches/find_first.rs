@@ -1,50 +1,51 @@
 #[macro_use]
 extern crate criterion;
+extern crate rand;
 extern crate rayon;
 extern crate rayon_adaptive;
 
 use rayon::prelude::*;
-use rayon_adaptive::{find_first, Policy};
+use rayon_adaptive::find_first;
 
-use criterion::Criterion;
+use criterion::{Criterion, ParameterizedBenchmark};
 
 fn find_first_adaptive(c: &mut Criterion) {
-    c.bench_function("adaptive find_first(size=10_000_000)", move |b| {
-        b.iter_with_setup(
-            || (0..10_000_000).collect::<Vec<u32>>(),
-            |v| {
-                assert_eq!(
-                    find_first(&v, |&e| *e == 4_800_000, Policy::Adaptive(10_000)).unwrap(),
-                    4_800_000
+    let sizes = vec![100_000, 200_000, 400_000, 600_000];
+    c.bench(
+        "find first random element",
+        ParameterizedBenchmark::new(
+            "sequential",
+            |b, input_size| {
+                b.iter_with_setup(
+                    || (0..*input_size).collect::<Vec<u32>>(),
+                    |v| {
+                        let target = rand::random::<u32>() % input_size;
+                        assert_eq!(v.iter().find(|&e| *e == target).cloned().unwrap(), target)
+                    },
                 )
             },
-        )
-    });
-    c.bench_function("sequential find_first(size=10_000_000)", move |b| {
-        b.iter_with_setup(
-            || (0..10_000_000).collect::<Vec<u32>>(),
-            |v| {
-                assert_eq!(
-                    v.iter().find(|&e| *e == 4_800_000).cloned().unwrap(),
-                    4_800_000
-                )
-            },
-        )
-    });
-    c.bench_function("rayon find_first(size=10_000_000)", move |b| {
-        b.iter_with_setup(
-            || (0..10_000_000).collect::<Vec<u32>>(),
-            |v| {
-                assert_eq!(
-                    v.par_iter()
-                        .find_first(|&e| *e == 4_800_000)
-                        .cloned()
-                        .unwrap(),
-                    4_800_000
-                )
-            },
-        )
-    });
+            sizes,
+        ).with_function("adaptive", |b, input_size| {
+            b.iter_with_setup(
+                || (0..*input_size).collect::<Vec<u32>>(),
+                |v| {
+                    let target = rand::random::<u32>() % input_size;
+                    assert_eq!(find_first(&v, |&e| *e == target).unwrap(), target)
+                },
+            )
+        }).with_function("rayon", |b, input_size| {
+            b.iter_with_setup(
+                || (0..*input_size).collect::<Vec<u32>>(),
+                |v| {
+                    let target = rand::random::<u32>() % input_size;
+                    assert_eq!(
+                        v.par_iter().find_first(|&e| *e == target).cloned().unwrap(),
+                        target
+                    )
+                },
+            )
+        }),
+    );
 }
 
 criterion_group!(benches, find_first_adaptive);

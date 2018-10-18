@@ -1,5 +1,5 @@
 use std::iter::repeat;
-use {Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Policy};
+use {Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut};
 
 struct FilterWork<'a, T: 'a> {
     input: EdibleSlice<'a, T>,
@@ -47,7 +47,7 @@ impl<'a, T: Sync + Send> DivisibleAtIndex for FilterWork<'a, T> {
 }
 
 /// Filter given slice by given function and collect into vector.
-pub fn filter_collect<T, F>(slice: &[T], filter: F, policy: Policy) -> Vec<T>
+pub fn filter_collect<T, F>(slice: &[T], filter: F) -> Vec<T>
 where
     T: Send + Sync + Copy,
     F: Fn(&&T) -> bool + Sync,

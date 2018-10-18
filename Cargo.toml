@@ -41,3 +41,7 @@ harness = false
 [[bench]]
 name = "find_first"
 harness = false
+
+[[bench]]
+name = "initial_size"
+harness = false

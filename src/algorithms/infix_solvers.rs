@@ -35,7 +35,7 @@ impl PartialProducts {
             products: smallvec![1],
         }
     }
-    fn fuse(mut self, other: Self) -> Self {
+    fn fuse(mut self, other: &Self) -> Self {
         *self.products.last_mut().unwrap() *= other.products.first().unwrap();
         self.products.extend(other.products[1..].iter().cloned());
         self.reduce_products();
@@ -78,7 +78,7 @@ pub enum Token {
 }
 
 pub fn vec_gen(size: u64) -> Vec<Token> {
-    let expr = (1..size)
+    (1..size)
         .enumerate()
         .map(|(pos, num)| {
             if pos % 2 == 0 {
@@ -91,8 +91,7 @@ pub fn vec_gen(size: u64) -> Vec<Token> {
                     Token::Mult
                 }
             }
-        }).collect::<Vec<Token>>();
-    expr
+        }).collect()
 }
 fn sequential_wrapper(inp: &[Token], outp: &mut u64) {
     let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
@@ -138,20 +137,17 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
 //Logged
 pub fn solver_par_fold(inp: &[Token]) -> u64 {
     inp.into_par_iter()
-        .fold(
-            || PartialProducts::new(),
-            |mut products, tok| match *tok {
-                Token::Num(i) => {
-                    products.update_product(i);
-                    products
-                }
-                Token::Add => {
-                    products.append_product();
-                    products
-                }
-                Token::Mult => products,
-            },
-        ).reduce(|| PartialProducts::new(), |left, right| left.fuse(right))
+        .fold(PartialProducts::new, |mut products, tok| match *tok {
+            Token::Num(i) => {
+                products.update_product(i);
+                products
+            }
+            Token::Add => {
+                products.append_product();
+                products
+            }
+            Token::Mult => products,
+        }).reduce(PartialProducts::new, |left, right| left.fuse(&right))
         .evaluate()
 }
 
@@ -164,7 +160,7 @@ fn infix(input_slice: &mut EdibleSlice<Token>, output: &mut PartialProducts, lim
     });
 }
 
-pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
+pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
     let input = (EdibleSlice::new(inp), KeepLeft(PartialProducts::new()));
     input
         .work(|mut input, limit| {
@@ -174,6 +170,6 @@ pub fn solver_adaptive(inp: &Vec<Token>, policy: Policy) -> u64 {
             infix(&mut input.0, &mut input.1, limit);
             input
         }).map(|slice| (slice.1).0)
-        .reduce(|left, right| left.fuse(right), policy)
+        .reduce(|left, right| left.fuse(&right), policy)
         .evaluate()
 }

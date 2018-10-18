@@ -1,11 +1,16 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use depjoin;
 use rayon;
+use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use traits::Divisible;
+
+// we use this boolean to prevent fine grain parallelism when coarse grain
+// parallelism is still available in composed algorithms.
+thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
 
 /// All scheduling available scheduling policies.
 #[derive(Copy, Clone)]
@@ -60,13 +65,19 @@ where
             reduce_function,
             block_size,
         ),
-        Policy::Adaptive(block_size) => schedule_adaptive(
-            input,
-            work_function,
-            map_function,
-            reduce_function,
-            block_size,
-        ),
+        Policy::Adaptive(block_size) => SEQUENCE.with(|s| {
+            if *s.borrow() {
+                schedule_sequential(input, work_function, map_function)
+            } else {
+                schedule_adaptive(
+                    input,
+                    work_function,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            }
+        }),
     }
 }
 
@@ -169,7 +180,7 @@ where
         depjoin(
             || schedule_depjoin(i1, work_function, map_function, reduce_function, block_size),
             || schedule_depjoin(i2, work_function, map_function, reduce_function, block_size),
-            |r1, r2| reduce_function(r1, r2),
+            reduce_function,
         )
     }
 }
@@ -211,10 +222,17 @@ where
         map_function: &'b MF,
         reduce_function: &'b RF,
     ) -> Self {
+        // adjust block size to fit on boundaries
+        let blocks_number = (((input.len() as f64) / initial_block_size as f64 + 1.0).log(2.0)
+            - 1.0)
+            .floor() as i32;
+        let current_block_size =
+            ((input.len() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
+
         AdaptiveWorker {
             input,
             initial_block_size,
-            current_block_size: initial_block_size,
+            current_block_size,
             stolen,
             sender,
             work_function,
@@ -229,13 +247,13 @@ where
     fn answer_steal(self) -> O {
         let (my_half, his_half) = self.input.split();
         self.sender.send(Some(his_half)).expect("sending failed");
-        return schedule_adaptive(
+        schedule_adaptive(
             my_half,
             self.work_function,
             self.map_function,
             self.reduce_function,
             self.initial_block_size,
-        );
+        )
     }
 
     fn cancel_stealing_task(&mut self) {
@@ -262,20 +280,12 @@ where
             }
         }
 
-        // I have this really nice proof as to why I need phi but the margins
-        // are too small to write it down here :-)
-        let phi: f64 = (1.0 + 5.0f64.sqrt()) / 2.0;
-
         // loop while not stolen or something left to do
         loop {
             if self.is_stolen() && self.input.len() > self.initial_block_size {
                 return self.answer_steal();
             }
-            //TODO: Remove the cap to restore the original version of rayon-adaptive.
-            self.current_block_size = //min(
-                (self.current_block_size as f64 * phi) as usize
-                //self.initial_block_size * 10,
-            ;
+            self.current_block_size *= 2;
             let size = min(self.input.len(), self.current_block_size);
 
             if self.input.len() <= self.current_block_size {
@@ -283,7 +293,9 @@ where
                 self.input = (self.work_function)(self.input, size);
                 return (self.map_function)(self.input);
             }
+            SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
             self.input = (self.work_function)(self.input, size);
+            SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
@@ -326,29 +338,22 @@ where
 
         //TODO depjoin instead of join
         let (o1, maybe_o2) = rayon::join(
-            move || {
-                let r = worker.schedule();
-                r
-            },
+            move || worker.schedule(),
             move || {
                 stolen.store(true, Ordering::Relaxed);
                 #[cfg(feature = "logs")]
-                let received =
-                    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"));
+                let input =
+                    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"))?;
                 #[cfg(not(feature = "logs"))]
-                let received = receiver.recv().expect("receiving failed");
-                if received.is_none() {
-                    return None;
-                }
-                let input = received.unwrap();
+                let input = receiver.recv().expect("receiving failed")?;
                 assert!(input.len() > 0);
-                return Some(schedule_adaptive(
+                Some(schedule_adaptive(
                     input,
                     work_function,
                     map_function,
                     reduce_function,
                     initial_block_size,
-                ));
+                ))
             },
         );
 

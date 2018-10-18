@@ -208,13 +208,13 @@ impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
     }
 
     /// Borrow all mutable slices at once.
-    fn mut_slices<'b>(&'b mut self) -> (&'b mut [T], &'b mut [T], &'b mut [T]) {
+    fn mut_slices(&mut self) -> (&mut [T], &mut [T], &mut [T]) {
         let (s0, leftover) = self.s.split_first_mut().unwrap();
         let (s1, s2) = leftover.split_first_mut().unwrap();
-        (s0, s1, s2.get_mut(0).unwrap())
+        (s0, s1, s2[0])
     }
     /// Return the two mutable slices of given indices.
-    fn mut_couple<'b>(&'b mut self, i1: usize, i2: usize) -> (&'b mut [T], &'b mut [T]) {
+    fn mut_couple(&mut self, i1: usize, i2: usize) -> (&mut [T], &mut [T]) {
         let (s0, s1, s2) = self.mut_slices();
         match (i1, i2) {
             (0, 1) => (s0, s1),
@@ -268,10 +268,13 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a
 /// use rayon_adaptive::adaptive_sort;
 /// let v: Vec<u32> = (0..100_000).collect();
 /// let mut inverted_v: Vec<u32> = (0..100_000).rev().collect();
-/// adaptive_sort(&mut inverted_v);
+/// adaptive_sort(&mut inverted_v, 1000);
 /// assert_eq!(v, inverted_v);
 /// ```
-pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
+pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
+    slice: &mut [T],
+    initial_block_size: usize,
+) {
     let mut tmp_slice1 = Vec::with_capacity(slice.len());
     let mut tmp_slice2 = Vec::with_capacity(slice.len());
     unsafe {
@@ -290,6 +293,7 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut 
             slices
         },
         |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
+        initial_block_size,
     );
 
     if result_slices.i != 0 {
