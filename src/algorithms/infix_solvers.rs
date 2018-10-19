@@ -45,8 +45,9 @@ impl PartialProducts {
         self.products.iter().sum::<u64>()
     }
     fn update_product(&mut self, num: u64) {
-        let len = self.products.len();
-        self.products[len - 1] *= num;
+        *self.products.last_mut().unwrap() *= num;
+        //let len = self.products.len();
+        //self.products[len - 1] *= num;
     }
     fn append_product(&mut self) {
         if self.products.len() == 3 {
@@ -95,9 +96,9 @@ pub fn vec_gen(size: u64) -> Vec<Token> {
 }
 fn sequential_wrapper(inp: &[Token], outp: &mut u64) {
     let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
-        Token::Add => (tup.0 + tup.1, 1),
-        Token::Mult => tup,
         Token::Num(i) => (tup.0, tup.1 * *i),
+        Token::Mult => tup,
+        Token::Add => (tup.0 + tup.1, 1),
     });
     *outp = ans.0 + ans.1
 }
@@ -153,11 +154,17 @@ pub fn solver_par_fold(inp: &[Token]) -> u64 {
 
 //this is the work function
 fn infix(input_slice: &mut EdibleSlice<Token>, output: &mut PartialProducts, limit: usize) {
-    input_slice.iter().take(limit).for_each(|tok| match tok {
-        Token::Num(i) => output.update_product(*i),
-        Token::Add => output.append_product(),
-        Token::Mult => {}
-    });
+    let elements = input_slice.iter().take(limit);
+
+    for tok in elements {
+        match tok {
+            Token::Num(i) => output.update_product(*i),
+            Token::Add => {
+                output.append_product();
+            }
+            Token::Mult => {}
+        }
+    }
 }
 
 pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
