@@ -11,7 +11,7 @@ use std::sync::mpsc::channel;
 mod traits;
 pub use traits::{Divisible, DivisibleAtIndex, KeepLeft};
 mod scheduling;
-pub use scheduling::Policy;
+pub use scheduling::{fully_adaptive_schedule, Policy};
 mod utils;
 pub use utils::fuse_slices;
 mod slices;

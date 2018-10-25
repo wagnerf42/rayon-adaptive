@@ -1,12 +1,13 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use depjoin;
 use rayon;
+//use rayon::current_num_threads;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::Divisible;
+use traits::{Divisible, DivisibleAtIndex};
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
@@ -364,4 +365,13 @@ where
             o1
         }
     }
+}
+
+pub fn fully_adaptive_schedule<I, WF, RETF>(input: I, work_function: &WF, retrieve_function: &RETF)
+where
+    I: Divisible,
+    WF: Fn(I, usize) -> I + Sync,
+    RETF: Fn(I, I, I) -> I + Sync,
+{
+    unimplemented!()
 }
