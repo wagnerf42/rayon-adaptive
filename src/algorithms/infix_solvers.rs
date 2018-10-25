@@ -93,14 +93,27 @@ pub fn vec_gen(size: u64) -> Vec<Token> {
             }
         }).collect()
 }
-
-pub fn solver_seq(inp: &[Token]) -> u64 {
+fn sequential_wrapper(inp: &[Token], outp: &mut u64) {
     let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
         Token::Add => (tup.0 + tup.1, 1),
         Token::Mult => tup,
         Token::Num(i) => (tup.0, tup.1 * *i),
     });
-    ans.0 + ans.1
+    *outp = ans.0 + ans.1
+}
+pub fn solver_seq(inp: &[Token]) -> u64 {
+    //    let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
+    //        Token::Add => (tup.0 + tup.1, 1),
+    //        Token::Mult => tup,
+    //        Token::Num(i) => (tup.0, tup.1 * *i),
+    //    });
+    //    ans.0 + ans.1
+    let mut ans: u64 = 0;
+    #[cfg(feature = "logs")]
+    sequential_task(0, inp.len(), || sequential_wrapper(inp, &mut ans));
+    #[cfg(not(feature = "logs"))]
+    sequential_wrapper(inp, &mut ans);
+    ans
 }
 //Not logged by rayon_logs.
 pub fn solver_par_split(inp: &[Token]) -> u64 {

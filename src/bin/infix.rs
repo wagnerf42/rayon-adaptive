@@ -6,13 +6,14 @@ extern crate rayon;
 extern crate rayon_logs as rayon;
 extern crate time;
 use rayon::ThreadPoolBuilder;
-const NUM_THREADS: usize = 7;
+const NUM_THREADS: usize = 2;
 const SIZE: u64 = 1_000_000;
 fn main() {
     #[cfg(feature = "logs")]
     {
         let pool = ThreadPoolBuilder::new()
             .num_threads(NUM_THREADS)
+            .bind_threads()
             .build()
             .expect("Pool creation failed");
 
@@ -30,20 +31,6 @@ fn main() {
                 || vec_gen(SIZE),
                 |vec| {
                     solver_adaptive(&vec, Policy::Adaptive(1000));
-                    vec
-                },
-            ).attach_algorithm_with_setup(
-                "rayon split",
-                || vec_gen(SIZE),
-                |vec| {
-                    solver_par_split(&vec);
-                    vec
-                },
-            ).attach_algorithm_with_setup(
-                "rayon fold",
-                || vec_gen(SIZE),
-                |vec| {
-                    solver_par_fold(&vec);
                     vec
                 },
             ).generate_logs(format!(
