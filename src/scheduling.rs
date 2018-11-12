@@ -224,11 +224,12 @@ where
         reduce_function: &'b RF,
     ) -> Self {
         // adjust block size to fit on boundaries
-        let blocks_number = (((input.len() as f64) / initial_block_size as f64 + 1.0).log(2.0)
-            - 1.0)
-            .floor() as i32;
-        let current_block_size =
-            ((input.len() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
+        let current_block_size = initial_block_size;
+        //let blocks_number = (((input.len() as f64) / initial_block_size as f64 + 1.0).log(2.0)
+        //    - 1.0)
+        //    .floor() as i32;
+        //let current_block_size =
+        //    ((input.len() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
 
         AdaptiveWorker {
             input,
@@ -286,7 +287,7 @@ where
             if self.is_stolen() && self.input.len() > self.initial_block_size {
                 return self.answer_steal();
             }
-            self.current_block_size *= 2;
+            //self.current_block_size *= 2;
             let size = min(self.input.len(), self.current_block_size);
 
             if self.input.len() <= self.current_block_size {
@@ -373,5 +374,11 @@ where
     WF: Fn(I, usize) -> I + Sync,
     RETF: Fn(I, I, I) -> I + Sync,
 {
+    //so, what kind of communications do we have ?
+    // * main thread is stolen
+    //   - stolen input
+    //   -
+    // * main thread retrieves data
+    // * helper thread is stolen
     unimplemented!()
 }

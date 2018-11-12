@@ -4,21 +4,21 @@ extern crate rand;
 extern crate rayon;
 extern crate rayon_adaptive;
 
-use rayon_adaptive::adaptive_sort;
+use rayon_adaptive::{Policy, vec_gen, solver_adaptive};
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
 fn blocks_sizes(c: &mut Criterion) {
-    let sizes = vec![100, 300, 500, 1_000, 2_000, 4_000, 8_000, 12_000];
+    let sizes = vec![2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
     c.bench(
         "initial size",
         ParameterizedBenchmark::new(
             "adaptive",
             |b, block_size| {
                 b.iter_with_setup(
-                    || (0..100_000).map(|_| rand::random()).collect::<Vec<u32>>(),
-                    |mut v| {
-                        adaptive_sort(&mut v, *block_size);
+                    || vec_gen(100_000),
+                    |v| {
+                        solver_adaptive(&v, Policy::Adaptive(*block_size));
                     },
                 )
             },
