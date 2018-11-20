@@ -79,12 +79,18 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
         let (input, work_function, map_function) =
             (self.input, self.work_function, self.map_function);
         let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+
+        let identity = || ();
+        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
+        let map = |(_, i)| (map_function)(i);
+
         let outputs_list = schedule(
             input,
-            &work_function,
+            &identity,
+            &fold_op,
             &|input| {
                 let mut l = LinkedList::new();
-                l.push_back((map_function)(input));
+                l.push_back((map)(input));
                 l
             },
             &|mut left, mut right| {
@@ -111,10 +117,15 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
         }
     }
     pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
+        let (input, work_function, map_function) = (self.input, self.work_function, self.map_function);
+        let identity = || ();
+        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
+        let map = |(_, i)| (map_function)(i);
         schedule(
-            self.input,
-            &self.work_function,
-            &self.map_function,
+            input,
+            &identity,
+            &fold_op,
+            &map,
             &reduce_function,
             policy,
         )
@@ -134,12 +145,18 @@ impl<
             (self.input, self.work_function, self.map_function);
         input.chunks(blocks_sizes).flat_map(move |input| {
             let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+
+        let identity = || ();
+        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
+        let map = |(_, i)| (map_function)(i);
+
             let outputs_list = schedule(
                 input,
-                &work_function,
+                &identity,
+                &fold_op,
                 &|input| {
                     let mut l = LinkedList::new();
-                    l.push_back((map_function)(input));
+                    l.push_back((map)(input));
                     l
                 },
                 &|mut left, mut right| {
@@ -179,32 +196,11 @@ pub trait Divisible: Sized + Send {
     where
         WF: Fn(Self, usize) -> Self + Sync,
     {
-        schedule(self, &work_function, &|_| (), &|_, _| (), policy)
-    }
-}
-
-/// Some genericity to use only one scheduler for all different input types.
-struct LocalWork<I: DivisibleAtIndex, O> {
-    remaining_work: I,
-    output: Option<O>,
-}
-
-impl<I: DivisibleAtIndex, O: Send> Divisible for LocalWork<I, O> {
-    fn split(self) -> (Self, Self) {
-        let (left_work, right_work) = self.remaining_work.split();
-        (
-            LocalWork {
-                remaining_work: left_work,
-                output: self.output,
-            },
-            LocalWork {
-                remaining_work: right_work,
-                output: None,
-            },
-        )
-    }
-    fn len(&self) -> usize {
-        self.remaining_work.len()
+        let identity = || ();
+        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
+        let map = |_| ();
+        let reduce = |_, _| ();
+        schedule(self, &identity, &fold_op, &map, &reduce, policy)
     }
 }
 
@@ -267,27 +263,25 @@ pub trait DivisibleAtIndex: Divisible {
         RF: Fn(O, O) -> O + Sync,
         O: Send,
     {
-        let full_work = LocalWork {
-            remaining_work: self,
-            output: None,
-        };
-        schedule(
-            full_work,
-            &|w, limit| -> LocalWork<Self, O> {
-                let (todo_now, remaining) = w.remaining_work.split_at(limit);
+        let identity = || None;
+        let fold_op = |o: Option<O>, i: Self, limit:usize| -> (Option<O>, Self) {
+                let (todo_now, remaining) = i.split_at(limit);
                 let new_result = map_function(todo_now);
-
-                LocalWork {
-                    remaining_work: remaining,
-                    output: if let Some(output) = w.output {
-                        //TODO: force sequential ? Some(output.fuse_with_policy(new_result, Policy::Sequential))
+                (
+                if let Some(output) = o {
                         Some(reduce_function(output, new_result))
-                    } else {
+                } else {
                         Some(new_result)
-                    },
-                }
-            },
-            &|w| w.output.unwrap(),
+                }, remaining
+                )
+        };
+        let map = |(o, _): (Option<O>, Self)| o.unwrap();
+
+        schedule(
+            self,
+            &identity,
+            &fold_op,
+            &map,
             &|left, right| reduce_function(left, right),
             Policy::Adaptive(initial_block_size),
         )
