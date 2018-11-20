@@ -87,6 +87,35 @@ where
         schedule(input, &identity, &fold_op, &map, &reduce_function, policy)
     }
 }
+
+impl<I: Divisible, O: Send, ID: Fn() -> O + Sync, F: Fn(O, I, usize) -> (O, I) + Sync> IntoIterator
+    for Folder<I, O, ID, F>
+{
+    type Item = O;
+    type IntoIter = std::collections::linked_list::IntoIter<O>;
+    fn into_iter(self) -> Self::IntoIter {
+        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
+        let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+
+        let outputs_list = schedule(
+            input,
+            &identity,
+            &fold_op,
+            &|input| {
+                let mut l = LinkedList::new();
+                l.push_back(input.0);
+                l
+            },
+            &|mut left, mut right| {
+                left.append(&mut right);
+                left
+            },
+            Policy::Adaptive(sequential_limit),
+        );
+        outputs_list.into_iter()
+    }
+}
+
 impl<I, O, ID, F> Folder<I, O, ID, F>
 where
     I: DivisibleAtIndex,

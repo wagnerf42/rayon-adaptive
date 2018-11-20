@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::mem::replace;
 use {Divisible, EdibleSlice};
 
 fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
