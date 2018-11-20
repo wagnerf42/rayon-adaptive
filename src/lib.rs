@@ -9,7 +9,7 @@ extern crate rayon_logs as rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
-pub use traits::{Divisible, DivisibleAtIndex, KeepLeft};
+pub use traits::{Divisible, DivisibleAtIndex};
 mod scheduling;
 pub use scheduling::{fully_adaptive_schedule, Policy};
 mod utils;

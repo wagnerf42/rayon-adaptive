@@ -16,7 +16,7 @@ use smallvec::SmallVec;
 
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
-use {Divisible, EdibleSlice, KeepLeft, Policy};
+use {Divisible, EdibleSlice, Policy};
 
 #[derive(Debug)]
 pub struct PartialProducts {
@@ -151,25 +151,19 @@ pub fn solver_par_fold(inp: &[Token]) -> u64 {
         .evaluate()
 }
 
-//this is the work function
-fn infix(input_slice: &mut EdibleSlice<Token>, output: &mut PartialProducts, limit: usize) {
-    input_slice.iter().take(limit).for_each(|tok| match tok {
-        Token::Num(i) => output.update_product(*i),
-        Token::Add => output.append_product(),
-        Token::Mult => {}
-    });
-}
-
 pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
-    let input = (EdibleSlice::new(inp), KeepLeft(PartialProducts::new()));
+    let input = EdibleSlice::new(inp);
     input
-        .work(|mut input, limit| {
-            #[cfg(feature = "logs")]
-            sequential_task(0, limit, || infix(&mut input.0, &mut input.1, limit));
-            #[cfg(not(feature = "logs"))]
-            infix(&mut input.0, &mut input.1, limit);
-            input
-        }).map(|slice| (slice.1).0)
-        .reduce(|left, right| left.fuse(&right), policy)
+        .fold(
+            || PartialProducts::new(),
+            |mut p, mut i, limit| {
+                i.iter().take(limit).for_each(|tok| match tok {
+                    Token::Num(i) => p.update_product(*i),
+                    Token::Add => p.append_product(),
+                    Token::Mult => {}
+                });
+                (p, i)
+            },
+        ).reduce(|left, right| left.fuse(&right), policy)
         .evaluate()
 }

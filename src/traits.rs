@@ -4,7 +4,6 @@ use std;
 use std::cmp::min;
 use std::collections::LinkedList;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
 use std::ptr;
 
 pub struct ActivatedInput<
@@ -20,39 +19,11 @@ pub struct ActivatedInput<
     output_type: PhantomData<O>,
 }
 
-/// When divided, the value stays on the left and the right part
-/// gets the default value.
-/// It is mainly intended for storing results.
-pub struct KeepLeft<T: Default + Send>(pub T);
-
-impl<T: Default + Send> Divisible for KeepLeft<T> {
-    /// Always return max possible size since we can be split infinitely.
-    fn len(&self) -> usize {
-        std::usize::MAX // we lie
-    }
-    /// Value stays on left ; default value on right.
-    fn split(self) -> (Self, Self) {
-        (KeepLeft(self.0), KeepLeft(Default::default()))
-    }
-}
-
-impl<T: Default + Send> DivisibleAtIndex for KeepLeft<T> {
-    fn split_at(self, _index: usize) -> (Self, Self) {
-        (KeepLeft(self.0), KeepLeft(Default::default()))
-    }
-}
-
-impl<T: Send + Default> Deref for KeepLeft<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
-
-impl<T: Send + Default> DerefMut for KeepLeft<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
+pub struct Folder<I: Divisible, O: Send, ID: Fn() -> O + Sync, F: Fn(O, I, usize) -> (O, I) + Sync>
+{
+    input: I,
+    identity: ID,
+    fold_op: F,
 }
 
 impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {
@@ -103,6 +74,52 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
     }
 }
 
+impl<I, O, ID, F> Folder<I, O, ID, F>
+where
+    I: Divisible,
+    O: Send,
+    ID: Fn() -> O + Sync,
+    F: Fn(O, I, usize) -> (O, I) + Sync,
+{
+    pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
+        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
+        let map = |(o, _)| o;
+        schedule(input, &identity, &fold_op, &map, &reduce_function, policy)
+    }
+}
+impl<I, O, ID, F> Folder<I, O, ID, F>
+where
+    I: DivisibleAtIndex,
+    O: Send,
+    ID: Fn() -> O + Sync,
+    F: Fn(O, I, usize) -> (O, I) + Sync,
+{
+    pub fn by_blocks<S: Iterator<Item = usize>>(self, blocks_sizes: S) -> impl Iterator<Item = O> {
+        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
+
+        input.chunks(blocks_sizes).flat_map(move |input| {
+            let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
+
+            let outputs_list = schedule(
+                input,
+                &identity,
+                &fold_op,
+                &|input| {
+                    let mut l = LinkedList::new();
+                    l.push_back(input.0);
+                    l
+                },
+                &|mut left, mut right| {
+                    left.append(&mut right);
+                    left
+                },
+                Policy::Adaptive(sequential_limit),
+            );
+            outputs_list.into_iter()
+        })
+    }
+}
+
 impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
     ActivatedInput<I, O, WF, MF>
 {
@@ -117,18 +134,12 @@ impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
         }
     }
     pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
-        let (input, work_function, map_function) = (self.input, self.work_function, self.map_function);
+        let (input, work_function, map_function) =
+            (self.input, self.work_function, self.map_function);
         let identity = || ();
         let fold_op = |_, i, limit| ((), (work_function)(i, limit));
         let map = |(_, i)| (map_function)(i);
-        schedule(
-            input,
-            &identity,
-            &fold_op,
-            &map,
-            &reduce_function,
-            policy,
-        )
+        schedule(input, &identity, &fold_op, &map, &reduce_function, policy)
     }
 }
 
@@ -146,9 +157,9 @@ impl<
         input.chunks(blocks_sizes).flat_map(move |input| {
             let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
 
-        let identity = || ();
-        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
-        let map = |(_, i)| (map_function)(i);
+            let identity = || ();
+            let fold_op = |_, i, limit| ((), (work_function)(i, limit));
+            let map = |(_, i)| (map_function)(i);
 
             let outputs_list = schedule(
                 input,
@@ -189,6 +200,18 @@ pub trait Divisible: Sized + Send {
             map_function: |i| i,
             initial_block_size: None,
             output_type: PhantomData,
+        }
+    }
+    fn fold<O, ID, F>(self, identity: ID, fold_op: F) -> Folder<Self, O, ID, F>
+    where
+        O: Send,
+        ID: Fn() -> O + Sync,
+        F: Fn(O, Self, usize) -> (O, Self) + Sync,
+    {
+        Folder {
+            input: self,
+            identity,
+            fold_op,
         }
     }
     /// Easy api when we return no results.
@@ -264,16 +287,17 @@ pub trait DivisibleAtIndex: Divisible {
         O: Send,
     {
         let identity = || None;
-        let fold_op = |o: Option<O>, i: Self, limit:usize| -> (Option<O>, Self) {
-                let (todo_now, remaining) = i.split_at(limit);
-                let new_result = map_function(todo_now);
-                (
+        let fold_op = |o: Option<O>, i: Self, limit: usize| -> (Option<O>, Self) {
+            let (todo_now, remaining) = i.split_at(limit);
+            let new_result = map_function(todo_now);
+            (
                 if let Some(output) = o {
-                        Some(reduce_function(output, new_result))
+                    Some(reduce_function(output, new_result))
                 } else {
-                        Some(new_result)
-                }, remaining
-                )
+                    Some(new_result)
+                },
+                remaining,
+            )
         };
         let map = |(o, _): (Option<O>, Self)| o.unwrap();
 

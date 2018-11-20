@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::mem::replace;
-use {Divisible, EdibleSlice, KeepLeft};
+use {Divisible, EdibleSlice};
 
 fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
     (0..).scan(starting_value, |state, _| {
@@ -16,18 +16,17 @@ where
     F: Fn(&&T) -> bool + Sync,
 {
     let base_size = min((v.len() as f64).log(2.0).ceil() as usize, v.len());
-    let input = (EdibleSlice::new(v), KeepLeft(None));
+    let input = EdibleSlice::new(v);
     input
-        .work(|mut slice, limit| {
-            if slice.1.is_none() {
-                replace(
-                    &mut (slice.1).0,
-                    slice.0.iter().take(limit).find(|e| f(e)).cloned(),
-                );
-            }
-            slice
-        }).map(|slice| (slice.1).0)
-        .by_blocks(powers(base_size))
+        .fold(
+            || None,
+            |found, mut slice, limit| {
+                (
+                    found.or_else(|| slice.iter().take(limit).find(|e| f(e)).cloned()),
+                    slice,
+                )
+            },
+        ).by_blocks(powers(base_size))
         .filter_map(|o| o)
         .next()
 }

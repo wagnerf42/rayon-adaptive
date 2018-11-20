@@ -7,7 +7,7 @@ use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::{Divisible};
+use traits::Divisible;
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
@@ -90,7 +90,12 @@ where
     }
 }
 
-fn schedule_sequential<I, ID, F, MF, O, IO>(input: I, identity: &ID, fold_op: &F, map_function: &MF) -> O
+fn schedule_sequential<I, ID, F, MF, O, IO>(
+    input: I,
+    identity: &ID,
+    fold_op: &F,
+    map_function: &MF,
+) -> O
 where
     I: Divisible,
     ID: Fn() -> IO,
@@ -123,8 +128,26 @@ where
     } else {
         let (i1, i2) = input.split();
         let (r1, r2) = rayon::join(
-            || schedule_join(i1, identity, fold_op, map_function, reduce_function, block_size),
-            || schedule_join(i2, identity, fold_op, map_function, reduce_function, block_size),
+            || {
+                schedule_join(
+                    i1,
+                    identity,
+                    fold_op,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            },
+            || {
+                schedule_join(
+                    i2,
+                    identity,
+                    fold_op,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            },
         );
         reduce_function(r1, r2)
     }
@@ -152,7 +175,16 @@ where
     } else {
         let (i1, i2) = input.split();
         let (r1, r2) = rayon::join_context(
-            |_| schedule_join_context(i1, identity, fold_op, map_function, reduce_function, block_size),
+            |_| {
+                schedule_join_context(
+                    i1,
+                    identity,
+                    fold_op,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            },
             |c| {
                 if c.migrated() {
                     schedule_join_context(
@@ -195,8 +227,26 @@ where
     } else {
         let (i1, i2) = input.split();
         depjoin(
-            || schedule_depjoin(i1, identity, fold_op, map_function, reduce_function, block_size),
-            || schedule_depjoin(i2, identity, fold_op, map_function, reduce_function, block_size),
+            || {
+                schedule_depjoin(
+                    i1,
+                    identity,
+                    fold_op,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            },
+            || {
+                schedule_depjoin(
+                    i2,
+                    identity,
+                    fold_op,
+                    map_function,
+                    reduce_function,
+                    block_size,
+                )
+            },
             reduce_function,
         )
     }
@@ -301,7 +351,8 @@ where
             let result = (self.fold_op)(self.partial_output, self.input, size);
             return (self.map_function)(result);
         } else {
-            let (new_partial_output, new_input) = (self.fold_op)(self.partial_output, self.input, size);
+            let (new_partial_output, new_input) =
+                (self.fold_op)(self.partial_output, self.input, size);
             self.partial_output = new_partial_output;
             self.input = new_input;
             if self.input.len() == 0 {
