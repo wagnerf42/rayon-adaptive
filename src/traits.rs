@@ -6,106 +6,142 @@ use std::collections::LinkedList;
 use std::marker::PhantomData;
 use std::ptr;
 
-pub struct ActivatedInput<
-    I: Divisible,
-    O: Send,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-> {
-    input: I,
-    work_function: WF,
-    map_function: MF, // TODO: rename to map
-    initial_block_size: Option<usize>,
-    output_type: PhantomData<O>,
-}
-
-pub struct Folder<I: Divisible, O: Send, ID: Fn() -> O + Sync, F: Fn(O, I, usize) -> (O, I) + Sync>
-{
-    input: I,
-    identity: ID,
-    fold_op: F,
-}
-
-impl<I: Divisible, WF: Fn(I, usize) -> I + Sync> ActivatedInput<I, I, WF, fn(I) -> I> {
-    pub fn map<O: Send, MF: Fn(I) -> O + Sync>(
-        self,
-        map_function: MF,
-    ) -> ActivatedInput<I, O, WF, MF> {
-        ActivatedInput {
-            input: self.input,
-            work_function: self.work_function,
-            map_function,
-            initial_block_size: None,
-            output_type: PhantomData,
+pub trait Folder: Sync + Sized {
+    type Input: Divisible;
+    type IntermediateOutput: Send + Sync;
+    type Output: Send + Sync;
+    fn identity(&self) -> Self::IntermediateOutput;
+    fn fold(
+        &self,
+        io: Self::IntermediateOutput,
+        i: Self::Input,
+        limit: usize,
+    ) -> (Self::IntermediateOutput, Self::Input);
+    fn to_output(&self, io: Self::IntermediateOutput, i: Self::Input) -> Self::Output;
+    fn map<O: Send, M: Fn(Self::Output) -> O + Sync>(self, map_op: M) -> Map<Self, O, M> {
+        Map {
+            inner_folder: self,
+            map_op,
+            phantom: PhantomData,
         }
     }
 }
 
-impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync> IntoIterator
-    for ActivatedInput<I, O, WF, MF>
+pub struct Map<F: Folder, O: Send, M: Fn(F::Output) -> O + Sync> {
+    inner_folder: F,
+    map_op: M,
+    phantom: PhantomData<O>,
+}
+
+impl<F, O, M> Folder for Map<F, O, M>
+where
+    F: Folder,
+    O: Send + Sync,
+    M: Fn(F::Output) -> O + Sync,
 {
-    type Item = O;
-    type IntoIter = std::collections::linked_list::IntoIter<O>;
-    fn into_iter(self) -> Self::IntoIter {
-        let (input, work_function, map_function) =
-            (self.input, self.work_function, self.map_function);
-        let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
-
-        let identity = || ();
-        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
-        let map = |(_, i)| (map_function)(i);
-
-        let outputs_list = schedule(
-            input,
-            &identity,
-            &fold_op,
-            &|input| {
-                let mut l = LinkedList::new();
-                l.push_back((map)(input));
-                l
-            },
-            &|mut left, mut right| {
-                left.append(&mut right);
-                left
-            },
-            Policy::Adaptive(sequential_limit),
-        );
-        outputs_list.into_iter()
+    type Input = F::Input;
+    type IntermediateOutput = F::IntermediateOutput;
+    type Output = O;
+    fn identity(&self) -> Self::IntermediateOutput {
+        self.inner_folder.identity()
+    }
+    fn fold(
+        &self,
+        io: Self::IntermediateOutput,
+        i: Self::Input,
+        limit: usize,
+    ) -> (Self::IntermediateOutput, Self::Input) {
+        self.inner_folder.fold(io, i, limit)
+    }
+    fn to_output(&self, io: Self::IntermediateOutput, i: Self::Input) -> Self::Output {
+        (self.map_op)(self.inner_folder.to_output(io, i))
     }
 }
 
-impl<I, O, ID, F> Folder<I, O, ID, F>
+pub struct WorkFold<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
+    work_function: WF,
+    phantom: PhantomData<I>,
+}
+
+impl<I, WF> Folder for WorkFold<I, WF>
 where
     I: Divisible,
-    O: Send,
-    ID: Fn() -> O + Sync,
-    F: Fn(O, I, usize) -> (O, I) + Sync,
+    WF: Fn(I, usize) -> I + Sync,
 {
-    pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
-        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
-        let map = |(o, _)| o;
-        schedule(input, &identity, &fold_op, &map, &reduce_function, policy)
+    type Input = I;
+    type IntermediateOutput = ();
+    type Output = I;
+    fn identity(&self) -> Self::IntermediateOutput {
+        ()
+    }
+    fn fold(
+        &self,
+        _io: Self::IntermediateOutput,
+        i: Self::Input,
+        limit: usize,
+    ) -> (Self::IntermediateOutput, Self::Input) {
+        ((), (self.work_function)(i, limit))
+    }
+    fn to_output(&self, _io: Self::IntermediateOutput, i: Self::Input) -> Self::Output {
+        i
     }
 }
 
-impl<I: Divisible, O: Send, ID: Fn() -> O + Sync, F: Fn(O, I, usize) -> (O, I) + Sync> IntoIterator
-    for Folder<I, O, ID, F>
+pub struct Fold<I: Divisible, IO: Send, ID: Fn() -> IO, FF: Fn(IO, I, usize) -> (IO, I)> {
+    identity_op: ID,
+    fold_op: FF,
+    phantom: PhantomData<I>,
+}
+
+impl<I, IO, ID, FF> Folder for Fold<I, IO, ID, FF>
+where
+    I: Divisible + Sync,
+    IO: Send + Sync,
+    ID: Fn() -> IO + Sync,
+    FF: Fn(IO, I, usize) -> (IO, I) + Sync,
 {
-    type Item = O;
-    type IntoIter = std::collections::linked_list::IntoIter<O>;
+    type Input = I;
+    type IntermediateOutput = IO;
+    type Output = IO;
+
+    fn identity(&self) -> Self::IntermediateOutput {
+        (self.identity_op)()
+    }
+    fn fold(
+        &self,
+        io: Self::IntermediateOutput,
+        i: Self::Input,
+        limit: usize,
+    ) -> (Self::IntermediateOutput, Self::Input) {
+        (self.fold_op)(io, i, limit)
+    }
+    fn to_output(&self, io: Self::IntermediateOutput, _i: Self::Input) -> Self::Output {
+        io
+    }
+}
+
+pub struct ActivatedInput<F: Folder> {
+    input: F::Input,
+    folder: F,
+    initial_block_size: Option<usize>,
+}
+
+impl<F: Folder> IntoIterator for ActivatedInput<F> {
+    type Item = F::Output;
+    type IntoIter = std::collections::linked_list::IntoIter<F::Output>;
     fn into_iter(self) -> Self::IntoIter {
-        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
+        let (input, folder) = (self.input, self.folder);
+        let list_folder = folder.map(|o| {
+            let mut l = LinkedList::new();
+            l.push_back(o);
+            l
+        });
+
         let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
 
         let outputs_list = schedule(
             input,
-            &identity,
-            &fold_op,
-            &|input| {
-                let mut l = LinkedList::new();
-                l.push_back(input.0);
-                l
-            },
+            &list_folder,
             &|mut left, mut right| {
                 left.append(&mut right);
                 left
@@ -116,89 +152,55 @@ impl<I: Divisible, O: Send, ID: Fn() -> O + Sync, F: Fn(O, I, usize) -> (O, I) +
     }
 }
 
-impl<I, O, ID, F> Folder<I, O, ID, F>
-where
-    I: DivisibleAtIndex,
-    O: Send,
-    ID: Fn() -> O + Sync,
-    F: Fn(O, I, usize) -> (O, I) + Sync,
-{
-    pub fn by_blocks<S: Iterator<Item = usize>>(self, blocks_sizes: S) -> impl Iterator<Item = O> {
-        let (input, identity, fold_op) = (self.input, self.identity, self.fold_op);
-
-        input.chunks(blocks_sizes).flat_map(move |input| {
-            let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
-
-            let outputs_list = schedule(
-                input,
-                &identity,
-                &fold_op,
-                &|input| {
-                    let mut l = LinkedList::new();
-                    l.push_back(input.0);
-                    l
-                },
-                &|mut left, mut right| {
-                    left.append(&mut right);
-                    left
-                },
-                Policy::Adaptive(sequential_limit),
-            );
-            outputs_list.into_iter()
-        })
-    }
-}
-
-impl<I: Divisible, O: Send, WF: Fn(I, usize) -> I + Sync, MF: Fn(I) -> O + Sync>
-    ActivatedInput<I, O, WF, MF>
-{
+impl<F: Folder> ActivatedInput<F> {
     /// Sets the initial block size for the adaptive algorithm.
     pub fn initial_block_size(self, block_size: usize) -> Self {
         ActivatedInput {
             input: self.input,
-            work_function: self.work_function,
-            map_function: self.map_function,
+            folder: self.folder,
             initial_block_size: Some(block_size),
-            output_type: PhantomData,
         }
     }
-    pub fn reduce<RF: Fn(O, O) -> O + Sync>(self, reduce_function: RF, policy: Policy) -> O {
-        let (input, work_function, map_function) =
-            (self.input, self.work_function, self.map_function);
-        let identity = || ();
-        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
-        let map = |(_, i)| (map_function)(i);
-        schedule(input, &identity, &fold_op, &map, &reduce_function, policy)
+    pub fn map<O: Send + Sync, M: Fn(F::Output) -> O + Sync>(
+        self,
+        map_op: M,
+    ) -> ActivatedInput<Map<F, O, M>> {
+        ActivatedInput {
+            input: self.input,
+            folder: self.folder.map(map_op),
+            initial_block_size: self.initial_block_size,
+        }
+    }
+    pub fn reduce<RF: Fn(F::Output, F::Output) -> F::Output + Sync>(
+        self,
+        reduce_function: RF,
+        policy: Policy,
+    ) -> F::Output {
+        let (input, folder) = (self.input, self.folder);
+        schedule(input, &folder, &reduce_function, policy)
     }
 }
 
 // TODO: why on earth do I need Sync on I ?
-impl<
-        I: DivisibleAtIndex + Sync,
-        O: Send + Sync,
-        WF: Fn(I, usize) -> I + Sync,
-        MF: Fn(I) -> O + Sync,
-    > ActivatedInput<I, O, WF, MF>
-{
-    pub fn by_blocks<S: Iterator<Item = usize>>(self, blocks_sizes: S) -> impl Iterator<Item = O> {
-        let (input, work_function, map_function) =
-            (self.input, self.work_function, self.map_function);
+impl<I: DivisibleAtIndex, F: Folder<Input = I>> ActivatedInput<F> {
+    pub fn by_blocks<S: Iterator<Item = usize>>(
+        self,
+        blocks_sizes: S,
+    ) -> impl Iterator<Item = F::Output> {
+        let (input, folder) = (self.input, self.folder);
+
+        let list_folder = folder.map(|o| {
+            let mut l = LinkedList::new();
+            l.push_back(o);
+            l
+        });
+
         input.chunks(blocks_sizes).flat_map(move |input| {
             let sequential_limit = (input.len() as f64).log(2.0).ceil() as usize;
 
-            let identity = || ();
-            let fold_op = |_, i, limit| ((), (work_function)(i, limit));
-            let map = |(_, i)| (map_function)(i);
-
             let outputs_list = schedule(
                 input,
-                &identity,
-                &fold_op,
-                &|input| {
-                    let mut l = LinkedList::new();
-                    l.push_back((map)(input));
-                    l
-                },
+                &list_folder,
                 &|mut left, mut right| {
                     left.append(&mut right);
                     left
@@ -210,7 +212,7 @@ impl<
     }
 }
 
-pub trait Divisible: Sized + Send {
+pub trait Divisible: Sized + Send + Sync {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
     /// Return our length.
@@ -222,25 +224,32 @@ pub trait Divisible: Sized + Send {
     fn work<WF: Fn(Self, usize) -> Self + Sync>(
         self,
         work_function: WF,
-    ) -> ActivatedInput<Self, Self, WF, fn(Self) -> Self> {
+    ) -> ActivatedInput<WorkFold<Self, WF>> {
+        let folder = WorkFold {
+            work_function,
+            phantom: PhantomData,
+        };
         ActivatedInput {
             input: self,
-            work_function,
-            map_function: |i| i,
+            folder,
             initial_block_size: None,
-            output_type: PhantomData,
         }
     }
-    fn fold<O, ID, F>(self, identity: ID, fold_op: F) -> Folder<Self, O, ID, F>
+    fn fold<O, ID, F>(self, identity: ID, fold_op: F) -> ActivatedInput<Fold<Self, O, ID, F>>
     where
-        O: Send,
+        O: Send + Sync,
         ID: Fn() -> O + Sync,
         F: Fn(O, Self, usize) -> (O, Self) + Sync,
     {
-        Folder {
-            input: self,
-            identity,
+        let folder = Fold {
+            identity_op: identity,
             fold_op,
+            phantom: PhantomData,
+        };
+        ActivatedInput {
+            input: self,
+            folder,
+            initial_block_size: None,
         }
     }
     /// Easy api when we return no results.
@@ -248,11 +257,12 @@ pub trait Divisible: Sized + Send {
     where
         WF: Fn(Self, usize) -> Self + Sync,
     {
-        let identity = || ();
-        let fold_op = |_, i, limit| ((), (work_function)(i, limit));
-        let map = |_| ();
+        let folder = WorkFold {
+            work_function,
+            phantom: PhantomData,
+        }.map(|_| ());
         let reduce = |_, _| ();
-        schedule(self, &identity, &fold_op, &map, &reduce, policy)
+        schedule(self, &folder, &reduce, policy)
     }
 }
 
@@ -313,28 +323,28 @@ pub trait DivisibleAtIndex: Divisible {
     where
         MF: Fn(Self) -> O + Sync,
         RF: Fn(O, O) -> O + Sync,
-        O: Send,
+        O: Send + Sync,
     {
-        let identity = || None;
-        let fold_op = |o: Option<O>, i: Self, limit: usize| -> (Option<O>, Self) {
-            let (todo_now, remaining) = i.split_at(limit);
-            let new_result = map_function(todo_now);
-            (
-                if let Some(output) = o {
-                    Some(reduce_function(output, new_result))
-                } else {
-                    Some(new_result)
-                },
-                remaining,
-            )
-        };
-        let map = |(o, _): (Option<O>, Self)| o.unwrap();
+        let folder = Fold {
+            identity_op: || None,
+            fold_op: |o: Option<O>, i: Self, limit: usize| -> (Option<O>, Self) {
+                let (todo_now, remaining) = i.split_at(limit);
+                let new_result = map_function(todo_now);
+                (
+                    if let Some(output) = o {
+                        Some(reduce_function(output, new_result))
+                    } else {
+                        Some(new_result)
+                    },
+                    remaining,
+                )
+            },
+            phantom: PhantomData,
+        }.map(|o| o.unwrap());
 
         schedule(
             self,
-            &identity,
-            &fold_op,
-            &map,
+            &folder,
             &|left, right| reduce_function(left, right),
             Policy::Adaptive(initial_block_size),
         )
