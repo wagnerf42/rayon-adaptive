@@ -1,12 +1,13 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use depjoin;
 use rayon;
+//use rayon::current_num_threads;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::Divisible;
+use traits::{Divisible, Folder};
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
@@ -28,51 +29,31 @@ pub enum Policy {
     Adaptive(usize),
 }
 
-pub(crate) fn schedule<I, WF, MF, RF, O>(
-    input: I,
-    work_function: &WF,
-    map_function: &MF,
+pub(crate) fn schedule<F, RF>(
+    input: F::Input,
+    folder: &F,
     reduce_function: &RF,
     policy: Policy,
-) -> O
+) -> F::Output
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync,
-    O: Send + Sized,
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     match policy {
-        Policy::Sequential => schedule_sequential(input, work_function, map_function),
-        Policy::Join(block_size) => schedule_join(
-            input,
-            work_function,
-            map_function,
-            reduce_function,
-            block_size,
-        ),
-        Policy::JoinContext(block_size) => schedule_join_context(
-            input,
-            work_function,
-            map_function,
-            reduce_function,
-            block_size,
-        ),
-        Policy::DepJoin(block_size) => schedule_depjoin(
-            input,
-            work_function,
-            map_function,
-            reduce_function,
-            block_size,
-        ),
+        Policy::Sequential => schedule_sequential(input, folder),
+        Policy::Join(block_size) => schedule_join(input, folder, reduce_function, block_size),
+        Policy::JoinContext(block_size) => {
+            schedule_join_context(input, folder, reduce_function, block_size)
+        }
+        Policy::DepJoin(block_size) => schedule_depjoin(input, folder, reduce_function, block_size),
         Policy::Adaptive(block_size) => SEQUENCE.with(|s| {
             if *s.borrow() {
-                schedule_sequential(input, work_function, map_function)
+                schedule_sequential(input, folder)
             } else {
                 schedule_adaptive(
                     input,
-                    work_function,
-                    map_function,
+                    folder.identity(),
+                    folder,
                     reduce_function,
                     block_size,
                 )
@@ -81,76 +62,57 @@ where
     }
 }
 
-fn schedule_sequential<I, WF, MF, O>(input: I, work_function: &WF, map_function: &MF) -> O
-where
-    I: Divisible,
-    WF: Fn(I, usize) -> I,
-    MF: Fn(I) -> O,
-{
+fn schedule_sequential<F: Folder>(input: F::Input, folder: &F) -> F::Output {
     let len = input.len();
-    map_function(work_function(input, len))
+    let (io, i) = folder.fold(folder.identity(), input, len);
+    folder.to_output(io, i)
 }
 
-fn schedule_join<I, WF, MF, RF, O>(
-    input: I,
-    work_function: &WF,
-    map_function: &MF,
+fn schedule_join<F, RF>(
+    input: F::Input,
+    folder: &F,
     reduce_function: &RF,
     block_size: usize,
-) -> O
+) -> F::Output
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync,
-    O: Send + Sized,
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        map_function(work_function(input, len))
+        schedule_sequential(input, folder)
     } else {
         let (i1, i2) = input.split();
         let (r1, r2) = rayon::join(
-            || schedule_join(i1, work_function, map_function, reduce_function, block_size),
-            || schedule_join(i2, work_function, map_function, reduce_function, block_size),
+            || schedule_join(i1, folder, reduce_function, block_size),
+            || schedule_join(i2, folder, reduce_function, block_size),
         );
         reduce_function(r1, r2)
     }
 }
 
-fn schedule_join_context<I, WF, MF, RF, O>(
-    input: I,
-    work_function: &WF,
-    map_function: &MF,
+fn schedule_join_context<F, RF>(
+    input: F::Input,
+    folder: &F,
     reduce_function: &RF,
     block_size: usize,
-) -> O
+) -> F::Output
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync,
-    O: Send + Sized,
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        map_function(work_function(input, len))
+        schedule_sequential(input, folder)
     } else {
         let (i1, i2) = input.split();
         let (r1, r2) = rayon::join_context(
-            |_| schedule_join_context(i1, work_function, map_function, reduce_function, block_size),
+            |_| schedule_join_context(i1, folder, reduce_function, block_size),
             |c| {
                 if c.migrated() {
-                    schedule_join_context(
-                        i2,
-                        work_function,
-                        map_function,
-                        reduce_function,
-                        block_size,
-                    )
+                    schedule_join_context(i2, folder, reduce_function, block_size)
                 } else {
-                    let len = i2.len();
-                    map_function(work_function(i2, len))
+                    schedule_sequential(i2, folder)
                 }
             },
         );
@@ -158,68 +120,54 @@ where
     }
 }
 
-fn schedule_depjoin<I, WF, MF, RF, O>(
-    input: I,
-    work_function: &WF,
-    map_function: &MF,
+fn schedule_depjoin<F, RF>(
+    input: F::Input,
+    folder: &F,
     reduce_function: &RF,
     block_size: usize,
-) -> O
+) -> F::Output
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync,
-    O: Send + Sized,
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     let len = input.len();
     if len <= block_size {
-        map_function(work_function(input, len))
+        schedule_sequential(input, folder)
     } else {
         let (i1, i2) = input.split();
         depjoin(
-            || schedule_depjoin(i1, work_function, map_function, reduce_function, block_size),
-            || schedule_depjoin(i2, work_function, map_function, reduce_function, block_size),
+            || schedule_depjoin(i1, folder, reduce_function, block_size),
+            || schedule_depjoin(i2, folder, reduce_function, block_size),
             reduce_function,
         )
     }
 }
 
-struct AdaptiveWorker<
-    'a,
-    'b,
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync + 'b,
-    MF: Fn(I) -> O + Sync + 'b,
-    RF: Fn(O, O) -> O + Sync + 'b,
-    O: Send + Sized,
-> {
-    input: I,
+struct AdaptiveWorker<'a, 'b, F: Folder + 'b, RF: Fn(F::Output, F::Output) -> F::Output + Sync + 'b>
+{
+    input: F::Input,
+    partial_output: F::IntermediateOutput,
     initial_block_size: usize,
     current_block_size: usize,
     stolen: &'a AtomicBool,
-    sender: Sender<Option<I>>,
-    work_function: &'b WF,
-    map_function: &'b MF,
+    sender: Sender<Option<F::Input>>,
+    folder: &'b F,
     reduce_function: &'b RF,
-    phantom: PhantomData<(O)>,
+    phantom: PhantomData<(F::Output)>,
 }
 
-impl<'a, 'b, I, WF, MF, RF, O> AdaptiveWorker<'a, 'b, I, WF, MF, RF, O>
+impl<'a, 'b, F, RF> AdaptiveWorker<'a, 'b, F, RF>
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync + 'b,
-    O: Send + Sized,
+    F: Folder + 'b,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync + 'b,
 {
     fn new(
-        input: I,
+        input: F::Input,
+        partial_output: F::IntermediateOutput,
         initial_block_size: usize,
         stolen: &'a AtomicBool,
-        sender: Sender<Option<I>>,
-        work_function: &'b WF,
-        map_function: &'b MF,
+        sender: Sender<Option<F::Input>>,
+        folder: &'b F,
         reduce_function: &'b RF,
     ) -> Self {
         // adjust block size to fit on boundaries
@@ -231,12 +179,12 @@ where
 
         AdaptiveWorker {
             input,
+            partial_output,
             initial_block_size,
             current_block_size,
             stolen,
             sender,
-            work_function,
-            map_function,
+            folder,
             reduce_function,
             phantom: PhantomData,
         }
@@ -244,13 +192,13 @@ where
     fn is_stolen(&self) -> bool {
         self.stolen.load(Ordering::Relaxed)
     }
-    fn answer_steal(self) -> O {
+    fn answer_steal(self) -> F::Output {
         let (my_half, his_half) = self.input.split();
         self.sender.send(Some(his_half)).expect("sending failed");
         schedule_adaptive(
             my_half,
-            self.work_function,
-            self.map_function,
+            self.partial_output,
+            self.folder,
             self.reduce_function,
             self.initial_block_size,
         )
@@ -261,7 +209,7 @@ where
     }
 
     //TODO: we still need macro blocks
-    fn schedule(mut self) -> O {
+    fn schedule(mut self) -> F::Output {
         // TODO: automate this min everywhere ?
         // TODO: factorize a little bit
         // start by computing a little bit in order to get a first output
@@ -269,14 +217,17 @@ where
 
         if self.input.len() <= self.current_block_size {
             self.cancel_stealing_task(); // no need to keep people waiting for nothing
-            self.input = (self.work_function)(self.input, size);
-            return (self.map_function)(self.input);
+            let (io, i) = self.folder.fold(self.partial_output, self.input, size);
+            return self.folder.to_output(io, i);
         } else {
-            self.input = (self.work_function)(self.input, size);
+            let (new_partial_output, new_input) =
+                self.folder.fold(self.partial_output, self.input, size);
+            self.partial_output = new_partial_output;
+            self.input = new_input;
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
-                return (self.map_function)(self.input);
+                return self.folder.to_output(self.partial_output, self.input);
             }
         }
 
@@ -290,49 +241,49 @@ where
 
             if self.input.len() <= self.current_block_size {
                 self.cancel_stealing_task(); // no need to keep people waiting for nothing
-                self.input = (self.work_function)(self.input, size);
-                return (self.map_function)(self.input);
+                let (io, i) = self.folder.fold(self.partial_output, self.input, size);
+                return self.folder.to_output(io, i);
             }
             SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
-            self.input = (self.work_function)(self.input, size);
+            let result = self.folder.fold(self.partial_output, self.input, size);
+            self.partial_output = result.0;
+            self.input = result.1;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.len() == 0 {
                 // it's over
                 self.cancel_stealing_task();
-                return (self.map_function)(self.input);
+                return self.folder.to_output(self.partial_output, self.input);
             }
         }
     }
 }
 
-fn schedule_adaptive<I, WF, MF, RF, O>(
-    input: I,
-    work_function: &WF,
-    map_function: &MF,
+fn schedule_adaptive<F, RF>(
+    input: F::Input,
+    partial_output: F::IntermediateOutput,
+    folder: &F,
     reduce_function: &RF,
     initial_block_size: usize,
-) -> O
+) -> F::Output
 where
-    I: Divisible,
-    WF: Fn(I, usize) -> I + Sync,
-    MF: Fn(I) -> O + Sync,
-    RF: Fn(O, O) -> O + Sync,
-    O: Send + Sized,
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     let size = input.len();
     if size <= initial_block_size {
-        map_function(work_function(input, size))
+        let (io, i) = folder.fold(partial_output, input, size);
+        folder.to_output(io, i)
     } else {
         let stolen = &AtomicBool::new(false);
         let (sender, receiver) = channel();
 
         let worker = AdaptiveWorker::new(
             input,
+            partial_output,
             initial_block_size,
             stolen,
             sender,
-            work_function,
-            map_function,
+            folder,
             reduce_function,
         );
 
@@ -349,8 +300,8 @@ where
                 assert!(input.len() > 0);
                 Some(schedule_adaptive(
                     input,
-                    work_function,
-                    map_function,
+                    folder.identity(),
+                    folder,
                     reduce_function,
                     initial_block_size,
                 ))
@@ -365,3 +316,18 @@ where
         }
     }
 }
+
+// pub fn fully_adaptive_schedule<I, WF, RETF>(input: I, work_function: &WF, retrieve_function: &RETF)
+// where
+//     I: Divisible,
+//     WF: Fn(I, usize) -> I + Sync,
+//     RETF: Fn(I, I, I) -> I + Sync,
+// {
+//     //so, what kind of communications do we have ?
+//     // * main thread is stolen
+//     //   - stolen input
+//     //   -
+//     // * main thread retrieves data
+//     // * helper thread is stolen
+//     unimplemented!()
+// }
