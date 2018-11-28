@@ -2,7 +2,7 @@
 use rayon::prelude::*;
 use scheduling::{schedule, Policy};
 use std;
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::collections::LinkedList;
 use std::marker::PhantomData;
 use std::ptr;
@@ -388,17 +388,24 @@ where
         (
             DivisibleIterator {
                 inner_iter: left_iter,
-                range: (self.range.0, self.range.1 / 2 as usize),
+                range: (self.range.0, (self.range.0 + self.range.1) / 2 as usize),
             },
             DivisibleIterator {
                 inner_iter: right_iter,
-                range: (self.range.1 / 2 as usize + 1, self.range.1 as usize),
+                range: (
+                    (self.range.1 + self.range.0) / 2 as usize + 1,
+                    self.range.1 as usize,
+                ),
             },
         )
     }
 
     fn len(&self) -> usize {
-        self.range.1 - self.range.0 + 1
+        if self.range.1 > self.range.0 {
+            self.range.1 - self.range.0
+        } else {
+            0
+        }
     }
 
     fn is_empty(&self) -> bool {
