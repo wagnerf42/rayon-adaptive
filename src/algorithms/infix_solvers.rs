@@ -16,9 +16,10 @@ use smallvec::SmallVec;
 
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
-use {Divisible, EdibleSlice, Policy};
+use traits::*;
+use Policy;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartialProducts {
     products: SmallVec<[u64; 3]>,
 }
@@ -153,17 +154,16 @@ pub fn solver_par_fold(inp: &[Token]) -> u64 {
 }
 
 pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
-    let input = EdibleSlice::new(inp);
-    input
-        .fold(
+    inp.into_par_iter()
+        .adaptive_fold(
             || PartialProducts::new(),
-            |mut p, mut i, limit| {
-                i.iter().take(limit).for_each(|tok| match tok {
+            |mut p, tok| {
+                match tok {
                     Token::Num(i) => p.update_product(*i),
                     Token::Add => p.append_product(),
                     Token::Mult => {}
-                });
-                (p, i)
+                };
+                p
             },
         ).reduce(|left, right| left.fuse(&right), policy)
         .evaluate()

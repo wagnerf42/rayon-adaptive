@@ -1,4 +1,5 @@
 //! This module contains all traits enabling us to express some parallelism.
+use rayon::prelude::*;
 use scheduling::{schedule, Policy};
 use std;
 use std::cmp::min;
@@ -55,6 +56,58 @@ where
     }
     fn to_output(&self, io: Self::IntermediateOutput, i: Self::Input) -> Self::Output {
         (self.map_op)(self.inner_folder.to_output(io, i))
+    }
+}
+
+pub struct IteratorFold<
+    I: IndexedParallelIterator + Clone + Sync,
+    IO: Send + Sync + Clone,
+    ID: Fn() -> IO + Send + Sync,
+    F: Fn(IO, I::Item) -> IO + Send + Sync,
+> {
+    //input: DivisibleIterator<I>,
+    identity_op: ID,
+    fold_op: F,
+    phantom: PhantomData<I>,
+}
+
+impl<
+        I: IndexedParallelIterator + Clone + Sync,
+        IO: Send + Sync + Clone,
+        ID: Fn() -> IO + Send + Sync,
+        F: Fn(IO, I::Item) -> IO + Send + Sync,
+    > Folder for IteratorFold<I, IO, ID, F>
+{
+    type Input = DivisibleIterator<I>;
+    type IntermediateOutput = IO;
+    type Output = IO;
+    fn identity(&self) -> Self::IntermediateOutput {
+        (self.identity_op)()
+    }
+    fn fold(
+        &self,
+        io: Self::IntermediateOutput,
+        i: Self::Input,
+        limit: usize,
+    ) -> (Self::IntermediateOutput, Self::Input) {
+        let mut v: Vec<IO> = i
+            .inner_iter
+            .clone()
+            .skip(i.range.0)
+            .take(limit)
+            .with_min_len(limit)
+            .fold(|| io.clone(), |acc, x| (self.fold_op)(acc, x))
+            .collect();
+        (
+            v.pop().unwrap(),
+            DivisibleIterator {
+                inner_iter: i.inner_iter,
+                range: (i.range.0 + limit, i.range.1),
+            },
+        )
+    }
+    fn to_output(&self, io: Self::IntermediateOutput, _i: Self::Input) -> Self::Output {
+        io
     }
 }
 
@@ -212,6 +265,52 @@ impl<I: DivisibleAtIndex, F: Folder<Input = I>> ActivatedInput<F> {
     }
 }
 
+pub trait AdaptiveFolder {
+    fn adaptive_fold<IO, ID, F>(
+        self,
+        identity: ID,
+        fold_op: F,
+    ) -> ActivatedInput<IteratorFold<Self, IO, ID, F>>
+    where
+        Self: Sync + IndexedParallelIterator + Clone,
+        IO: Send + Sync + Clone,
+        ID: Fn() -> IO + Sync + Send + Clone,
+        F: Fn(IO, Self::Item) -> IO + Sync + Send + Clone,
+    {
+        inner_adaptive_fold(self, identity, fold_op)
+    }
+}
+
+fn inner_adaptive_fold<I, IO, ID, F>(
+    iterator: I,
+    identity: ID,
+    fold_op: F,
+) -> ActivatedInput<IteratorFold<I, IO, ID, F>>
+where
+    I: Sync + IndexedParallelIterator + Clone,
+    IO: Send + Sync + Clone,
+    ID: Fn() -> IO + Sync + Send + Clone,
+    F: Fn(IO, I::Item) -> IO + Sync + Send + Clone,
+{
+    let range = (0, iterator.len());
+    let divisible_input = DivisibleIterator {
+        inner_iter: iterator,
+        range,
+    };
+    let iter_fold = IteratorFold {
+        identity_op: identity,
+        fold_op,
+        phantom: PhantomData,
+    };
+    ActivatedInput {
+        input: divisible_input,
+        folder: iter_fold,
+        initial_block_size: None,
+    }
+}
+
+impl<I> AdaptiveFolder for I where I: IndexedParallelIterator + Sync + Clone {}
+
 pub trait Divisible: Sized + Send + Sync {
     /// Divide ourselves.
     fn split(self) -> (Self, Self);
@@ -269,6 +368,42 @@ pub trait Divisible: Sized + Send + Sync {
 pub struct Chunks<I: DivisibleAtIndex, S: Iterator<Item = usize>> {
     remaining: I,
     remaining_sizes: S,
+}
+
+pub struct DivisibleIterator<I>
+where
+    I: IndexedParallelIterator + Clone + Sync,
+{
+    inner_iter: I,
+    range: (usize, usize),
+}
+
+impl<I> Divisible for DivisibleIterator<I>
+where
+    I: IndexedParallelIterator + Clone + Sync,
+{
+    fn split(self) -> (Self, Self) {
+        let left_iter = self.inner_iter.clone();
+        let right_iter = self.inner_iter;
+        (
+            DivisibleIterator {
+                inner_iter: left_iter,
+                range: (self.range.0, self.range.1 / 2 as usize),
+            },
+            DivisibleIterator {
+                inner_iter: right_iter,
+                range: (self.range.1 / 2 as usize + 1, self.range.1 as usize),
+            },
+        )
+    }
+
+    fn len(&self) -> usize {
+        self.range.1 - self.range.0 + 1
+    }
+
+    fn is_empty(&self) -> bool {
+        self.range.1 == self.range.0
+    }
 }
 
 impl<I: DivisibleAtIndex, S: Iterator<Item = usize>> Iterator for Chunks<I, S> {
