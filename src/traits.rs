@@ -265,7 +265,7 @@ impl<I: DivisibleAtIndex, F: Folder<Input = I>> ActivatedInput<F> {
     }
 }
 
-pub trait AdaptiveFolder {
+pub trait AdaptiveFolder: IndexedParallelIterator {
     fn adaptive_fold<IO, ID, F>(
         self,
         identity: ID,
