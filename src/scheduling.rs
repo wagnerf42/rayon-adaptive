@@ -2,40 +2,18 @@
 use depjoin;
 use rayon;
 //use rayon::current_num_threads;
+use folders::Folder;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::{Divisible, Folder};
+use traits::Divisible;
+use Policy;
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
 thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
-
-/// All scheduling available scheduling policies.
-#[derive(Copy, Clone)]
-pub enum Policy {
-    /// Adaptive scheduling policy with logarithmic block size.
-    DefaultPolicy,
-    /// Do all computations sequentially.
-    Sequential,
-    /// Recursively cut in two with join until given block size.
-    Join(usize),
-    /// Recursively cut in two with join_context until given block size.
-    JoinContext(usize),
-    /// Recursively cut in two with depjoin until given block size.
-    DepJoin(usize),
-    /// Advance locally with increasing block sizes. When stolen create tasks
-    /// We need an initial block size.
-    Adaptive(usize),
-}
-
-impl Default for Policy {
-    fn default() -> Self {
-        Policy::DefaultPolicy
-    }
-}
 
 pub(crate) fn schedule<F, RF>(
     input: F::Input,

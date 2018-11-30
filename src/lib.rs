@@ -1,4 +1,5 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
+#![allow(unknown_lints)]
 #![warn(clippy)]
 
 #[macro_use]
@@ -12,11 +13,19 @@ use std::sync::mpsc::channel;
 mod traits;
 pub use traits::*;
 mod scheduling;
-pub use scheduling::Policy;
 mod utils;
 pub use utils::fuse_slices;
 mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
+mod activated_input;
+mod chunks;
+mod iterator;
+
+mod folders;
+pub use folders::Folder;
+mod policy;
+pub use policy::Policy;
+
 mod algorithms;
 pub use algorithms::filter_collect::filter_collect;
 pub use algorithms::find_first::find_first;
