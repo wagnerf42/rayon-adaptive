@@ -1,4 +1,5 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
+#![warn(clippy)]
 
 #[macro_use]
 extern crate smallvec;

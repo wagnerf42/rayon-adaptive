@@ -16,6 +16,8 @@ thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
 /// All scheduling available scheduling policies.
 #[derive(Copy, Clone)]
 pub enum Policy {
+    /// Adaptive scheduling policy with logarithmic block size.
+    DefaultPolicy,
     /// Do all computations sequentially.
     Sequential,
     /// Recursively cut in two with join until given block size.
@@ -29,6 +31,12 @@ pub enum Policy {
     Adaptive(usize),
 }
 
+impl Default for Policy {
+    fn default() -> Self {
+        Policy::DefaultPolicy
+    }
+}
+
 pub(crate) fn schedule<F, RF>(
     input: F::Input,
     folder: &F,
@@ -39,14 +47,20 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
+    let block_size = match policy {
+        Policy::Sequential => input.len(),
+        Policy::DefaultPolicy => (input.len() as f64).log(2.0).ceil() as usize,
+        Policy::Join(block_size)
+        | Policy::JoinContext(block_size)
+        | Policy::DepJoin(block_size)
+        | Policy::Adaptive(block_size) => block_size,
+    };
     match policy {
         Policy::Sequential => schedule_sequential(input, folder),
-        Policy::Join(block_size) => schedule_join(input, folder, reduce_function, block_size),
-        Policy::JoinContext(block_size) => {
-            schedule_join_context(input, folder, reduce_function, block_size)
-        }
-        Policy::DepJoin(block_size) => schedule_depjoin(input, folder, reduce_function, block_size),
-        Policy::Adaptive(block_size) => SEQUENCE.with(|s| {
+        Policy::Join(_) => schedule_join(input, folder, reduce_function, block_size),
+        Policy::JoinContext(_) => schedule_join_context(input, folder, reduce_function, block_size),
+        Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
+        Policy::Adaptive(_) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
             if *s.borrow() {
                 schedule_sequential(input, folder)
             } else {

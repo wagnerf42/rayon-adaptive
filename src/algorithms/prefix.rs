@@ -57,14 +57,13 @@ where
 {
     {
         let input = EdibleSliceMut::new(slice);
-        input.for_each(
-            |mut s, limit| {
+        input
+            .with_policy(Policy::Adaptive(1000))
+            .for_each(|mut s, limit| {
                 for e in s.iter_mut().take(limit) {
                     *e = op(e, &increment)
                 }
                 s
-            },
-            Policy::Adaptive(1000),
-        );
+            });
     }
 }

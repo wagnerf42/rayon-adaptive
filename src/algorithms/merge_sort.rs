@@ -11,11 +11,14 @@ fn subslice_without_last_value<T: Eq>(slice: &[T]) -> &[T] {
     match slice.split_last() {
         Some((target, slice)) => {
             let searching_range_start = repeat(())
-        .scan(1, |acc, _| {*acc *= 2 ; Some(*acc)}) // iterate on all powers of 2
-        .take_while(|&i| i < slice.len())
-        .map(|i| slice.len() -i) // go farther and farther from end of slice
-        .find(|&i| unsafe {slice.get_unchecked(i) != target})
-        .unwrap_or(0);
+                .scan(1, |acc, _| {
+                    *acc *= 2;
+                    Some(*acc)
+                }) // iterate on all powers of 2
+                .take_while(|&i| i < slice.len())
+                .map(|i| slice.len() - i) // go farther and farther from end of slice
+                .find(|&i| unsafe { slice.get_unchecked(i) != target })
+                .unwrap_or(0);
 
             let index = slice[searching_range_start..]
                 .binary_search_by(|x| {
@@ -36,10 +39,13 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
     match slice.first() {
         Some(target) => {
             let searching_range_end = repeat(())
-        .scan(1, |acc, _| {*acc *= 2; Some(*acc)}) // iterate on all powers of 2
-        .take_while(|&i| i < slice.len())
-        .find(|&i| unsafe {slice.get_unchecked(i) != target})
-        .unwrap_or_else(||slice.len());
+                .scan(1, |acc, _| {
+                    *acc *= 2;
+                    Some(*acc)
+                }) // iterate on all powers of 2
+                .take_while(|&i| i < slice.len())
+                .find(|&i| unsafe { slice.get_unchecked(i) != target })
+                .unwrap_or_else(|| slice.len());
 
             let index = slice[..searching_range_end]
                 .binary_search_by(|x| {
@@ -130,29 +136,26 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
         output: EdibleSliceMut::new(output),
     };
 
-    slices.for_each(
-        |mut slices, limit| {
-            {
-                let mut left_i = slices.left.iter();
-                let mut right_i = slices.right.iter();
-                for o in slices.output.iter_mut().take(limit) {
-                    let go_left = match (left_i.peek(), right_i.peek()) {
-                        (Some(l), Some(r)) => l <= r,
-                        (Some(_), None) => true,
-                        (None, Some(_)) => false,
-                        (None, None) => panic!("not enough input when merging"),
-                    };
-                    *o = if go_left {
-                        *left_i.next().unwrap()
-                    } else {
-                        *right_i.next().unwrap()
-                    };
-                }
+    slices.with_policy(policy).for_each(|mut slices, limit| {
+        {
+            let mut left_i = slices.left.iter();
+            let mut right_i = slices.right.iter();
+            for o in slices.output.iter_mut().take(limit) {
+                let go_left = match (left_i.peek(), right_i.peek()) {
+                    (Some(l), Some(r)) => l <= r,
+                    (Some(_), None) => true,
+                    (None, Some(_)) => false,
+                    (None, None) => panic!("not enough input when merging"),
+                };
+                *o = if go_left {
+                    *left_i.next().unwrap()
+                } else {
+                    *right_i.next().unwrap()
+                };
             }
-            slices
-        },
-        policy,
-    );
+        }
+        slices
+    });
 }
 
 // sort related code
@@ -287,14 +290,15 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
         i: 0,
     };
 
-    let mut result_slices = slices.map_reduce(
-        |mut slices| {
-            slices.s[slices.i].sort();
-            slices
-        },
-        |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
-        initial_block_size,
-    );
+    let mut result_slices = slices
+        .with_policy(Policy::Adaptive(initial_block_size))
+        .map_reduce(
+            |mut slices| {
+                slices.s[slices.i].sort();
+                slices
+            },
+            |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
+        );
 
     if result_slices.i != 0 {
         let i = result_slices.i;

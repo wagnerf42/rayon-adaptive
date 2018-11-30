@@ -18,7 +18,7 @@ fn infix_solver_bench(c: &mut Criterion) {
         b.iter_with_setup(
             || vec_gen(SIZE),
             |testin| {
-                solver_adaptive(&testin, Policy::Adaptive(1000));
+                solver_adaptive(&testin, Default::default());
                 testin
             },
         )

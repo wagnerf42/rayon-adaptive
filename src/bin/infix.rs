@@ -30,7 +30,7 @@ fn main() {
                 "adaptive",
                 || vec_gen(SIZE),
                 |vec| {
-                    solver_adaptive(&vec, Policy::Adaptive(1000));
+                    solver_adaptive(&vec, Default::default());
                     vec
                 },
             ).generate_logs(format!(
@@ -48,7 +48,7 @@ fn main() {
 
         let random_expression = vec_gen(SIZE);
         let answer = solver_seq(&random_expression);
-        let adapt_ans = solver_adaptive(&random_expression, Policy::Adaptive(1000));
+        let adapt_ans = solver_adaptive(&random_expression, Default::default());
         let parsplit_ans = solver_par_split(&random_expression);
         let parfold_ans = solver_par_fold(&random_expression);
         assert_eq!(answer, adapt_ans);
