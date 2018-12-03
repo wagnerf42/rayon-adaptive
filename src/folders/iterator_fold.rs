@@ -1,4 +1,4 @@
-use iterator::{AdaptiveIterator, DivisibleIterator};
+use iter::{AdaptiveIterator, DivisibleIterator};
 use rayon::prelude::{IndexedParallelIterator, ParallelIterator};
 use std::marker::PhantomData;
 use Folder;
@@ -79,7 +79,7 @@ impl<
             .skip(i.range.0)
             .take(limit)
             .with_min_len(limit)
-            .fold(|| io.clone(), |acc, x| (self.fold_op)(acc, x))
+            .fold(|| io.clone(), &self.fold_op)
             .collect();
         (
             v.pop().unwrap(),

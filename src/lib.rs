@@ -19,7 +19,7 @@ mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
 mod activated_input;
 mod chunks;
-mod iterator;
+mod iter;
 
 mod folders;
 pub use folders::Folder;

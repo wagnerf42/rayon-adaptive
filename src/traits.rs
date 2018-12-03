@@ -8,7 +8,7 @@ use std::ptr;
 use activated_input::ActivatedInput;
 use chunks::Chunks;
 use folders::{fold::Fold, work_fold::WorkFold};
-pub use iterator::AdaptiveFolder;
+pub use iter::AdaptiveFolder;
 use policy::ParametrizedInput;
 use {Folder, Policy};
 

@@ -1,3 +1,3 @@
-pub use iterator::AdaptiveIterator;
-pub use iterator::IntoAdaptiveIterator;
+pub use iter::AdaptiveIterator;
+pub use iter::IntoAdaptiveIterator;
 pub use traits::{Divisible, DivisibleAtIndex};
