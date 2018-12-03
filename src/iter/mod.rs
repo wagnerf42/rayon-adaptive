@@ -43,7 +43,6 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
     /// use rayon_adaptive::prelude::*;
     /// assert!((0..10_000).into_adapt_iter().any(|x| x == 2345))
     /// ```
-
     fn any<P>(self, predicate: P) -> bool
     where
         P: Fn(Self::Item) -> bool + Sync + Send,
@@ -52,6 +51,45 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
         self.fold(|| false, |acc, x| if !acc { predicate(x) } else { true })
             .by_blocks(powers(base_size))
             .any(|b| b)
+    }
+
+    /// Return if all elements e in the iterator are such that
+    /// predicate(e) is true.
+    /// This algorithm is work efficient and should produce speedups
+    /// on fine grain instances.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert!((0..10_000).into_adapt_iter().zip((0..10_000).into_adapt_iter()).all(|(x, y)| x == y))
+    /// ```
+
+    fn all<P>(self, predicate: P) -> bool
+    where
+        P: Fn(Self::Item) -> bool + Sync + Send,
+    {
+        let base_size = std::cmp::min((self.len() as f64).log(2.0).ceil() as usize, self.len());
+        ActivatedInput {
+            input: self,
+            folder: Fold {
+                identity_op: || true,
+                fold_op: |s: bool, i: Self, limit: usize| {
+                    let (todo, remaining) = i.split_at(limit);
+                    (
+                        if s {
+                            todo.into_iter().all(&predicate)
+                        } else {
+                            false
+                        },
+                        remaining,
+                    )
+                },
+                phantom: PhantomData,
+            },
+            policy: Default::default(),
+        }.by_blocks(powers(base_size))
+        .all(|b| b)
     }
 
     fn sum<S>(self) -> S
