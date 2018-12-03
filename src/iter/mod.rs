@@ -24,7 +24,36 @@ pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
 
 impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
 
+fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
+    (0..).scan(starting_value, |state, _| {
+        *state *= 2;
+        Some(*state)
+    })
+}
+
 pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
+    /// Return if any element e in the iterator is such that
+    /// predicate(e) is true.
+    /// This algorithm is work efficient and should produce speedups
+    /// on fine grain instances.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert!((0..10_000).into_adapt_iter().any(|x| x == 2345))
+    /// ```
+
+    fn any<P>(self, predicate: P) -> bool
+    where
+        P: Fn(Self::Item) -> bool + Sync + Send,
+    {
+        let base_size = std::cmp::min((self.len() as f64).log(2.0).ceil() as usize, self.len());
+        self.fold(|| false, |acc, x| if !acc { predicate(x) } else { true })
+            .by_blocks(powers(base_size))
+            .any(|b| b)
+    }
+
     fn sum<S>(self) -> S
     where
         S: std::iter::Sum<Self::Item> + Send + Sync + std::ops::Add<Output = S>,

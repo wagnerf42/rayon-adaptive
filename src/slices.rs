@@ -27,7 +27,7 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
     /// Return an iterator on remaining elements.
     /// When the iterator drops we remember what's left unused.
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```
     /// use rayon_adaptive::EdibleSlice;
