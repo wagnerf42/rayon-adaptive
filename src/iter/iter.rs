@@ -1,4 +1,5 @@
 use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+#[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct Iter<I: IntoIterator + DivisibleAtIndex> {
     pub(crate) input: I,
 }

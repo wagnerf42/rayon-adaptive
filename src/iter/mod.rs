@@ -1,5 +1,8 @@
 use activated_input::ActivatedInput;
-use folders::iterator_fold::{AdaptiveIteratorFold, IteratorFold};
+use folders::{
+    fold::Fold,
+    iterator_fold::{AdaptiveIteratorFold, IteratorFold},
+};
 use rayon::prelude::IndexedParallelIterator;
 use std::marker::PhantomData;
 use {Divisible, DivisibleAtIndex};
@@ -9,6 +12,9 @@ mod iter;
 use self::iter::Iter;
 mod zip;
 use self::zip::Zip;
+mod filter;
+use self::filter::Filter;
+use policy::Policy;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -19,6 +25,34 @@ pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
 impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
 
 pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
+    fn get_policy(&self) -> Policy {
+        Default::default()
+    }
+    fn sum<S>(self) -> S
+    where
+        S: std::iter::Sum<Self::Item> + Send + Sync + std::ops::Add<Output = S>,
+    {
+        let policy = self.get_policy();
+        ActivatedInput {
+            input: self,
+            folder: Fold {
+                identity_op: || None.into_iter().sum(),
+                fold_op: |s: S, i: Self, limit: usize| {
+                    let (todo, remaining) = i.split_at(limit);
+                    let s2 = todo.into_iter().sum();
+                    (s + s2, remaining)
+                },
+                phantom: PhantomData,
+            },
+            policy,
+        }.reduce(|a, b| a + b)
+    }
+    fn filter<P: Fn(Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
+        Filter {
+            iter: self,
+            predicate,
+        }
+    }
     /// CAREFUL, THIS IS NOT SOUND YET
     fn zip<U: AdaptiveIterator>(self, other: U) -> Zip<Self, U> {
         Zip { a: self, b: other }
@@ -36,6 +70,7 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
         ID: Fn() -> IO + Sync + Send + Clone,
         F: Fn(IO, Self::Item) -> IO + Sync + Send + Clone,
     {
+        let policy = self.get_policy();
         ActivatedInput {
             input: self,
             folder: AdaptiveIteratorFold {
@@ -43,7 +78,7 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
                 fold_op,
                 phantom: PhantomData,
             },
-            policy: Default::default(),
+            policy,
         }
     }
 }
