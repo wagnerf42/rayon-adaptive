@@ -25,27 +25,11 @@ pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
 impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
 
 pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
-    fn get_policy(&self) -> Policy {
-        Default::default()
-    }
     fn sum<S>(self) -> S
     where
         S: std::iter::Sum<Self::Item> + Send + Sync + std::ops::Add<Output = S>,
     {
-        let policy = self.get_policy();
-        ActivatedInput {
-            input: self,
-            folder: Fold {
-                identity_op: || None.into_iter().sum(),
-                fold_op: |s: S, i: Self, limit: usize| {
-                    let (todo, remaining) = i.split_at(limit);
-                    let s2 = todo.into_iter().sum();
-                    (s + s2, remaining)
-                },
-                phantom: PhantomData,
-            },
-            policy,
-        }.reduce(|a, b| a + b)
+        iterator_sum(self, Default::default())
     }
     fn filter<P: Fn(Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
         Filter {
@@ -70,16 +54,7 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
         ID: Fn() -> IO + Sync + Send + Clone,
         F: Fn(IO, Self::Item) -> IO + Sync + Send + Clone,
     {
-        let policy = self.get_policy();
-        ActivatedInput {
-            input: self,
-            folder: AdaptiveIteratorFold {
-                identity_op: identity,
-                fold_op,
-                phantom: PhantomData,
-            },
-            policy,
-        }
+        iterator_fold(self, identity, fold_op, Default::default())
     }
 }
 
@@ -171,3 +146,44 @@ where
 }
 
 impl<I> AdaptiveFolder for I where I: IndexedParallelIterator + Sync + Clone {}
+
+pub(crate) fn iterator_sum<S, I: AdaptiveIterator>(iterator: I, policy: Policy) -> S
+where
+    S: std::iter::Sum<I::Item> + Send + Sync + std::ops::Add<Output = S>,
+{
+    ActivatedInput {
+        input: iterator,
+        folder: Fold {
+            identity_op: || None.into_iter().sum(),
+            fold_op: |s: S, i: I, limit: usize| {
+                let (todo, remaining) = i.split_at(limit);
+                let s2 = todo.into_iter().sum();
+                (s + s2, remaining)
+            },
+            phantom: PhantomData,
+        },
+        policy,
+    }.reduce(|a, b| a + b)
+}
+
+pub(crate) fn iterator_fold<I: AdaptiveIterator, IO, ID, F>(
+    iterator: I,
+    identity: ID,
+    fold_op: F,
+    policy: Policy,
+) -> ActivatedInput<AdaptiveIteratorFold<I, IO, ID, F>>
+where
+    IO: Send + Sync + Clone,
+    ID: Fn() -> IO + Sync + Send + Clone,
+    F: Fn(IO, I::Item) -> IO + Sync + Send + Clone,
+{
+    ActivatedInput {
+        input: iterator,
+        folder: AdaptiveIteratorFold {
+            identity_op: identity,
+            fold_op,
+            phantom: PhantomData,
+        },
+        policy,
+    }
+}

@@ -1,5 +1,4 @@
 use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
-use policy::Policy;
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
@@ -53,8 +52,4 @@ impl<I: AdaptiveIterator, F: Send + Sync + Copy> DivisibleAtIndex for Map<I, F> 
 
 impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R + Send + Sync + Copy> AdaptiveIterator
     for Map<I, F>
-{
-    fn get_policy(&self) -> Policy {
-        self.base.get_policy()
-    }
-}
+{}

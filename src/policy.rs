@@ -1,7 +1,8 @@
 use activated_input::ActivatedInput;
 use chunks::Chunks;
 /// All scheduling available scheduling policies.
-use folders::{fold::Fold, work_fold::WorkFold, Folder};
+use folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold, work_fold::WorkFold, Folder};
+use iter::{iterator_fold, iterator_sum, AdaptiveIterator};
 use scheduling::schedule;
 use std::marker::PhantomData;
 use {Divisible, DivisibleAtIndex};
@@ -49,7 +50,11 @@ impl<I: Divisible> ParametrizedInput<I> {
             policy: self.policy,
         }
     }
-    pub fn fold<O, ID, F>(self, identity: ID, fold_op: F) -> ActivatedInput<Fold<I, O, ID, F>>
+    pub fn partial_fold<O, ID, F>(
+        self,
+        identity: ID,
+        fold_op: F,
+    ) -> ActivatedInput<Fold<I, O, ID, F>>
     where
         O: Send + Sync,
         ID: Fn() -> O + Sync,
@@ -118,5 +123,27 @@ impl<I: DivisibleAtIndex> ParametrizedInput<I> {
             &|left, right| reduce_function(left, right),
             self.policy,
         )
+    }
+}
+
+impl<I: AdaptiveIterator> ParametrizedInput<I> {
+    pub fn sum<S>(self) -> S
+    where
+        S: std::iter::Sum<I::Item> + Send + Sync + std::ops::Add<Output = S>,
+    {
+        iterator_sum(self.input, self.policy)
+    }
+
+    pub fn fold<IO, ID, F>(
+        self,
+        identity: ID,
+        fold_op: F,
+    ) -> ActivatedInput<AdaptiveIteratorFold<I, IO, ID, F>>
+    where
+        IO: Send + Sync + Clone,
+        ID: Fn() -> IO + Sync + Send + Clone,
+        F: Fn(IO, I::Item) -> IO + Sync + Send + Clone,
+    {
+        iterator_fold(self.input, identity, fold_op, self.policy)
     }
 }
