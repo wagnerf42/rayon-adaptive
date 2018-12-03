@@ -2,6 +2,7 @@
 use scheduling::schedule;
 use std;
 use std::marker::PhantomData;
+use std::ops::Range;
 use std::ptr;
 
 use activated_input::ActivatedInput;
@@ -40,7 +41,11 @@ pub trait Divisible: Sized + Send + Sync {
             policy: Default::default(),
         }
     }
-    fn fold<O, ID, F>(self, identity: ID, fold_op: F) -> ActivatedInput<Fold<Self, O, ID, F>>
+    fn partial_fold<O, ID, F>(
+        self,
+        identity: ID,
+        fold_op: F,
+    ) -> ActivatedInput<Fold<Self, O, ID, F>>
     where
         O: Send + Sync,
         ID: Fn() -> O + Sync,
@@ -158,6 +163,27 @@ impl<'a, T: 'a + Sync + Send> Divisible for &'a mut [T] {
 impl<'a, T: 'a + Sync + Send> DivisibleAtIndex for &'a mut [T] {
     fn split_at(self, index: usize) -> (Self, Self) {
         self.split_at_mut(index)
+    }
+}
+
+//TODO: be more generic but it seems complex
+impl Divisible for Range<usize> {
+    fn len(&self) -> usize {
+        ExactSizeIterator::len(self)
+    }
+    fn split(self) -> (Self, Self) {
+        let mid = self.start + ExactSizeIterator::len(&self) / 2;
+        (self.start..mid, mid..self.end)
+    }
+}
+
+//TODO: be more generic but it seems complex
+impl DivisibleAtIndex for Range<usize> {
+    fn split_at(self, index: usize) -> (Self, Self) {
+        (
+            self.start..(self.start + index),
+            (self.start + index)..self.end,
+        )
     }
 }
 

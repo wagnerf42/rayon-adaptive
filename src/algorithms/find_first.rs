@@ -17,7 +17,7 @@ where
     let base_size = min((v.len() as f64).log(2.0).ceil() as usize, v.len());
     let input = EdibleSlice::new(v);
     input
-        .fold(
+        .partial_fold(
             || None,
             |found, mut slice, limit| {
                 (
