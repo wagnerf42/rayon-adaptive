@@ -9,6 +9,8 @@ mod iter;
 use self::iter::Iter;
 mod zip;
 use self::zip::Zip;
+mod cloned;
+use self::cloned::Cloned;
 mod filter;
 use self::filter::Filter;
 use policy::ParametrizedInput;
@@ -24,6 +26,14 @@ pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
 impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
 
 pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
+    /// Creates an iterator which clones all of its elements.
+    /// This is useful when you have an iterator over &T, but you need an iterator over T.
+    fn cloned<'a, T: 'a>(self) -> Cloned<Self>
+    where
+        Self: AdaptiveIterator<Item = &'a T>,
+    {
+        Cloned { it: self }
+    }
     fn filter<P: Fn(&Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
         Filter {
             iter: self,
