@@ -63,7 +63,7 @@ pub trait Divisible: Sized + Send + Sync {
         }
     }
     /// Easy api when we return no results.
-    fn for_each<WF>(self, work_function: WF)
+    fn partial_for_each<WF>(self, work_function: WF)
     where
         WF: Fn(Self, usize) -> Self + Sync,
     {

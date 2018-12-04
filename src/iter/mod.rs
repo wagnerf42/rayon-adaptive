@@ -47,10 +47,8 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
     where
         P: Fn(Self::Item) -> bool + Sync + Send,
     {
-        let base_size = std::cmp::min((self.len() as f64).log(2.0).ceil() as usize, self.len());
-        self.fold(|| false, |acc, x| if !acc { predicate(x) } else { true })
-            .by_blocks(powers(base_size))
-            .any(|b| b)
+        let predicate_ref = &predicate;
+        !self.all(|x| !predicate_ref(x))
     }
 
     /// Return if all elements e in the iterator are such that
@@ -90,6 +88,26 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
             policy: Default::default(),
         }.by_blocks(powers(base_size))
         .all(|b| b)
+    }
+
+    /// Apply *op* on each element.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let mut v1 = vec![0; 1000];
+    /// let v2: Vec<_> = (0..1000).collect();
+    /// // let's copy v2 into v1
+    /// v1.as_mut_slice().into_adapt_iter().zip(v2.into_adapt_iter()).for_each(|(x1, x2)| *x1 = *
+    /// x2);
+    /// assert_eq!(v1, v2);
+    /// ```
+    fn for_each<OP>(self, op: OP)
+    where
+        OP: Fn(Self::Item) + Sync + Send,
+    {
+        iterator_for_each(self, op, Default::default())
     }
 
     fn sum<S>(self) -> S
@@ -253,4 +271,24 @@ where
         },
         policy,
     }
+}
+
+pub(crate) fn iterator_for_each<I, OP>(iter: I, op: OP, policy: Policy)
+where
+    I: AdaptiveIterator,
+    OP: Fn(I::Item) + Sync + Send,
+{
+    ActivatedInput {
+        input: iter,
+        folder: Fold {
+            identity_op: || (),
+            fold_op: |_, i: I, limit: usize| {
+                let (todo, remaining) = i.split_at(limit);
+                todo.into_iter().for_each(&op);
+                ((), remaining)
+            },
+            phantom: PhantomData,
+        },
+        policy,
+    }.reduce(|_, _| ())
 }

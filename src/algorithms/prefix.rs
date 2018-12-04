@@ -1,6 +1,6 @@
 //! Adaptive prefix algorithm.
 //! No macro blocks.
-use {Divisible, EdibleSliceMut, Policy};
+use {prelude::*, EdibleSliceMut};
 
 /// Run adaptive prefix algortihm on given slice.
 /// Each element is replaced by folding with op since beginning of the slice.
@@ -55,15 +55,5 @@ where
     T: Send + Sync + Clone,
     O: Fn(&T, &T) -> T + Sync,
 {
-    {
-        let input = EdibleSliceMut::new(slice);
-        input
-            .with_policy(Policy::Adaptive(1000))
-            .for_each(|mut s, limit| {
-                for e in s.iter_mut().take(limit) {
-                    *e = op(e, &increment)
-                }
-                s
-            });
-    }
+    slice.into_adapt_iter().for_each(|e| *e = op(e, &increment))
 }
