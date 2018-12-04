@@ -23,7 +23,7 @@ pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
 impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
 
 pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
-    fn filter<P: Fn(Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
+    fn filter<P: Fn(&Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
         Filter {
             iter: self,
             predicate,
@@ -103,6 +103,17 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             policy,
         }.by_blocks(powers(base_size))
         .all(|b| b)
+    }
+    /// Counts the number of items in this adaptive iterator.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0..100).into_adapt_iter().filter(|&x| x %2 ==0).count(), 50);
+    /// ```
+    fn count(self) -> usize {
+        self.fold(|| 0, |s, _| s + 1).reduce(|s1, s2| s1 + s2)
     }
     fn sum<S>(self) -> S
     where
