@@ -29,6 +29,7 @@ impl Default for Policy {
 }
 
 pub trait AdaptiveRunner<I: Divisible>: Sized {
+    fn input_len(&self) -> usize;
     /// Return input and scheduling policy.
     fn input_and_policy(self) -> (I, Policy);
     fn work<WF: Fn(I, usize) -> I + Sync>(
@@ -85,12 +86,18 @@ pub struct ParametrizedInput<I: Divisible> {
 }
 
 impl<I: Divisible> AdaptiveRunner<I> for ParametrizedInput<I> {
+    fn input_len(&self) -> usize {
+        self.input.len()
+    }
     fn input_and_policy(self) -> (I, Policy) {
         (self.input, self.policy)
     }
 }
 
 impl<I: Divisible> AdaptiveRunner<I> for I {
+    fn input_len(&self) -> usize {
+        self.len()
+    }
     fn input_and_policy(self) -> (I, Policy) {
         (self, Default::default())
     }

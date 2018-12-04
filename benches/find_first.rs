@@ -5,7 +5,7 @@ extern crate rayon;
 extern crate rayon_adaptive;
 
 use rayon::prelude::*;
-use rayon_adaptive::find_first;
+use rayon_adaptive::prelude::*;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
@@ -30,7 +30,13 @@ fn find_first_adaptive(c: &mut Criterion) {
                 || (0..*input_size).collect::<Vec<u32>>(),
                 |v| {
                     let target = rand::random::<u32>() % input_size;
-                    assert_eq!(find_first(&v, |&e| *e == target).unwrap(), target)
+                    assert_eq!(
+                        v.into_adapt_iter()
+                            .find_first(|&e| *e == target)
+                            .cloned()
+                            .unwrap(),
+                        target
+                    )
                 },
             )
         }).with_function("rayon", |b, input_size| {

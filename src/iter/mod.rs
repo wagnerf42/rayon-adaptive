@@ -13,6 +13,7 @@ mod filter;
 use self::filter::Filter;
 use policy::ParametrizedInput;
 use std;
+use std::cmp::min;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -46,6 +47,37 @@ fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
 }
 
 pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
+    /// Find first e in iterator such that predicate(e) is true.
+    /// This implementation is efficient.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0..1000).into_adapt_iter().find_first(|&x| x == 100), Some(100));
+    /// ```
+    fn find_first<P>(self, predicate: P) -> Option<I::Item>
+    where
+        P: Fn(&I::Item) -> bool + Sync + Send,
+        I::Item: Sync + Send,
+    {
+        let len = self.input_len();
+        let base_size = min((len as f64).log(2.0).ceil() as usize, len);
+        self.partial_fold(
+            || None,
+            |found, i, limit| {
+                //TODO: nothing is remaining if found.
+                //should we have options ???
+                let (todo, remaining) = i.split_at(limit);
+                (
+                    found.or_else(|| todo.into_iter().find(&predicate)),
+                    remaining,
+                )
+            },
+        ).by_blocks(powers(base_size))
+        .filter_map(|o| o)
+        .next()
+    }
     /// Return if any element e in the iterator is such that
     /// predicate(e) is true.
     /// This algorithm is work efficient and should produce speedups
