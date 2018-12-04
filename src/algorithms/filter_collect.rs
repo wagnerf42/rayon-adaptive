@@ -1,5 +1,6 @@
+use prelude::*;
 use std::iter::repeat;
-use {Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut};
+use {EdibleSlice, EdibleSliceMut};
 
 struct FilterWork<'a, T: 'a> {
     input: EdibleSlice<'a, T>,

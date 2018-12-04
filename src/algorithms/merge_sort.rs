@@ -1,8 +1,9 @@
 //! adaptive parallel merge sort.
 
+use prelude::*;
 use std;
 use std::iter::repeat;
-use {fuse_slices, Divisible, DivisibleAtIndex, EdibleSlice, EdibleSliceMut, Policy};
+use {fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
 
 // main related code
 
@@ -136,26 +137,28 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
         output: EdibleSliceMut::new(output),
     };
 
-    slices.with_policy(policy).for_each(|mut slices, limit| {
-        {
-            let mut left_i = slices.left.iter();
-            let mut right_i = slices.right.iter();
-            for o in slices.output.iter_mut().take(limit) {
-                let go_left = match (left_i.peek(), right_i.peek()) {
-                    (Some(l), Some(r)) => l <= r,
-                    (Some(_), None) => true,
-                    (None, Some(_)) => false,
-                    (None, None) => panic!("not enough input when merging"),
-                };
-                *o = if go_left {
-                    *left_i.next().unwrap()
-                } else {
-                    *right_i.next().unwrap()
-                };
+    slices
+        .with_policy(policy)
+        .partial_for_each(|mut slices, limit| {
+            {
+                let mut left_i = slices.left.iter();
+                let mut right_i = slices.right.iter();
+                for o in slices.output.iter_mut().take(limit) {
+                    let go_left = match (left_i.peek(), right_i.peek()) {
+                        (Some(l), Some(r)) => l <= r,
+                        (Some(_), None) => true,
+                        (None, Some(_)) => false,
+                        (None, None) => panic!("not enough input when merging"),
+                    };
+                    *o = if go_left {
+                        *left_i.next().unwrap()
+                    } else {
+                        *right_i.next().unwrap()
+                    };
+                }
             }
-        }
-        slices
-    });
+            slices
+        });
 }
 
 // sort related code

@@ -1,6 +1,6 @@
 extern crate rayon_adaptive;
 
-use rayon_adaptive::DivisibleAtIndex;
+use rayon_adaptive::prelude::*;
 
 fn main() {
     let v: Vec<u32> = (0..20_000).collect();

@@ -1,5 +1,6 @@
+use prelude::*;
 use std::cmp::min;
-use {Divisible, EdibleSlice};
+use EdibleSlice;
 
 fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
     (0..).scan(starting_value, |state, _| {

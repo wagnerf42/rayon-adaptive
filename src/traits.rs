@@ -1,16 +1,12 @@
 //! This module contains all traits enabling us to express some parallelism.
-use scheduling::schedule;
 use std;
-use std::marker::PhantomData;
 use std::ops::Range;
 use std::ptr;
 
-use activated_input::ActivatedInput;
 use chunks::Chunks;
-use folders::{fold::Fold, work_fold::WorkFold};
-pub use iter::AdaptiveFolder;
+// pub use iter::AdaptiveFolder;
 use policy::ParametrizedInput;
-use {Folder, Policy};
+use Policy;
 
 pub trait Divisible: Sized + Send + Sync {
     /// Divide ourselves.
@@ -26,53 +22,6 @@ pub trait Divisible: Sized + Send + Sync {
             input: self,
             policy,
         }
-    }
-    fn work<WF: Fn(Self, usize) -> Self + Sync>(
-        self,
-        work_function: WF,
-    ) -> ActivatedInput<WorkFold<Self, WF>> {
-        let folder = WorkFold {
-            work_function,
-            phantom: PhantomData,
-        };
-        ActivatedInput {
-            input: self,
-            folder,
-            policy: Default::default(),
-        }
-    }
-    fn partial_fold<O, ID, F>(
-        self,
-        identity: ID,
-        fold_op: F,
-    ) -> ActivatedInput<Fold<Self, O, ID, F>>
-    where
-        O: Send + Sync,
-        ID: Fn() -> O + Sync,
-        F: Fn(O, Self, usize) -> (O, Self) + Sync,
-    {
-        let folder = Fold {
-            identity_op: identity,
-            fold_op,
-            phantom: PhantomData,
-        };
-        ActivatedInput {
-            input: self,
-            folder,
-            policy: Default::default(),
-        }
-    }
-    /// Easy api when we return no results.
-    fn partial_for_each<WF>(self, work_function: WF)
-    where
-        WF: Fn(Self, usize) -> Self + Sync,
-    {
-        let folder = WorkFold {
-            work_function,
-            phantom: PhantomData,
-        }.map(|_| ());
-        let reduce = |_, _| ();
-        schedule(self, &folder, &reduce, Default::default())
     }
 }
 
@@ -99,37 +48,6 @@ pub trait DivisibleAtIndex: Divisible {
             remaining: self,
             remaining_sizes: sizes,
         }
-    }
-    /// Easy api but use only when splitting generates no tangible work overhead.
-    fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
-    where
-        MF: Fn(Self) -> O + Sync,
-        RF: Fn(O, O) -> O + Sync,
-        O: Send + Sync,
-    {
-        let folder = Fold {
-            identity_op: || None,
-            fold_op: |o: Option<O>, i: Self, limit: usize| -> (Option<O>, Self) {
-                let (todo_now, remaining) = i.split_at(limit);
-                let new_result = map_function(todo_now);
-                (
-                    if let Some(output) = o {
-                        Some(reduce_function(output, new_result))
-                    } else {
-                        Some(new_result)
-                    },
-                    remaining,
-                )
-            },
-            phantom: PhantomData,
-        }.map(|o| o.unwrap());
-
-        schedule(
-            self,
-            &folder,
-            &|left, right| reduce_function(left, right),
-            Default::default(),
-        )
     }
 }
 

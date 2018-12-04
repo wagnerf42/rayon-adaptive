@@ -1,4 +1,5 @@
 use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+use std;
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
