@@ -16,7 +16,7 @@ use self::filter::Filter;
 use policy::ParametrizedInput;
 use std;
 use std::cmp::min;
-mod hash;
+pub(crate) mod hash;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
     fn into_adapt_iter(self) -> Iter<Self> {

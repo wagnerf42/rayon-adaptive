@@ -20,6 +20,7 @@ pub use slices::{EdibleSlice, EdibleSliceMut};
 mod activated_input;
 mod chunks;
 mod iter;
+pub use iter::hash::par_keys;
 
 mod folders;
 pub use folders::Folder;
