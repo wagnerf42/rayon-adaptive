@@ -16,6 +16,8 @@ use self::filter::Filter;
 use policy::ParametrizedInput;
 use std;
 use std::cmp::min;
+mod collect;
+pub use self::collect::FromAdaptiveIterator;
 pub(crate) mod hash;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
@@ -231,6 +233,14 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             },
             policy,
         }
+    }
+
+    fn collect<C>(self) -> C
+    where
+        I::Item: Send,
+        C: FromAdaptiveIterator<I::Item>,
+    {
+        FromAdaptiveIterator::from_adapt_iter(self)
     }
 }
 
