@@ -1,13 +1,13 @@
 use std::cmp::min;
 ///! macro loop on input.
-use DivisibleAtIndex;
+use DivisibleIntoBlocks;
 
-pub struct Chunks<I: DivisibleAtIndex, S: Iterator<Item = usize>> {
+pub struct Chunks<I: DivisibleIntoBlocks, S: Iterator<Item = usize>> {
     pub(crate) remaining: I,
     pub(crate) remaining_sizes: S,
 }
 
-impl<I: DivisibleAtIndex, S: Iterator<Item = usize>> Iterator for Chunks<I, S> {
+impl<I: DivisibleIntoBlocks, S: Iterator<Item = usize>> Iterator for Chunks<I, S> {
     type Item = I;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining.len() == 0 {

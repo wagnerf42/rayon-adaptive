@@ -1,4 +1,4 @@
-use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+use prelude::*;
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
@@ -34,7 +34,7 @@ impl<I: AdaptiveIterator, F: Send + Sync + Copy> Divisible for Map<I, F> {
     }
 }
 
-impl<I: AdaptiveIterator, F: Send + Sync + Copy> DivisibleAtIndex for Map<I, F> {
+impl<I: AdaptiveIterator, F: Send + Sync + Copy> DivisibleIntoBlocks for Map<I, F> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.base.split_at(index);
         (
@@ -49,7 +49,11 @@ impl<I: AdaptiveIterator, F: Send + Sync + Copy> DivisibleAtIndex for Map<I, F> 
         )
     }
 }
+impl<I: AdaptiveIndexedIterator, F: Send + Sync + Copy> DivisibleAtIndex for Map<I, F> {}
 
 impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R + Send + Sync + Copy> AdaptiveIterator
     for Map<I, F>
+{}
+impl<R: Send, I: AdaptiveIndexedIterator, F: Fn(I::Item) -> R + Send + Sync + Copy>
+    AdaptiveIndexedIterator for Map<I, F>
 {}

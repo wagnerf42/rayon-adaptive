@@ -1,8 +1,7 @@
 use activated_input::ActivatedInput;
 use folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
-use policy::AdaptiveRunner;
+use prelude::*;
 use std::marker::PhantomData;
-use {Divisible, DivisibleAtIndex};
 mod map;
 use self::map::Map;
 mod iter;
@@ -20,15 +19,15 @@ mod collect;
 pub use self::collect::FromAdaptiveIterator;
 pub(crate) mod hash;
 
-pub trait IntoAdaptiveIterator: IntoIterator + DivisibleAtIndex {
+pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {
         Iter { input: self }
     }
 }
 
-impl<I: IntoIterator + DivisibleAtIndex> IntoAdaptiveIterator for I {}
+impl<I: IntoIterator + DivisibleIntoBlocks> IntoAdaptiveIterator for I {}
 
-pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
+pub trait AdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     /// Creates an iterator which clones all of its elements.
     /// This is useful when you have an iterator over &T, but you need an iterator over T.
     fn cloned<'a, T: 'a>(self) -> Cloned<Self>
@@ -43,12 +42,27 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleAtIndex {
             predicate,
         }
     }
-    /// CAREFUL, THIS IS NOT SOUND YET
-    fn zip<U: AdaptiveIterator>(self, other: U) -> Zip<Self, U> {
-        Zip { a: self, b: other }
-    }
     fn map<R: Send, F: Fn(Self::Item) -> R + Send + Sync + Copy>(self, map_op: F) -> Map<Self, F> {
         Map { base: self, map_op }
+    }
+}
+
+/// These iterators allow zipping, skipping and taking.
+pub trait AdaptiveIndexedIterator: AdaptiveIterator + DivisibleAtIndex {
+    /// Zip the two given iterators together.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v1 = vec![1u32; 1000];
+    /// let v2 = vec![2u32; 1000];
+    /// // let's compute the scalar product
+    /// let s:u32 = v1.into_adapt_iter().zip(v2.into_adapt_iter()).map(|(x1, x2)| x1*x2).sum();
+    /// assert_eq!(s, 2000);
+    /// ```
+    fn zip<U: AdaptiveIndexedIterator>(self, other: U) -> Zip<Self, U> {
+        Zip { a: self, b: other }
     }
 }
 

@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use {fuse_slices, Divisible, DivisibleAtIndex};
+use {fuse_slices, Divisible, DivisibleIntoBlocks};
 
 /// A slice you can consume slowly.
 #[derive(Debug)]
@@ -69,7 +69,7 @@ impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Sync> DivisibleAtIndex for EdibleSlice<'a, T> {
+impl<'a, T: 'a + Sync> DivisibleIntoBlocks for EdibleSlice<'a, T> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let splitting_index = self.used + index;
         let (left_slice, right_slice) = self.slice.split_at(splitting_index);

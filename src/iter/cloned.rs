@@ -1,4 +1,4 @@
-use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+use prelude::*;
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
@@ -28,11 +28,15 @@ impl<I: AdaptiveIterator> Divisible for Cloned<I> {
     }
 }
 
-impl<I: AdaptiveIterator> DivisibleAtIndex for Cloned<I> {
+impl<I: AdaptiveIterator> DivisibleIntoBlocks for Cloned<I> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.it.split_at(index);
         (Cloned { it: left }, Cloned { it: right })
     }
 }
+impl<I: AdaptiveIndexedIterator> DivisibleAtIndex for Cloned<I> {}
 
 impl<'a, T: Clone + 'a, I: AdaptiveIterator<Item = &'a T>> AdaptiveIterator for Cloned<I> {}
+impl<'a, T: Clone + 'a, I: AdaptiveIndexedIterator<Item = &'a T>> AdaptiveIndexedIterator
+    for Cloned<I>
+{}

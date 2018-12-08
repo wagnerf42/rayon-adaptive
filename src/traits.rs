@@ -25,7 +25,7 @@ pub trait Divisible: Sized + Send + Sync {
     }
 }
 
-pub trait DivisibleAtIndex: Divisible {
+pub trait DivisibleIntoBlocks: Divisible {
     /// Divide ourselves where requested.
     fn split_at(self, index: usize) -> (Self, Self);
     /// Divide ourselves keeping right part in self.
@@ -51,6 +51,8 @@ pub trait DivisibleAtIndex: Divisible {
     }
 }
 
+pub trait DivisibleAtIndex: DivisibleIntoBlocks {}
+
 impl<'a, T: Sync> Divisible for &'a [T] {
     fn len(&self) -> usize {
         (*self as &[T]).len()
@@ -61,11 +63,13 @@ impl<'a, T: Sync> Divisible for &'a [T] {
     }
 }
 
-impl<'a, T: Sync> DivisibleAtIndex for &'a [T] {
+impl<'a, T: Sync> DivisibleIntoBlocks for &'a [T] {
     fn split_at(self, index: usize) -> (Self, Self) {
         self.split_at(index)
     }
 }
+
+impl<'a, T: Sync> DivisibleAtIndex for &'a [T] {}
 
 //TODO: I don't get why the compiler requires send here
 impl<'a, T: 'a + Sync + Send> Divisible for &'a mut [T] {
@@ -78,11 +82,13 @@ impl<'a, T: 'a + Sync + Send> Divisible for &'a mut [T] {
     }
 }
 
-impl<'a, T: 'a + Sync + Send> DivisibleAtIndex for &'a mut [T] {
+impl<'a, T: 'a + Sync + Send> DivisibleIntoBlocks for &'a mut [T] {
     fn split_at(self, index: usize) -> (Self, Self) {
         self.split_at_mut(index)
     }
 }
+
+impl<'a, T: 'a + Sync + Send> DivisibleAtIndex for &'a mut [T] {}
 
 //TODO: be more generic but it seems complex
 impl Divisible for Range<usize> {
@@ -96,7 +102,7 @@ impl Divisible for Range<usize> {
 }
 
 //TODO: be more generic but it seems complex
-impl DivisibleAtIndex for Range<usize> {
+impl DivisibleIntoBlocks for Range<usize> {
     fn split_at(self, index: usize) -> (Self, Self) {
         (
             self.start..(self.start + index),
@@ -104,6 +110,8 @@ impl DivisibleAtIndex for Range<usize> {
         )
     }
 }
+
+impl DivisibleAtIndex for Range<usize> {}
 
 //TODO: macroize all that stuff ; even better : derive ?
 impl<A: Divisible, B: Divisible> Divisible for (A, B) {
@@ -118,13 +126,15 @@ impl<A: Divisible, B: Divisible> Divisible for (A, B) {
 }
 
 //TODO: macroize all that stuff ; even better : derive ?
-impl<A: DivisibleAtIndex, B: DivisibleAtIndex> DivisibleAtIndex for (A, B) {
+impl<A: DivisibleIntoBlocks, B: DivisibleIntoBlocks> DivisibleIntoBlocks for (A, B) {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left_a, right_a) = self.0.split_at(index);
         let (left_b, right_b) = self.1.split_at(index);
         ((left_a, left_b), (right_a, right_b))
     }
 }
+
+impl<A: DivisibleAtIndex, B: DivisibleAtIndex> DivisibleAtIndex for (A, B) {}
 
 impl<A: Divisible, B: Divisible, C: Divisible> Divisible for (A, B, C) {
     fn len(&self) -> usize {

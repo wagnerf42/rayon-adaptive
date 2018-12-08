@@ -3,7 +3,7 @@ use activated_input::ActivatedInput;
 use folders::{fold::Fold, work_fold::WorkFold, Folder};
 use scheduling::schedule;
 use std::marker::PhantomData;
-use {Divisible, DivisibleAtIndex};
+use {Divisible, DivisibleIntoBlocks};
 
 #[derive(Copy, Clone)]
 pub enum Policy {
@@ -103,7 +103,7 @@ impl<I: Divisible> AdaptiveRunner<I> for I {
     }
 }
 
-pub trait BlockAdaptiveRunner<I: DivisibleAtIndex>: AdaptiveRunner<I> {
+pub trait BlockAdaptiveRunner<I: DivisibleIntoBlocks>: AdaptiveRunner<I> {
     /// Easy api but use only when splitting generates no tangible work overhead.
     fn map_reduce<MF, RF, O>(self, map_function: MF, reduce_function: RF) -> O
     where
@@ -138,5 +138,5 @@ pub trait BlockAdaptiveRunner<I: DivisibleAtIndex>: AdaptiveRunner<I> {
     }
 }
 
-impl<I: DivisibleAtIndex> BlockAdaptiveRunner<I> for ParametrizedInput<I> {}
-impl<I: DivisibleAtIndex> BlockAdaptiveRunner<I> for I {}
+impl<I: DivisibleIntoBlocks> BlockAdaptiveRunner<I> for ParametrizedInput<I> {}
+impl<I: DivisibleIntoBlocks> BlockAdaptiveRunner<I> for I {}

@@ -3,7 +3,7 @@ use folders::Map;
 use scheduling::schedule;
 use std::collections::linked_list;
 use std::collections::linked_list::LinkedList;
-use {DivisibleAtIndex, Folder, Policy};
+use {DivisibleIntoBlocks, Folder, Policy};
 
 /// Lazily store everything for folding.
 pub struct ActivatedInput<F: Folder> {
@@ -56,7 +56,7 @@ impl<F: Folder> ActivatedInput<F> {
     }
 }
 
-impl<I: DivisibleAtIndex, F: Folder<Input = I>> ActivatedInput<F> {
+impl<I: DivisibleIntoBlocks, F: Folder<Input = I>> ActivatedInput<F> {
     pub fn by_blocks<S: Iterator<Item = usize>>(
         self,
         blocks_sizes: S,

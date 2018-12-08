@@ -1,4 +1,4 @@
-use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+use super::{AdaptiveIterator, Divisible, DivisibleIntoBlocks};
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
@@ -34,7 +34,7 @@ impl<I: AdaptiveIterator, P: Send + Sync + Copy> Divisible for Filter<I, P> {
     }
 }
 
-impl<I: AdaptiveIterator, P: Send + Sync + Copy> DivisibleAtIndex for Filter<I, P> {
+impl<I: AdaptiveIterator, P: Send + Sync + Copy> DivisibleIntoBlocks for Filter<I, P> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.iter.split_at(index);
         (

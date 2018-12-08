@@ -258,7 +258,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleAtIndex for SortingSlices<'a, T> {
+impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices<'a, T> {
     fn split_at(self, i: usize) -> (Self, Self) {
         self.split_at(i)
     }

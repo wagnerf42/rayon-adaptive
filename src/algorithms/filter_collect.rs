@@ -29,7 +29,7 @@ impl<'a, T: Sync + Send> Divisible for FilterWork<'a, T> {
     }
 }
 
-impl<'a, T: Sync + Send> DivisibleAtIndex for FilterWork<'a, T> {
+impl<'a, T: Sync + Send> DivisibleIntoBlocks for FilterWork<'a, T> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left_input, right_input) = self.input.split_at(index);
         let remaining_left_size = left_input.len();

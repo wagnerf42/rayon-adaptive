@@ -1,4 +1,4 @@
-use super::{AdaptiveIterator, Divisible, DivisibleAtIndex};
+use prelude::*;
 use std;
 use std::iter;
 
@@ -36,7 +36,7 @@ impl<A: AdaptiveIterator, B: AdaptiveIterator> Divisible for Zip<A, B> {
     }
 }
 
-impl<A: AdaptiveIterator, B: AdaptiveIterator> DivisibleAtIndex for Zip<A, B> {
+impl<A: AdaptiveIterator, B: AdaptiveIterator> DivisibleIntoBlocks for Zip<A, B> {
     fn split_at(self, index: usize) -> (Self, Self) {
         let (left_a, right_a) = self.a.split_at(index);
         let (left_b, right_b) = self.b.split_at(index);
@@ -53,4 +53,6 @@ impl<A: AdaptiveIterator, B: AdaptiveIterator> DivisibleAtIndex for Zip<A, B> {
     }
 }
 
+impl<A: AdaptiveIterator, B: AdaptiveIterator> DivisibleAtIndex for Zip<A, B> {}
 impl<A: AdaptiveIterator, B: AdaptiveIterator> AdaptiveIterator for Zip<A, B> {}
+impl<A: AdaptiveIndexedIterator, B: AdaptiveIndexedIterator> AdaptiveIndexedIterator for Zip<A, B> {}
