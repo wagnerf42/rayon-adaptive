@@ -18,6 +18,7 @@ use std::cmp::min;
 mod collect;
 pub use self::collect::FromAdaptiveIterator;
 pub(crate) mod hash;
+pub(crate) mod str;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {

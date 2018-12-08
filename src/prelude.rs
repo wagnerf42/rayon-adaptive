@@ -1,3 +1,4 @@
+pub use iter::str::AdaptiveString;
 pub use iter::{
     AdaptiveIndexedIterator, AdaptiveIterator, AdaptiveIteratorRunner, FromAdaptiveIterator,
     IntoAdaptiveIterator,
