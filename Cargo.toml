@@ -15,7 +15,7 @@ logs = ["rayon_logs"]
 
 [dependencies]
 rayon_logs={optional=true, path="../rayon-logs"}
-rayon="*"
+rayon={path="../rayon"}
 itertools="*"
 rand="*"
 time = "0.1"

@@ -19,8 +19,11 @@ mod slices;
 pub use slices::{EdibleSlice, EdibleSliceMut};
 mod activated_input;
 mod chunks;
-mod iter;
+pub mod iter;
 pub use iter::hash::par_keys;
+pub use iter::iter::Iter;
+pub use iter::map::Map;
+pub use iter::zip::Zip;
 
 mod folders;
 pub use folders::Folder;

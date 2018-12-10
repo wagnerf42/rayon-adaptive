@@ -2,11 +2,11 @@ use activated_input::ActivatedInput;
 use folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
 use prelude::*;
 use std::marker::PhantomData;
-mod map;
+pub mod map;
 use self::map::Map;
-mod iter;
+pub mod iter;
 use self::iter::Iter;
-mod zip;
+pub mod zip;
 use self::zip::Zip;
 mod cloned;
 use self::cloned::Cloned;
@@ -102,7 +102,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                     remaining,
                 )
             },
-        ).by_blocks(powers(base_size))
+        )
+        .by_blocks(powers(base_size))
         .filter_map(|o| o)
         .next()
     }
@@ -161,7 +162,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
-        }.by_blocks(powers(base_size))
+        }
+        .by_blocks(powers(base_size))
         .all(|b| b)
     }
     /// Counts the number of items in this adaptive iterator.
@@ -192,7 +194,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
-        }.reduce(|a, b| a + b)
+        }
+        .reduce(|a, b| a + b)
     }
 
     /// Apply *op* on each element.
@@ -225,7 +228,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
-        }.reduce(|_, _| ())
+        }
+        .reduce(|_, _| ())
     }
 
     fn fold<IO, ID, F>(
