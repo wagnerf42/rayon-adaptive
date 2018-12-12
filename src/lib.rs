@@ -32,7 +32,6 @@ pub use crate::policy::Policy;
 pub mod prelude;
 
 mod algorithms;
-pub use crate::algorithms::filter_collect::filter_collect;
 pub use crate::algorithms::infix_solvers::*;
 pub use crate::algorithms::merge_sort::adaptive_sort;
 pub use crate::algorithms::prefix::adaptive_prefix;

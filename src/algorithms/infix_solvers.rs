@@ -8,15 +8,13 @@ use crate::algorithms::infix_solvers::rayon::prelude::ParallelSlice;
 #[cfg(feature = "logs")]
 extern crate rayon as real_rayon;
 #[cfg(feature = "logs")]
-use algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
+use crate::algorithms::infix_solvers::real_rayon::prelude::ParallelSlice;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 
 use rayon::prelude::*;
 use smallvec::SmallVec;
 
-#[cfg(feature = "logs")]
-use rayon::sequential_task;
 use crate::Policy;
 
 #[derive(Debug, Clone)]
@@ -93,30 +91,19 @@ pub fn vec_gen(size: u64) -> Vec<Token> {
                     Token::Mult
                 }
             }
-        }).collect()
+        })
+        .collect()
 }
-fn sequential_wrapper(inp: &[Token], outp: &mut u64) {
-    let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
+
+pub fn solver_seq(inp: &[Token]) -> u64 {
+    let t = inp.iter().fold((0, 1), |tup, elem| match elem {
         Token::Num(i) => (tup.0, tup.1 * *i),
         Token::Mult => tup,
         Token::Add => (tup.0 + tup.1, 1),
     });
-    *outp = ans.0 + ans.1
+    t.0 + t.1
 }
-pub fn solver_seq(inp: &[Token]) -> u64 {
-    //    let ans = inp.iter().fold((0, 1), |tup, elem| match elem {
-    //        Token::Add => (tup.0 + tup.1, 1),
-    //        Token::Mult => tup,
-    //        Token::Num(i) => (tup.0, tup.1 * *i),
-    //    });
-    //    ans.0 + ans.1
-    let mut ans: u64 = 0;
-    #[cfg(feature = "logs")]
-    sequential_task(0, inp.len(), || sequential_wrapper(inp, &mut ans));
-    #[cfg(not(feature = "logs"))]
-    sequential_wrapper(inp, &mut ans);
-    ans
-}
+
 //Not logged by rayon_logs.
 pub fn solver_par_split(inp: &[Token]) -> u64 {
     inp.as_parallel_slice()
@@ -126,7 +113,7 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
             #[cfg(not(feature = "logs"))]
             let iterator = slice.into_par_iter();
             #[cfg(feature = "logs")]
-            let iterator = ::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(slice);
+            let iterator = crate::algorithms::infix_solvers::real_rayon::prelude::IntoParallelIterator::into_par_iter(slice);
             iterator
                 .filter_map(|tok| match tok {
                     Token::Mult | Token::Add => None,
@@ -149,7 +136,8 @@ pub fn solver_par_fold(inp: &[Token]) -> u64 {
                 products
             }
             Token::Mult => products,
-        }).reduce(PartialProducts::new, |left, right| left.fuse(&right))
+        })
+        .reduce(PartialProducts::new, |left, right| left.fuse(&right))
         .evaluate()
 }
 
@@ -163,6 +151,7 @@ pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
                 Token::Mult => {}
             }
             p
-        }).reduce(|left, right| left.fuse(&right))
+        })
+        .reduce(|left, right| left.fuse(&right))
         .evaluate()
 }
