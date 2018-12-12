@@ -1,9 +1,5 @@
 use prelude::*;
-#[cfg(not(feature = "logs"))]
-use rayon;
-extern crate rayon as real_rayon;
-#[cfg(feature = "logs")]
-use self::real_rayon as rayon;
+use rayon::current_num_threads;
 use std::iter::repeat;
 use std::mem;
 pub trait FromAdaptiveIterator<T>
@@ -39,7 +35,7 @@ impl<T: Send + Sync> FromAdaptiveIterator<T> for Vec<T> {
             )
             .by_blocks(repeat(
                 // let's fit in 1mb cache
-                1_000_000 * rayon::current_num_threads() / mem::size_of::<T>(),
+                1_000_000 * current_num_threads() / mem::size_of::<T>(),
             ))
             .fold(None, |final_v: Option<Vec<T>>, v| {
                 if final_v.is_some() {
@@ -51,6 +47,6 @@ impl<T: Send + Sync> FromAdaptiveIterator<T> for Vec<T> {
                     Some(v)
                 }
             })
-            .unwrap_or(Vec::new())
+            .unwrap_or_else(Vec::new)
     }
 }
