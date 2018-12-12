@@ -4,7 +4,7 @@ use crate::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 mod toxic; //don't open this
-use self::toxic::extract_slices;
+use self::toxic::{extract_hashmap_slices, extract_hashset_slices};
 
 pub trait AdaptiveHashMap<'a> {
     type Iterator;
@@ -14,17 +14,18 @@ pub trait AdaptiveHashMap<'a> {
 pub fn par_keys<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
     hashmap: &'a HashMap<K, V>,
 ) -> impl AdaptiveIterator<Item = &'a K> {
-    let (hashes, pairs) = unsafe { extract_slices(hashmap) };
+    let (hashes, pairs) = unsafe { extract_hashmap_slices(hashmap) };
     hashes
         .into_adapt_iter()
         .zip(pairs.into_adapt_iter())
         .filter(|&(&h, _)| h != 0)
         .map(|(_, &(ref k, _))| k)
 }
+
 pub fn par_iter<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
     hashmap: &'a HashMap<K, V>,
 ) -> impl AdaptiveIterator<Item = (&'a K, &'a V)> {
-    let (hashes, pairs) = unsafe { extract_slices(hashmap) };
+    let (hashes, pairs) = unsafe { extract_hashmap_slices(hashmap) };
     hashes
         .into_adapt_iter()
         .zip(pairs.into_adapt_iter())

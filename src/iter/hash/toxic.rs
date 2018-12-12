@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker;
 use std::mem::transmute; // from the depths of hell, I summon you
@@ -31,8 +31,16 @@ struct RawBuckets<'a, K, V> {
 }
 
 /// Iterator over shared references to entries in a table.
-pub struct Iter<'a, K: 'a, V: 'a> {
+struct Iter<'a, K: 'a, V: 'a> {
     iter: RawBuckets<'a, K, V>,
+}
+
+struct HashSetIter<'a, K: 'a> {
+    iter: Keys<'a, K, ()>,
+}
+
+struct Keys<'a, K: 'a, V: 'a> {
+    inner: Iter<'a, K, V>,
 }
 
 impl<K, V> Copy for RawBucket<K, V> {}
@@ -67,7 +75,7 @@ fn raw_capacity(len: usize) -> usize {
     try_raw_capacity(len).expect("raw_capacity overflow")
 }
 
-pub(crate) unsafe fn extract_slices<'a, K: Eq + Hash, V>(
+pub(crate) unsafe fn extract_hashmap_slices<'a, K: Eq + Hash, V>(
     table: &'a HashMap<K, V>,
 ) -> (&'a [HashUint], &'a [(K, V)]) {
     let capacity = raw_capacity(table.capacity());
@@ -76,5 +84,17 @@ pub(crate) unsafe fn extract_slices<'a, K: Eq + Hash, V>(
     let i = transmute::<std::collections::hash_map::Iter<'a, K, V>, Iter<'a, K, V>>(i);
     let hashes = std::slice::from_raw_parts(i.iter.raw.hash_start, capacity);
     let pairs = std::slice::from_raw_parts(i.iter.raw.pair_start, capacity);
+    (hashes, pairs)
+}
+
+pub(crate) unsafe fn extract_hashset_slices<'a, K: Eq + Hash>(
+    table: &'a HashSet<K>,
+) -> (&'a [HashUint], &'a [(K, ())]) {
+    let capacity = raw_capacity(table.capacity());
+    let i: std::collections::hash_set::Iter<'a, K> = table.iter();
+    // I feel like satan himself
+    let i = transmute::<std::collections::hash_set::Iter<'a, K>, HashSetIter<'a, K>>(i);
+    let hashes = std::slice::from_raw_parts(i.iter.inner.iter.raw.hash_start, capacity);
+    let pairs = std::slice::from_raw_parts(i.iter.inner.iter.raw.pair_start, capacity);
     (hashes, pairs)
 }
