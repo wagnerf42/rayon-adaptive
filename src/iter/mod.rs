@@ -37,7 +37,12 @@ pub trait AdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     {
         Cloned { it: self }
     }
-    fn filter<P: Fn(&Self::Item) -> bool>(self, predicate: P) -> Filter<Self, P> {
+    //TODO: functions implement Copy but not clone ?????
+    //what about Sync and Send ???
+    fn filter<P: Fn(&Self::Item) -> bool + Clone + Sync + Send>(
+        self,
+        predicate: P,
+    ) -> Filter<Self, P> {
         Filter {
             iter: self,
             predicate,

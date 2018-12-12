@@ -4,7 +4,6 @@ use std::ops::Range;
 use std::ptr;
 
 use crate::chunks::Chunks;
-// pub use iter::AdaptiveFolder;
 use crate::policy::ParametrizedInput;
 use crate::Policy;
 
@@ -93,7 +92,7 @@ impl<'a, T: 'a + Sync + Send> DivisibleAtIndex for &'a mut [T] {}
 //TODO: be more generic but it seems complex
 impl Divisible for Range<usize> {
     fn base_length(&self) -> usize {
-        ExactSizeIterator::len(self)
+        self.len()
     }
     fn divide(self) -> (Self, Self) {
         let mid = self.start + ExactSizeIterator::len(&self) / 2;
@@ -112,41 +111,3 @@ impl DivisibleIntoBlocks for Range<usize> {
 }
 
 impl DivisibleAtIndex for Range<usize> {}
-
-// //TODO: macroize all that stuff ; even better : derive ?
-// impl<A: Divisible, B: Divisible> Divisible for (A, B) {
-//     fn base_length(&self) -> usize {
-//         std::cmp::min(self.0.base_length(), self.1.base_length())
-//     }
-//     fn divide(self) -> (Self, Self) {
-//         let (left_a, right_a) = self.0.divide();
-//         let (left_b, right_b) = self.1.divide();
-//         ((left_a, left_b), (right_a, right_b))
-//     }
-// }
-//
-// //TODO: macroize all that stuff ; even better : derive ?
-// impl<A: DivisibleIntoBlocks, B: DivisibleIntoBlocks> DivisibleIntoBlocks for (A, B) {
-//     fn divide_at(self, index: usize) -> (Self, Self) {
-//         let (left_a, right_a) = self.0.divide_at(index);
-//         let (left_b, right_b) = self.1.divide_at(index);
-//         ((left_a, left_b), (right_a, right_b))
-//     }
-// }
-//
-// impl<A: DivisibleAtIndex, B: DivisibleAtIndex> DivisibleAtIndex for (A, B) {}
-
-impl<A: Divisible, B: Divisible, C: Divisible> Divisible for (A, B, C) {
-    fn base_length(&self) -> usize {
-        std::cmp::min(
-            self.0.base_length(),
-            std::cmp::min(self.1.base_length(), self.2.base_length()),
-        )
-    }
-    fn divide(self) -> (Self, Self) {
-        let (left_a, right_a) = self.0.divide();
-        let (left_b, right_b) = self.1.divide();
-        let (left_c, right_c) = self.2.divide();
-        ((left_a, left_b, left_c), (right_a, right_b, right_c))
-    }
-}

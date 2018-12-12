@@ -1,13 +1,18 @@
 use crate::prelude::*;
+use derive_divisible::{Divisible, DivisibleIntoBlocks};
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
-pub struct Map<I: AdaptiveIterator, F> {
+#[derive(Divisible, DivisibleIntoBlocks)]
+pub struct Map<I: AdaptiveIterator, F: Clone + Send + Sync> {
     pub(crate) base: I,
+    #[divide_by(clone)]
     pub(crate) map_op: F,
 }
 
-impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R> IntoIterator for Map<I, F> {
+impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R + Clone + Send + Sync> IntoIterator
+    for Map<I, F>
+{
     type Item = R;
     type IntoIter = iter::Map<I::IntoIter, F>;
     fn into_iter(self) -> Self::IntoIter {
@@ -15,41 +20,7 @@ impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R> IntoIterator for Map<I, 
     }
 }
 
-impl<I: AdaptiveIterator, F: Send + Sync + Copy> Divisible for Map<I, F> {
-    fn base_length(&self) -> usize {
-        self.base.base_length()
-    }
-    fn divide(self) -> (Self, Self) {
-        let (left, right) = self.base.divide();
-        (
-            Map {
-                base: left,
-                map_op: self.map_op,
-            },
-            Map {
-                base: right,
-                map_op: self.map_op,
-            },
-        )
-    }
-}
-
-impl<I: AdaptiveIterator, F: Send + Sync + Copy> DivisibleIntoBlocks for Map<I, F> {
-    fn divide_at(self, index: usize) -> (Self, Self) {
-        let (left, right) = self.base.divide_at(index);
-        (
-            Map {
-                base: left,
-                map_op: self.map_op,
-            },
-            Map {
-                base: right,
-                map_op: self.map_op,
-            },
-        )
-    }
-}
-impl<I: AdaptiveIndexedIterator, F: Send + Sync + Copy> DivisibleAtIndex for Map<I, F> {}
+impl<I: AdaptiveIndexedIterator, F: Send + Sync + Clone> DivisibleAtIndex for Map<I, F> {}
 
 impl<R: Send, I: AdaptiveIterator, F: Fn(I::Item) -> R + Send + Sync + Copy> AdaptiveIterator
     for Map<I, F>
