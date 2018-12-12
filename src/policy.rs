@@ -74,7 +74,8 @@ pub trait AdaptiveRunner<I: Divisible>: Sized {
         let folder = WorkFold {
             work_function,
             phantom: PhantomData,
-        }.map(|_| ());
+        }
+        .map(|_| ());
         let reduce = |_, _| ();
         schedule(input, &folder, &reduce, policy)
     }
@@ -87,7 +88,7 @@ pub struct ParametrizedInput<I: Divisible> {
 
 impl<I: Divisible> AdaptiveRunner<I> for ParametrizedInput<I> {
     fn input_len(&self) -> usize {
-        self.input.len()
+        self.input.base_length()
     }
     fn input_and_policy(self) -> (I, Policy) {
         (self.input, self.policy)
@@ -96,7 +97,7 @@ impl<I: Divisible> AdaptiveRunner<I> for ParametrizedInput<I> {
 
 impl<I: Divisible> AdaptiveRunner<I> for I {
     fn input_len(&self) -> usize {
-        self.len()
+        self.base_length()
     }
     fn input_and_policy(self) -> (I, Policy) {
         (self, Default::default())
@@ -115,7 +116,7 @@ pub trait BlockAdaptiveRunner<I: DivisibleIntoBlocks>: AdaptiveRunner<I> {
         let folder = Fold {
             identity_op: || None,
             fold_op: |o: Option<O>, i: I, limit: usize| -> (Option<O>, I) {
-                let (todo_now, remaining) = i.split_at(limit);
+                let (todo_now, remaining) = i.divide_at(limit);
                 let new_result = map_function(todo_now);
                 (
                     if let Some(output) = o {
@@ -127,7 +128,8 @@ pub trait BlockAdaptiveRunner<I: DivisibleIntoBlocks>: AdaptiveRunner<I> {
                 )
             },
             phantom: PhantomData,
-        }.map(|o| o.unwrap());
+        }
+        .map(|o| o.unwrap());
 
         schedule(
             input,

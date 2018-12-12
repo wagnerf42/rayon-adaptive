@@ -16,11 +16,11 @@ impl<I: AdaptiveIterator, P: Fn(&I::Item) -> bool> IntoIterator for Filter<I, P>
 }
 
 impl<I: AdaptiveIterator, P: Send + Sync + Copy> Divisible for Filter<I, P> {
-    fn len(&self) -> usize {
-        self.iter.len()
+    fn base_length(&self) -> usize {
+        self.iter.base_length()
     }
-    fn split(self) -> (Self, Self) {
-        let (left, right) = self.iter.split();
+    fn divide(self) -> (Self, Self) {
+        let (left, right) = self.iter.divide();
         (
             Filter {
                 iter: left,
@@ -35,8 +35,8 @@ impl<I: AdaptiveIterator, P: Send + Sync + Copy> Divisible for Filter<I, P> {
 }
 
 impl<I: AdaptiveIterator, P: Send + Sync + Copy> DivisibleIntoBlocks for Filter<I, P> {
-    fn split_at(self, index: usize) -> (Self, Self) {
-        let (left, right) = self.iter.split_at(index);
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right) = self.iter.divide_at(index);
         (
             Filter {
                 iter: left,
@@ -52,4 +52,5 @@ impl<I: AdaptiveIterator, P: Send + Sync + Copy> DivisibleIntoBlocks for Filter<
 
 impl<I: AdaptiveIterator, P: Fn(&I::Item) -> bool + Send + Sync + Copy> AdaptiveIterator
     for Filter<I, P>
-{}
+{
+}

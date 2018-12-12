@@ -13,18 +13,18 @@ impl<I: IntoIterator + DivisibleIntoBlocks> IntoIterator for Iter<I> {
 }
 
 impl<I: IntoIterator + DivisibleIntoBlocks> Divisible for Iter<I> {
-    fn len(&self) -> usize {
-        self.input.len()
+    fn base_length(&self) -> usize {
+        self.input.base_length()
     }
-    fn split(self) -> (Self, Self) {
-        let (left, right) = self.input.split();
+    fn divide(self) -> (Self, Self) {
+        let (left, right) = self.input.divide();
         (Iter { input: left }, Iter { input: right })
     }
 }
 
 impl<I: IntoIterator + DivisibleIntoBlocks> DivisibleIntoBlocks for Iter<I> {
-    fn split_at(self, index: usize) -> (Self, Self) {
-        let (left, right) = self.input.split_at(index);
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right) = self.input.divide_at(index);
         (Iter { input: left }, Iter { input: right })
     }
 }

@@ -96,7 +96,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             |found, i, limit| {
                 //TODO: nothing is remaining if found.
                 //should we have options ???
-                let (todo, remaining) = i.split_at(limit);
+                let (todo, remaining) = i.divide_at(limit);
                 (
                     found.or_else(|| todo.into_iter().find(&predicate)),
                     remaining,
@@ -143,13 +143,16 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
         P: Fn(I::Item) -> bool + Sync + Send,
     {
         let (input, policy) = self.input_and_policy();
-        let base_size = std::cmp::min((input.len() as f64).log(2.0).ceil() as usize, input.len());
+        let base_size = std::cmp::min(
+            (input.base_length() as f64).log(2.0).ceil() as usize,
+            input.base_length(),
+        );
         ActivatedInput {
             input,
             folder: Fold {
                 identity_op: || true,
                 fold_op: |s: bool, i: I, limit: usize| {
-                    let (todo, remaining) = i.split_at(limit);
+                    let (todo, remaining) = i.divide_at(limit);
                     (
                         if s {
                             todo.into_iter().all(&predicate)
@@ -187,7 +190,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             folder: Fold {
                 identity_op: || None.into_iter().sum(),
                 fold_op: |s: S, i: I, limit: usize| {
-                    let (todo, remaining) = i.split_at(limit);
+                    let (todo, remaining) = i.divide_at(limit);
                     let s2 = todo.into_iter().sum();
                     (s + s2, remaining)
                 },
@@ -221,7 +224,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             folder: Fold {
                 identity_op: || (),
                 fold_op: |_, i: I, limit: usize| {
-                    let (todo, remaining) = i.split_at(limit);
+                    let (todo, remaining) = i.divide_at(limit);
                     todo.into_iter().for_each(&op);
                     ((), remaining)
                 },

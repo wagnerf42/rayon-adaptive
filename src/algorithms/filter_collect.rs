@@ -9,12 +9,12 @@ struct FilterWork<'a, T: 'a> {
 
 // we need to implement it manually to split output at best index.
 impl<'a, T: Sync + Send> Divisible for FilterWork<'a, T> {
-    fn len(&self) -> usize {
-        self.input.len()
+    fn base_length(&self) -> usize {
+        self.input.base_length()
     }
-    fn split(self) -> (Self, Self) {
-        let (left_input, right_input) = self.input.split();
-        let remaining_left_size = left_input.len();
+    fn divide(self) -> (Self, Self) {
+        let (left_input, right_input) = self.input.divide();
+        let remaining_left_size = left_input.base_length();
         let (left_output, right_output) = self.output.split_at(remaining_left_size);
         (
             FilterWork {
@@ -30,9 +30,9 @@ impl<'a, T: Sync + Send> Divisible for FilterWork<'a, T> {
 }
 
 impl<'a, T: Sync + Send> DivisibleIntoBlocks for FilterWork<'a, T> {
-    fn split_at(self, index: usize) -> (Self, Self) {
-        let (left_input, right_input) = self.input.split_at(index);
-        let remaining_left_size = left_input.len();
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left_input, right_input) = self.input.divide_at(index);
+        let remaining_left_size = left_input.base_length();
         let (left_output, right_output) = self.output.split_at(remaining_left_size);
         (
             FilterWork {
@@ -75,7 +75,8 @@ where
                     *o = *i;
                 }
                 slices
-            }).map(|slices| slices.output)
+            })
+            .map(|slices| slices.output)
             .by_blocks(repeat(1_000_000))
             .fold(
                 None,
@@ -86,8 +87,9 @@ where
                         Some(right_slice)
                     }
                 },
-            ).unwrap();
-        slice.len() - final_output.len()
+            )
+            .unwrap();
+        slice.len() - final_output.base_length()
     };
     unsafe {
         uninitialized_output.set_len(used);

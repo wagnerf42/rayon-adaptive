@@ -26,8 +26,8 @@ where
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
     let block_size = match policy {
-        Policy::Sequential => input.len(),
-        Policy::DefaultPolicy => (input.len() as f64).log(2.0).ceil() as usize,
+        Policy::Sequential => input.base_length(),
+        Policy::DefaultPolicy => (input.base_length() as f64).log(2.0).ceil() as usize,
         Policy::Join(block_size)
         | Policy::JoinContext(block_size)
         | Policy::DepJoin(block_size)
@@ -55,7 +55,7 @@ where
 }
 
 fn schedule_sequential<F: Folder>(input: F::Input, folder: &F) -> F::Output {
-    let len = input.len();
+    let len = input.base_length();
     let (io, i) = folder.fold(folder.identity(), input, len);
     folder.to_output(io, i)
 }
@@ -70,11 +70,11 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    let len = input.len();
+    let len = input.base_length();
     if len <= block_size {
         schedule_sequential(input, folder)
     } else {
-        let (i1, i2) = input.split();
+        let (i1, i2) = input.divide();
         let (r1, r2) = rayon::join(
             || schedule_join(i1, folder, reduce_function, block_size),
             || schedule_join(i2, folder, reduce_function, block_size),
@@ -93,11 +93,11 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    let len = input.len();
+    let len = input.base_length();
     if len <= block_size {
         schedule_sequential(input, folder)
     } else {
-        let (i1, i2) = input.split();
+        let (i1, i2) = input.divide();
         let (r1, r2) = rayon::join_context(
             |_| schedule_join_context(i1, folder, reduce_function, block_size),
             |c| {
@@ -122,11 +122,11 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    let len = input.len();
+    let len = input.base_length();
     if len <= block_size {
         schedule_sequential(input, folder)
     } else {
-        let (i1, i2) = input.split();
+        let (i1, i2) = input.divide();
         depjoin(
             || schedule_depjoin(i1, folder, reduce_function, block_size),
             || schedule_depjoin(i2, folder, reduce_function, block_size),
@@ -163,11 +163,11 @@ where
         reduce_function: &'b RF,
     ) -> Self {
         // adjust block size to fit on boundaries
-        let blocks_number = (((input.len() as f64) / initial_block_size as f64 + 1.0).log(2.0)
-            - 1.0)
-            .floor() as i32;
+        let blocks_number =
+            (((input.base_length() as f64) / initial_block_size as f64 + 1.0).log(2.0) - 1.0)
+                .floor() as i32;
         let current_block_size =
-            ((input.len() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
+            ((input.base_length() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
 
         AdaptiveWorker {
             input,
@@ -185,7 +185,7 @@ where
         self.stolen.load(Ordering::Relaxed)
     }
     fn answer_steal(self) -> F::Output {
-        let (my_half, his_half) = self.input.split();
+        let (my_half, his_half) = self.input.divide();
         self.sender.send(Some(his_half)).expect("sending failed");
         schedule_adaptive(
             my_half,
@@ -205,9 +205,9 @@ where
         // TODO: automate this min everywhere ?
         // TODO: factorize a little bit
         // start by computing a little bit in order to get a first output
-        let size = min(self.input.len(), self.current_block_size);
+        let size = min(self.input.base_length(), self.current_block_size);
 
-        if self.input.len() <= self.current_block_size {
+        if self.input.base_length() <= self.current_block_size {
             self.cancel_stealing_task(); // no need to keep people waiting for nothing
             let (io, i) = self.folder.fold(self.partial_output, self.input, size);
             return self.folder.to_output(io, i);
@@ -216,7 +216,7 @@ where
                 self.folder.fold(self.partial_output, self.input, size);
             self.partial_output = new_partial_output;
             self.input = new_input;
-            if self.input.len() == 0 {
+            if self.input.base_length() == 0 {
                 // it's over
                 self.cancel_stealing_task();
                 return self.folder.to_output(self.partial_output, self.input);
@@ -225,13 +225,13 @@ where
 
         // loop while not stolen or something left to do
         loop {
-            if self.is_stolen() && self.input.len() > self.initial_block_size {
+            if self.is_stolen() && self.input.base_length() > self.initial_block_size {
                 return self.answer_steal();
             }
             self.current_block_size *= 2;
-            let size = min(self.input.len(), self.current_block_size);
+            let size = min(self.input.base_length(), self.current_block_size);
 
-            if self.input.len() <= self.current_block_size {
+            if self.input.base_length() <= self.current_block_size {
                 self.cancel_stealing_task(); // no need to keep people waiting for nothing
                 let (io, i) = self.folder.fold(self.partial_output, self.input, size);
                 return self.folder.to_output(io, i);
@@ -241,7 +241,7 @@ where
             self.partial_output = result.0;
             self.input = result.1;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
-            if self.input.len() == 0 {
+            if self.input.base_length() == 0 {
                 // it's over
                 self.cancel_stealing_task();
                 return self.folder.to_output(self.partial_output, self.input);
@@ -261,7 +261,7 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    let size = input.len();
+    let size = input.base_length();
     if size <= initial_block_size {
         let (io, i) = folder.fold(partial_output, input, size);
         folder.to_output(io, i)
@@ -289,7 +289,7 @@ where
                     rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"))?;
                 #[cfg(not(feature = "logs"))]
                 let input = receiver.recv().expect("receiving failed")?;
-                assert!(input.len() > 0);
+                assert!(input.base_length() > 0);
                 Some(schedule_adaptive(
                     input,
                     folder.identity(),

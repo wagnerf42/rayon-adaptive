@@ -17,12 +17,12 @@ impl<A: AdaptiveIterator, B: AdaptiveIterator> IntoIterator for Zip<A, B> {
 }
 
 impl<A: AdaptiveIterator, B: AdaptiveIterator> Divisible for Zip<A, B> {
-    fn len(&self) -> usize {
-        std::cmp::min(self.a.len(), self.b.len())
+    fn base_length(&self) -> usize {
+        std::cmp::min(self.a.base_length(), self.b.base_length())
     }
-    fn split(self) -> (Self, Self) {
-        let (left_a, right_a) = self.a.split();
-        let (left_b, right_b) = self.b.split();
+    fn divide(self) -> (Self, Self) {
+        let (left_a, right_a) = self.a.divide();
+        let (left_b, right_b) = self.b.divide();
         (
             Zip {
                 a: left_a,
@@ -37,9 +37,9 @@ impl<A: AdaptiveIterator, B: AdaptiveIterator> Divisible for Zip<A, B> {
 }
 
 impl<A: AdaptiveIterator, B: AdaptiveIterator> DivisibleIntoBlocks for Zip<A, B> {
-    fn split_at(self, index: usize) -> (Self, Self) {
-        let (left_a, right_a) = self.a.split_at(index);
-        let (left_b, right_b) = self.b.split_at(index);
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left_a, right_a) = self.a.divide_at(index);
+        let (left_b, right_b) = self.b.divide_at(index);
         (
             Zip {
                 a: left_a,

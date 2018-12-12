@@ -15,10 +15,10 @@ impl<'a> IntoIterator for AdaptiveChars<'a> {
 }
 
 impl<'a> Divisible for AdaptiveChars<'a> {
-    fn len(&self) -> usize {
+    fn base_length(&self) -> usize {
         self.real_str.len()
     }
-    fn split(self) -> (Self, Self) {
+    fn divide(self) -> (Self, Self) {
         // TODO: this is not safe if called with a size too small
         // we need to change the trait to return an option.
         let mut index = self.real_str.len() / 2;
@@ -34,7 +34,7 @@ impl<'a> Divisible for AdaptiveChars<'a> {
 }
 
 impl<'a> DivisibleIntoBlocks for AdaptiveChars<'a> {
-    fn split_at(self, mut index: usize) -> (Self, Self) {
+    fn divide_at(self, mut index: usize) -> (Self, Self) {
         // TODO: this is not safe if called with a size too small
         // we need to change the trait to return an option.
         while !self.real_str.is_char_boundary(index) {

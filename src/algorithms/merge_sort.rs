@@ -28,7 +28,8 @@ fn subslice_without_last_value<T: Eq>(slice: &[T]) -> &[T] {
                     } else {
                         std::cmp::Ordering::Less
                     }
-                }).unwrap_err();
+                })
+                .unwrap_err();
             &slice[0..(searching_range_start + index)]
         }
         None => slice,
@@ -55,7 +56,8 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
                     } else {
                         std::cmp::Ordering::Greater
                     }
-                }).unwrap_err();
+                })
+                .unwrap_err();
             &slice[index..]
         }
         None => slice,
@@ -96,10 +98,10 @@ struct FusionSlice<'a, T: 'a> {
 }
 
 impl<'a, T: 'a + Send + Sync + Ord + Copy> Divisible for FusionSlice<'a, T> {
-    fn len(&self) -> usize {
-        self.output.len()
+    fn base_length(&self) -> usize {
+        self.output.base_length()
     }
-    fn split(self) -> (Self, Self) {
+    fn divide(self) -> (Self, Self) {
         let left = self.left.remaining_slice();
         let right = self.right.remaining_slice();
         let output = self.output.into_remaining_slice();
@@ -190,11 +192,11 @@ impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
                 let output_slice = fuse_slices(left_output, right_output);
                 // if slices are nearly sorted we will resort to memcpy
                 if left_input.last() <= right_input.first() {
-                    output_slice[..left_input.len()].copy_from_slice(left_input);
-                    output_slice[left_input.len()..].copy_from_slice(right_input);
+                    output_slice[..left_input.base_length()].copy_from_slice(left_input);
+                    output_slice[left_input.base_length()..].copy_from_slice(right_input);
                 } else if right_input.last() < left_input.first() {
-                    output_slice[..right_input.len()].copy_from_slice(right_input);
-                    output_slice[right_input.len()..].copy_from_slice(left_input);
+                    output_slice[..right_input.base_length()].copy_from_slice(right_input);
+                    output_slice[right_input.base_length()..].copy_from_slice(left_input);
                 } else {
                     fuse(left_input, right_input, output_slice, policy);
                 }
@@ -249,17 +251,17 @@ impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
 }
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
-    fn len(&self) -> usize {
-        self.s[0].len()
+    fn base_length(&self) -> usize {
+        self.s[0].base_length()
     }
-    fn split(self) -> (Self, Self) {
-        let mid = self.s[0].len() / 2;
+    fn divide(self) -> (Self, Self) {
+        let mid = self.s[0].base_length() / 2;
         self.split_at(mid)
     }
 }
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices<'a, T> {
-    fn split_at(self, i: usize) -> (Self, Self) {
+    fn divide_at(self, i: usize) -> (Self, Self) {
         self.split_at(i)
     }
 }
@@ -281,11 +283,11 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
     slice: &mut [T],
     initial_block_size: usize,
 ) {
-    let mut tmp_slice1 = Vec::with_capacity(slice.len());
-    let mut tmp_slice2 = Vec::with_capacity(slice.len());
+    let mut tmp_slice1 = Vec::with_capacity(slice.base_length());
+    let mut tmp_slice2 = Vec::with_capacity(slice.base_length());
     unsafe {
-        tmp_slice1.set_len(slice.len());
-        tmp_slice2.set_len(slice.len());
+        tmp_slice1.set_len(slice.base_length());
+        tmp_slice2.set_len(slice.base_length());
     }
 
     let slices = SortingSlices {

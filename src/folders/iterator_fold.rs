@@ -34,7 +34,7 @@ impl<
     ) -> (Self::IntermediateOutput, Self::Input) {
         // for now we use the overhead version
         // we could avoid it with a "partial_fold"
-        let (todo, remaining) = i.split_at(limit);
+        let (todo, remaining) = i.divide_at(limit);
         (todo.into_iter().fold(io, &self.fold_op), remaining)
     }
     fn to_output(&self, io: Self::IntermediateOutput, _i: Self::Input) -> Self::Output {

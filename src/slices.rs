@@ -50,10 +50,10 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
 }
 
 impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
-    fn len(&self) -> usize {
+    fn base_length(&self) -> usize {
         self.slice.len() - self.used
     }
-    fn split(self) -> (Self, Self) {
+    fn divide(self) -> (Self, Self) {
         let splitting_index = self.used + self.remaining_slice().len() / 2;
         let (left_slice, right_slice) = self.slice.split_at(splitting_index);
         (
@@ -70,7 +70,7 @@ impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
 }
 
 impl<'a, T: 'a + Sync> DivisibleIntoBlocks for EdibleSlice<'a, T> {
-    fn split_at(self, index: usize) -> (Self, Self) {
+    fn divide_at(self, index: usize) -> (Self, Self) {
         let splitting_index = self.used + index;
         let (left_slice, right_slice) = self.slice.split_at(splitting_index);
         (
@@ -204,11 +204,11 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
 }
 
 impl<'a, T: 'a + Sync + Send> Divisible for EdibleSliceMut<'a, T> {
-    fn len(&self) -> usize {
-        self.slice.len() - self.used
+    fn base_length(&self) -> usize {
+        self.slice.base_length() - self.used
     }
-    fn split(mut self) -> (Self, Self) {
-        let splitting_index = self.used + self.remaining_slice().len() / 2;
+    fn divide(mut self) -> (Self, Self) {
+        let splitting_index = self.used + self.remaining_slice().base_length() / 2;
         let (left_slice, right_slice) = self.slice.split_at_mut(splitting_index);
         (
             EdibleSliceMut {

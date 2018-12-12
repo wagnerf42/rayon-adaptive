@@ -28,7 +28,7 @@ impl<T: Send + Sync> FromAdaptiveIterator<T> for Vec<T> {
             .partial_fold(
                 move || Vec::with_capacity(capacity),
                 |mut v, i, limit| {
-                    let (todo, remaining) = i.split_at(limit);
+                    let (todo, remaining) = i.divide_at(limit);
                     v.extend(todo.into_iter()); // optimized extend, yay !
                     (v, remaining)
                 },

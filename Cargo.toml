@@ -15,6 +15,7 @@ logs = ["rayon_logs"]
 
 [dependencies]
 rayon_logs={optional=true, path="../rayon-logs"}
+derive-divisible={path="../derive-divisible"}
 rayon="*"
 itertools="*"
 rand="*"
