@@ -1,6 +1,6 @@
-use prelude::*;
+use crate::prelude::*;
 use std::iter::repeat;
-use {EdibleSlice, EdibleSliceMut};
+use crate::{EdibleSlice, EdibleSliceMut};
 
 struct FilterWork<'a, T: 'a> {
     input: EdibleSlice<'a, T>,

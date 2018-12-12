@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use {Divisible, Folder};
+use crate::{Divisible, Folder};
 
 pub struct Fold<I: Divisible, IO: Send, ID: Fn() -> IO, FF: Fn(IO, I, usize) -> (IO, I)> {
     pub(crate) identity_op: ID,

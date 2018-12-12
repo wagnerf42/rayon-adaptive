@@ -11,31 +11,31 @@ extern crate rayon_logs as rayon;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 mod traits;
-pub use traits::*;
+pub use crate::traits::*;
 mod scheduling;
 mod utils;
-pub use utils::fuse_slices;
+pub use crate::utils::fuse_slices;
 mod slices;
-pub use slices::{EdibleSlice, EdibleSliceMut};
+pub use crate::slices::{EdibleSlice, EdibleSliceMut};
 mod activated_input;
 mod chunks;
 pub mod iter;
-pub use iter::hash::par_keys;
-pub use iter::iter::Iter;
-pub use iter::map::Map;
-pub use iter::zip::Zip;
+pub use crate::iter::hash::par_keys;
+pub use crate::iter::iter::Iter;
+pub use crate::iter::map::Map;
+pub use crate::iter::zip::Zip;
 
 mod folders;
-pub use folders::Folder;
+pub use crate::folders::Folder;
 mod policy;
-pub use policy::Policy;
+pub use crate::policy::Policy;
 pub mod prelude;
 
 mod algorithms;
-pub use algorithms::filter_collect::filter_collect;
-pub use algorithms::infix_solvers::*;
-pub use algorithms::merge_sort::adaptive_sort;
-pub use algorithms::prefix::adaptive_prefix;
+pub use crate::algorithms::filter_collect::filter_collect;
+pub use crate::algorithms::infix_solvers::*;
+pub use crate::algorithms::merge_sort::adaptive_sort;
+pub use crate::algorithms::prefix::adaptive_prefix;
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.
 /// Then the last closure to finish calls `oper_c` on both results.

@@ -1,10 +1,10 @@
 extern crate rand;
-use prelude::*;
+use crate::prelude::*;
 
 #[cfg(not(feature = "logs"))]
 extern crate rayon;
 #[cfg(not(feature = "logs"))]
-use algorithms::infix_solvers::rayon::prelude::ParallelSlice;
+use crate::algorithms::infix_solvers::rayon::prelude::ParallelSlice;
 #[cfg(feature = "logs")]
 extern crate rayon as real_rayon;
 #[cfg(feature = "logs")]
@@ -17,7 +17,7 @@ use smallvec::SmallVec;
 
 #[cfg(feature = "logs")]
 use rayon::sequential_task;
-use Policy;
+use crate::Policy;
 
 #[derive(Debug, Clone)]
 pub struct PartialProducts {

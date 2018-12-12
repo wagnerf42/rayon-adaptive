@@ -1,9 +1,9 @@
-use activated_input::ActivatedInput;
+use crate::activated_input::ActivatedInput;
 /// All scheduling available scheduling policies.
-use folders::{fold::Fold, work_fold::WorkFold, Folder};
-use scheduling::schedule;
+use crate::folders::{fold::Fold, work_fold::WorkFold, Folder};
+use crate::scheduling::schedule;
 use std::marker::PhantomData;
-use {Divisible, DivisibleIntoBlocks};
+use crate::{Divisible, DivisibleIntoBlocks};
 
 #[derive(Copy, Clone)]
 pub enum Policy {

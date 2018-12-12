@@ -3,10 +3,10 @@ use std;
 use std::ops::Range;
 use std::ptr;
 
-use chunks::Chunks;
+use crate::chunks::Chunks;
 // pub use iter::AdaptiveFolder;
-use policy::ParametrizedInput;
-use Policy;
+use crate::policy::ParametrizedInput;
+use crate::Policy;
 
 pub trait Divisible: Sized + Send + Sync {
     /// Divide ourselves.

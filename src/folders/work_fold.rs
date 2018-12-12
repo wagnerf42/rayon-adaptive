@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use {Divisible, Folder};
+use crate::{Divisible, Folder};
 
 // *WorkFold* is obtained by calling the *work* function on some *Divisible* input.
 pub struct WorkFold<I: Divisible, WF: Fn(I, usize) -> I + Sync> {

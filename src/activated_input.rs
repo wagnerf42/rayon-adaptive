@@ -1,9 +1,9 @@
 //! the folded stuff, ready to be reduced.
-use folders::Map;
-use scheduling::schedule;
+use crate::folders::Map;
+use crate::scheduling::schedule;
 use std::collections::linked_list;
 use std::collections::linked_list::LinkedList;
-use {DivisibleIntoBlocks, Folder, Policy};
+use crate::{DivisibleIntoBlocks, Folder, Policy};
 
 /// Lazily store everything for folding.
 pub struct ActivatedInput<F: Folder> {

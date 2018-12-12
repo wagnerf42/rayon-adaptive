@@ -1,6 +1,6 @@
-use activated_input::ActivatedInput;
-use folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
-use prelude::*;
+use crate::activated_input::ActivatedInput;
+use crate::folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
+use crate::prelude::*;
 use std::marker::PhantomData;
 pub mod map;
 use self::map::Map;
@@ -12,7 +12,7 @@ mod cloned;
 use self::cloned::Cloned;
 mod filter;
 use self::filter::Filter;
-use policy::ParametrizedInput;
+use crate::policy::ParametrizedInput;
 use std;
 use std::cmp::min;
 mod collect;

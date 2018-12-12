@@ -1,6 +1,6 @@
-use iter::AdaptiveIterator;
+use crate::iter::AdaptiveIterator;
 use std::marker::PhantomData;
-use Folder;
+use crate::Folder;
 
 pub struct AdaptiveIteratorFold<
     I: AdaptiveIterator,

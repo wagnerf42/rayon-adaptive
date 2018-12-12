@@ -1,4 +1,4 @@
-use prelude::*;
+use crate::prelude::*;
 use std::str::Chars;
 
 /// Adaptive iterator on characters of strings.

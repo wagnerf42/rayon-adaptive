@@ -1,15 +1,15 @@
 //! Let factorize a huge amount of scheduling policies into one api.
-use depjoin;
+use crate::depjoin;
 use rayon;
 //use rayon::current_num_threads;
-use folders::Folder;
+use crate::folders::Folder;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use traits::Divisible;
-use Policy;
+use crate::traits::Divisible;
+use crate::Policy;
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.

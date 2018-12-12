@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use {fuse_slices, Divisible, DivisibleIntoBlocks};
+use crate::{fuse_slices, Divisible, DivisibleIntoBlocks};
 
 /// A slice you can consume slowly.
 #[derive(Debug)]

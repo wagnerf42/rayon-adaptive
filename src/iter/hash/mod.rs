@@ -1,6 +1,6 @@
 //! adaptive iterators on hashmaps
 
-use prelude::*;
+use crate::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 mod toxic; //don't open this

@@ -1,7 +1,7 @@
-pub use iter::str::AdaptiveString;
-pub use iter::{
+pub use crate::iter::str::AdaptiveString;
+pub use crate::iter::{
     AdaptiveIndexedIterator, AdaptiveIterator, AdaptiveIteratorRunner, FromAdaptiveIterator,
     IntoAdaptiveIterator,
 };
-pub use policy::{AdaptiveRunner, BlockAdaptiveRunner};
-pub use traits::{Divisible, DivisibleAtIndex, DivisibleIntoBlocks};
+pub use crate::policy::{AdaptiveRunner, BlockAdaptiveRunner};
+pub use crate::traits::{Divisible, DivisibleAtIndex, DivisibleIntoBlocks};

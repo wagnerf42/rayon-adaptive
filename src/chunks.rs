@@ -1,6 +1,6 @@
 use std::cmp::min;
 ///! macro loop on input.
-use DivisibleIntoBlocks;
+use crate::DivisibleIntoBlocks;
 
 pub struct Chunks<I: DivisibleIntoBlocks, S: Iterator<Item = usize>> {
     pub(crate) remaining: I,

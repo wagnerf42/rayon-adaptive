@@ -1,4 +1,4 @@
-use prelude::*;
+use crate::prelude::*;
 use rayon::current_num_threads;
 use std::iter::repeat;
 use std::mem;

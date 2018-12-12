@@ -1,6 +1,6 @@
 //! Folder trait and all its implementations.
 use std::marker::PhantomData;
-use Divisible;
+use crate::Divisible;
 mod map;
 pub use self::map::Map;
 pub(crate) mod fold;

@@ -1,4 +1,4 @@
-use prelude::*;
+use crate::prelude::*;
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct Iter<I: IntoIterator + DivisibleIntoBlocks> {
     pub(crate) input: I,

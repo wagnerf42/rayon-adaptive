@@ -1,6 +1,6 @@
 //! Adaptive prefix algorithm.
 //! No macro blocks.
-use {prelude::*, EdibleSliceMut};
+use crate::{prelude::*, EdibleSliceMut};
 
 /// Run adaptive prefix algortihm on given slice.
 /// Each element is replaced by folding with op since beginning of the slice.

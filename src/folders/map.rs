@@ -1,6 +1,6 @@
 //! map each folder's output to something else.
 use std::marker::PhantomData;
-use Folder;
+use crate::Folder;
 
 pub struct Map<F: Folder, O: Send, M: Fn(F::Output) -> O + Sync> {
     pub(crate) inner_folder: F,
