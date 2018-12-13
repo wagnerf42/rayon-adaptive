@@ -20,7 +20,7 @@ pub use crate::slices::{EdibleSlice, EdibleSliceMut};
 mod activated_input;
 mod chunks;
 pub mod iter;
-pub use crate::iter::hash::{par_iter, par_keys};
+pub use crate::iter::hash::{par_elements, par_iter, par_keys};
 pub use crate::iter::iter::Iter;
 pub use crate::iter::map::Map;
 pub use crate::iter::zip::Zip;
