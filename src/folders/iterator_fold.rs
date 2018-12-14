@@ -1,7 +1,8 @@
 use crate::iter::AdaptiveIterator;
-use std::marker::PhantomData;
 use crate::Folder;
+use std::marker::PhantomData;
 
+#[must_use = "folders are lazy and do nothing unless consumed"]
 pub struct AdaptiveIteratorFold<
     I: AdaptiveIterator,
     IO: Send + Sync + Clone,

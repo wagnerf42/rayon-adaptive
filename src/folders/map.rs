@@ -1,7 +1,8 @@
 //! map each folder's output to something else.
-use std::marker::PhantomData;
 use crate::Folder;
+use std::marker::PhantomData;
 
+#[must_use = "folders are lazy and do nothing unless consumed"]
 pub struct Map<F: Folder, O: Send, M: Fn(F::Output) -> O + Sync> {
     pub(crate) inner_folder: F,
     pub(crate) map_op: M,

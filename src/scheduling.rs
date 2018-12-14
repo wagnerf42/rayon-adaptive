@@ -55,30 +55,29 @@ where
         Policy::Join(_) => schedule_join(input, folder, reduce_function, block_size),
         Policy::JoinContext(_) => schedule_join_context(input, folder, reduce_function, block_size),
         Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
-        Policy::Adaptive(min_size, max_size) => SEQUENCE.with(|s| {
+        Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
             if *s.borrow() {
                 schedule_sequential(input, folder)
             } else {
-                schedule_adaptive(
-                    input,
-                    folder.identity(),
-                    folder,
-                    reduce_function,
-                    (|_| min_size, |_| max_size),
-                )
-            }
-        }),
-        Policy::DefaultPolicy => SEQUENCE.with(|s| {
-            if *s.borrow() {
-                schedule_sequential(input, folder)
-            } else {
-                schedule_adaptive(
-                    input,
-                    folder.identity(),
-                    folder,
-                    reduce_function,
-                    (default_min_block_size, default_max_block_size),
-                )
+                if block_size * current_num_threads() >= input.base_length() {
+                    schedule_join(input, folder, reduce_function, block_size)
+                } else if let Policy::Adaptive(min, max) = policy {
+                    schedule_adaptive(
+                        input,
+                        folder.identity(),
+                        folder,
+                        reduce_function,
+                        (|_| min, |_| max),
+                    )
+                } else {
+                    schedule_adaptive(
+                        input,
+                        folder.identity(),
+                        folder,
+                        reduce_function,
+                        (default_min_block_size, default_max_block_size),
+                    )
+                }
             }
         }),
     }

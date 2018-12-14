@@ -1,6 +1,7 @@
-use std::marker::PhantomData;
 use crate::{Divisible, Folder};
+use std::marker::PhantomData;
 
+#[must_use = "folders are lazy and do nothing unless consumed"]
 pub struct Fold<I: Divisible, IO: Send, ID: Fn() -> IO, FF: Fn(IO, I, usize) -> (IO, I)> {
     pub(crate) identity_op: ID,
     pub(crate) fold_op: FF,

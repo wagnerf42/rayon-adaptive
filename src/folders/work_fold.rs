@@ -1,7 +1,8 @@
-use std::marker::PhantomData;
 use crate::{Divisible, Folder};
+use std::marker::PhantomData;
 
 // *WorkFold* is obtained by calling the *work* function on some *Divisible* input.
+#[must_use = "folders are lazy and do nothing unless consumed"]
 pub struct WorkFold<I: Divisible, WF: Fn(I, usize) -> I + Sync> {
     pub(crate) work_function: WF,
     pub(crate) phantom: PhantomData<I>,
