@@ -261,7 +261,19 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
             policy,
         }
     }
+}
 
+/// Specializations of AdaptiveIteratorRunner.
+pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIterator>: AdaptiveIteratorRunner<I> {
+    fn collect<C>(self) -> C
+    where
+        I::Item: Send,
+        C: FromAdaptiveIndexedIterator<I::Item>,
+    {
+        FromAdaptiveIndexedIterator::from_adapt_iter(self)
+    }
+}
+pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator>: AdaptiveIteratorRunner<I> {
     fn collect<C>(self) -> C
     where
         I::Item: Send,
