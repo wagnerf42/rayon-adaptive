@@ -1,19 +1,36 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use crate::depjoin;
-use rayon;
-//use rayon::current_num_threads;
 use crate::folders::Folder;
+use crate::traits::Divisible;
+use crate::Policy;
+use rayon;
+use rayon::current_num_threads;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use crate::traits::Divisible;
-use crate::Policy;
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
 thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
+
+/// by default, min block size is log(n)
+fn default_min_block_size(n: usize) -> usize {
+    (n as f64).log(2.0).floor() as usize
+}
+
+/// by default, max block size is sqrt(n)
+fn default_max_block_size(n: usize) -> usize {
+    (n as f64).sqrt().ceil() as usize
+}
+
+/// compute a block size with the given function.
+/// this allows us to ensure we enforce important bounds on sizes.
+fn compute_size<F: Fn(usize) -> usize>(n: usize, sizing_function: F) -> usize {
+    let p = current_num_threads();
+    std::cmp::min(n / (2 * p), sizing_function(n))
+}
 
 pub(crate) fn schedule<F, RF>(
     input: F::Input,
@@ -27,18 +44,18 @@ where
 {
     let block_size = match policy {
         Policy::Sequential => input.base_length(),
-        Policy::DefaultPolicy => (input.base_length() as f64).log(2.0).ceil() as usize,
+        Policy::DefaultPolicy => compute_size(input.base_length(), default_min_block_size),
         Policy::Join(block_size)
         | Policy::JoinContext(block_size)
         | Policy::DepJoin(block_size)
-        | Policy::Adaptive(block_size) => block_size,
+        | Policy::Adaptive(block_size, _) => block_size,
     };
     match policy {
         Policy::Sequential => schedule_sequential(input, folder),
         Policy::Join(_) => schedule_join(input, folder, reduce_function, block_size),
         Policy::JoinContext(_) => schedule_join_context(input, folder, reduce_function, block_size),
         Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
-        Policy::Adaptive(_) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
+        Policy::Adaptive(min_size, max_size) => SEQUENCE.with(|s| {
             if *s.borrow() {
                 schedule_sequential(input, folder)
             } else {
@@ -47,7 +64,20 @@ where
                     folder.identity(),
                     folder,
                     reduce_function,
-                    block_size,
+                    (|_| min_size, |_| max_size),
+                )
+            }
+        }),
+        Policy::DefaultPolicy => SEQUENCE.with(|s| {
+            if *s.borrow() {
+                schedule_sequential(input, folder)
+            } else {
+                schedule_adaptive(
+                    input,
+                    folder.identity(),
+                    folder,
+                    reduce_function,
+                    (default_min_block_size, default_max_block_size),
                 )
             }
         }),
@@ -135,12 +165,20 @@ where
     }
 }
 
-struct AdaptiveWorker<'a, 'b, F: Folder + 'b, RF: Fn(F::Output, F::Output) -> F::Output + Sync + 'b>
-{
+struct AdaptiveWorker<
+    'a,
+    'b,
+    F: Folder + 'b,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync + 'b,
+    MINSIZE: Fn(usize) -> usize + Send + Copy,
+    MAXSIZE: Fn(usize) -> usize + Send + Copy,
+> {
     input: F::Input,
     partial_output: F::IntermediateOutput,
-    initial_block_size: usize,
+    block_sizes: (MINSIZE, MAXSIZE),
     current_block_size: usize,
+    min_block_size: usize,
+    max_block_size: usize,
     stolen: &'a AtomicBool,
     sender: Sender<Option<F::Input>>,
     folder: &'b F,
@@ -148,32 +186,33 @@ struct AdaptiveWorker<'a, 'b, F: Folder + 'b, RF: Fn(F::Output, F::Output) -> F:
     phantom: PhantomData<(F::Output)>,
 }
 
-impl<'a, 'b, F, RF> AdaptiveWorker<'a, 'b, F, RF>
+impl<'a, 'b, F, RF, MINSIZE, MAXSIZE> AdaptiveWorker<'a, 'b, F, RF, MINSIZE, MAXSIZE>
 where
     F: Folder + 'b,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync + 'b,
+    MINSIZE: Fn(usize) -> usize + Send + Copy,
+    MAXSIZE: Fn(usize) -> usize + Send + Copy,
 {
     fn new(
         input: F::Input,
         partial_output: F::IntermediateOutput,
-        initial_block_size: usize,
+        block_sizes: (MINSIZE, MAXSIZE),
         stolen: &'a AtomicBool,
         sender: Sender<Option<F::Input>>,
         folder: &'b F,
         reduce_function: &'b RF,
     ) -> Self {
-        // adjust block size to fit on boundaries
-        let blocks_number =
-            (((input.base_length() as f64) / initial_block_size as f64 + 1.0).log(2.0) - 1.0)
-                .floor() as i32;
-        let current_block_size =
-            ((input.base_length() as f64) / (2.0f64.powi(blocks_number + 1) - 1.0)).ceil() as usize;
+        let min_block_size = compute_size(input.base_length(), block_sizes.0);
+        let max_block_size = compute_size(input.base_length(), block_sizes.1);
+        let current_block_size = min_block_size;
 
         AdaptiveWorker {
             input,
             partial_output,
-            initial_block_size,
+            block_sizes,
             current_block_size,
+            min_block_size,
+            max_block_size,
             stolen,
             sender,
             folder,
@@ -192,7 +231,7 @@ where
             self.partial_output,
             self.folder,
             self.reduce_function,
-            self.initial_block_size,
+            self.block_sizes,
         )
     }
 
@@ -200,7 +239,6 @@ where
         self.sender.send(None).expect("canceling task failed");
     }
 
-    //TODO: we still need macro blocks
     fn schedule(mut self) -> F::Output {
         // TODO: automate this min everywhere ?
         // TODO: factorize a little bit
@@ -225,10 +263,10 @@ where
 
         // loop while not stolen or something left to do
         loop {
-            if self.is_stolen() && self.input.base_length() > self.initial_block_size {
+            if self.is_stolen() && self.input.base_length() > self.min_block_size {
                 return self.answer_steal();
             }
-            self.current_block_size *= 2;
+            self.current_block_size = min(self.current_block_size * 2, self.max_block_size);
             let size = min(self.input.base_length(), self.current_block_size);
 
             if self.input.base_length() <= self.current_block_size {
@@ -250,19 +288,21 @@ where
     }
 }
 
-fn schedule_adaptive<F, RF>(
+fn schedule_adaptive<F, RF, MINSIZE, MAXSIZE>(
     input: F::Input,
     partial_output: F::IntermediateOutput,
     folder: &F,
     reduce_function: &RF,
-    initial_block_size: usize,
+    block_sizes: (MINSIZE, MAXSIZE),
 ) -> F::Output
 where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
+    MINSIZE: Fn(usize) -> usize + Send + Copy,
+    MAXSIZE: Fn(usize) -> usize + Send + Copy,
 {
     let size = input.base_length();
-    if size <= initial_block_size {
+    if size <= compute_size(size, block_sizes.0) {
         let (io, i) = folder.fold(partial_output, input, size);
         folder.to_output(io, i)
     } else {
@@ -272,7 +312,7 @@ where
         let worker = AdaptiveWorker::new(
             input,
             partial_output,
-            initial_block_size,
+            block_sizes,
             stolen,
             sender,
             folder,
@@ -295,7 +335,7 @@ where
                     folder.identity(),
                     folder,
                     reduce_function,
-                    initial_block_size,
+                    block_sizes,
                 ))
             },
         );

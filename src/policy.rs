@@ -2,12 +2,12 @@ use crate::activated_input::ActivatedInput;
 /// All scheduling available scheduling policies.
 use crate::folders::{fold::Fold, work_fold::WorkFold, Folder};
 use crate::scheduling::schedule;
-use std::marker::PhantomData;
 use crate::{Divisible, DivisibleIntoBlocks};
+use std::marker::PhantomData;
 
 #[derive(Copy, Clone)]
 pub enum Policy {
-    /// Adaptive scheduling policy with logarithmic block size.
+    /// Adaptive scheduling policy with dynamic block sizes.
     DefaultPolicy,
     /// Do all computations sequentially.
     Sequential,
@@ -18,8 +18,8 @@ pub enum Policy {
     /// Recursively cut in two with depjoin until given block size.
     DepJoin(usize),
     /// Advance locally with increasing block sizes. When stolen create tasks
-    /// We need an initial block size.
-    Adaptive(usize),
+    /// We need an initial block size and a maximal block size.
+    Adaptive(usize, usize),
 }
 
 impl Default for Policy {

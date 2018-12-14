@@ -1,9 +1,9 @@
 //! adaptive parallel merge sort.
 
 use crate::prelude::*;
+use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
 use std;
 use std::iter::repeat;
-use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
 
 // main related code
 
@@ -295,15 +295,13 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
         i: 0,
     };
 
-    let mut result_slices = slices
-        .with_policy(Policy::Adaptive(initial_block_size))
-        .map_reduce(
-            |mut slices| {
-                slices.s[slices.i].sort();
-                slices
-            },
-            |s1, s2| s1.fuse_with_policy(s2, Policy::Adaptive(1000)),
-        );
+    let mut result_slices = slices.map_reduce(
+        |mut slices| {
+            slices.s[slices.i].sort();
+            slices
+        },
+        |s1, s2| s1.fuse_with_policy(s2, Default::default()),
+    );
 
     if result_slices.i != 0 {
         let i = result_slices.i;
