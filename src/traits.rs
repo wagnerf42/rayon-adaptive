@@ -7,7 +7,13 @@ use crate::chunks::Chunks;
 use crate::policy::ParametrizedInput;
 use crate::Policy;
 
+// markers for specialization
+pub struct BasicPower();
+pub struct BlockedPower();
+pub struct IndexedPower();
+
 pub trait Divisible: Sized + Send + Sync {
+    type Power;
     /// Divide ourselves.
     fn divide(self) -> (Self, Self);
     /// Return our length.
@@ -53,6 +59,7 @@ pub trait DivisibleIntoBlocks: Divisible {
 pub trait DivisibleAtIndex: DivisibleIntoBlocks {}
 
 impl<'a, T: Sync> Divisible for &'a [T] {
+    type Power = IndexedPower;
     fn base_length(&self) -> usize {
         (*self as &[T]).len()
     }
@@ -72,6 +79,7 @@ impl<'a, T: Sync> DivisibleAtIndex for &'a [T] {}
 
 //TODO: I don't get why the compiler requires send here
 impl<'a, T: 'a + Sync + Send> Divisible for &'a mut [T] {
+    type Power = IndexedPower;
     fn base_length(&self) -> usize {
         (*self as &[T]).len()
     }
@@ -91,6 +99,7 @@ impl<'a, T: 'a + Sync + Send> DivisibleAtIndex for &'a mut [T] {}
 
 //TODO: be more generic but it seems complex
 impl Divisible for Range<usize> {
+    type Power = IndexedPower;
     fn base_length(&self) -> usize {
         self.len()
     }

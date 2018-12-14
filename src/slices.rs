@@ -1,10 +1,11 @@
 //! We provide here `EdibleSlice` and `EatingIterator` for better composability.
 
+use crate::traits::IndexedPower;
+use crate::{fuse_slices, Divisible, DivisibleIntoBlocks};
 use std::iter::Peekable;
 use std::ptr;
 use std::slice::Iter;
 use std::slice::IterMut;
-use crate::{fuse_slices, Divisible, DivisibleIntoBlocks};
 
 /// A slice you can consume slowly.
 #[derive(Debug)]
@@ -50,6 +51,7 @@ impl<'a, T: 'a> EdibleSlice<'a, T> {
 }
 
 impl<'a, T: 'a + Sync> Divisible for EdibleSlice<'a, T> {
+    type Power = IndexedPower;
     fn base_length(&self) -> usize {
         self.slice.len() - self.used
     }
@@ -204,6 +206,7 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
 }
 
 impl<'a, T: 'a + Sync + Send> Divisible for EdibleSliceMut<'a, T> {
+    type Power = IndexedPower;
     fn base_length(&self) -> usize {
         self.slice.base_length() - self.used
     }

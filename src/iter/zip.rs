@@ -1,10 +1,12 @@
 use crate::prelude::*;
+use crate::traits::IndexedPower;
 use derive_divisible::{Divisible, DivisibleAtIndex, DivisibleIntoBlocks};
 use std;
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 #[derive(Divisible, DivisibleIntoBlocks, DivisibleAtIndex)]
+#[power(IndexedPower)]
 pub struct Zip<A: AdaptiveIterator, B: AdaptiveIterator> {
     pub(crate) a: A,
     pub(crate) b: B,

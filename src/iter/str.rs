@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::traits::BlockedPower;
 use std::str::Chars;
 
 /// Adaptive iterator on characters of strings.
@@ -15,6 +16,7 @@ impl<'a> IntoIterator for AdaptiveChars<'a> {
 }
 
 impl<'a> Divisible for AdaptiveChars<'a> {
+    type Power = BlockedPower;
     fn base_length(&self) -> usize {
         self.real_str.len()
     }

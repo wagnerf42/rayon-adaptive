@@ -1,6 +1,7 @@
 //! adaptive parallel merge sort.
 
 use crate::prelude::*;
+use crate::traits::{BasicPower, BlockedPower};
 use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
 use std;
 use std::iter::repeat;
@@ -98,6 +99,7 @@ struct FusionSlice<'a, T: 'a> {
 }
 
 impl<'a, T: 'a + Send + Sync + Ord + Copy> Divisible for FusionSlice<'a, T> {
+    type Power = BasicPower;
     fn base_length(&self) -> usize {
         self.output.base_length()
     }
@@ -251,6 +253,7 @@ impl<'a, T: 'a + Ord + Sync + Copy + Send> SortingSlices<'a, T> {
 }
 
 impl<'a, T: 'a + Ord + Copy + Sync + Send> Divisible for SortingSlices<'a, T> {
+    type Power = BlockedPower;
     fn base_length(&self) -> usize {
         self.s[0].base_length()
     }

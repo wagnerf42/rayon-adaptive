@@ -4,6 +4,7 @@ use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 #[derive(Divisible, DivisibleIntoBlocks)]
+#[power(I::Power)]
 pub struct Map<I: AdaptiveIterator, F: Clone + Send + Sync> {
     pub(crate) base: I,
     #[divide_by(clone)]

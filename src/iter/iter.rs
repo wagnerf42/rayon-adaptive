@@ -2,6 +2,7 @@ use crate::prelude::*;
 use derive_divisible::{Divisible, DivisibleIntoBlocks};
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 #[derive(Divisible, DivisibleIntoBlocks)]
+#[power(I::Power)]
 pub struct Iter<I: IntoIterator + DivisibleIntoBlocks> {
     pub(crate) input: I,
 }

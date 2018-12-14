@@ -1,9 +1,11 @@
 use super::{AdaptiveIterator, Divisible, DivisibleIntoBlocks};
+use crate::traits::BlockedPower;
 use derive_divisible::{Divisible, DivisibleIntoBlocks};
 use std::iter;
 
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 #[derive(Divisible, DivisibleIntoBlocks)]
+#[power(BlockedPower)]
 pub struct Filter<I: AdaptiveIterator, P: Clone + Send + Sync> {
     pub(crate) iter: I,
     #[divide_by(clone)]
