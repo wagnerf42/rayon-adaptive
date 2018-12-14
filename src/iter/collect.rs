@@ -1,27 +1,38 @@
+use crate::iter;
 use crate::prelude::*;
+use crate::traits::BlockedPower;
 use rayon::current_num_threads;
 use std::iter::repeat;
 use std::mem;
-pub trait FromAdaptiveIterator<T>
+pub trait FromAdaptiveBlockedIterator<T>
 where
     T: Send,
 {
     fn from_adapt_iter<I, R>(runner: R) -> Self
     where
-        I: AdaptiveIterator<Item = T>,
-        R: AdaptiveIteratorRunner<I>;
+        I: AdaptiveIterator<Item = T, Power = BlockedPower>,
+        R: AdaptiveBlockedIteratorRunner<I>;
+}
+
+pub trait FromAdaptiveIndexedIterator<T>
+where
+    T: Send,
+{
+    fn from_adapt_iter<I, R>(runner: R) -> Self
+    where
+        I: AdaptiveIndexedIterator<Item = T>,
+        R: AdaptiveIndexedIteratorRunner<I>;
 }
 
 //TODO:
-// 1) we need two versions, one for exact iterators and the other one
-// 2) we need to test performances for block sizes
-// 3) we still need the fully adaptive algorithm
-// 4) extend in parallel ?
-impl<T: Send + Sync> FromAdaptiveIterator<T> for Vec<T> {
+// 1) we need to test performances for block sizes
+// 2) we still need the fully adaptive algorithm
+// 3) extend in parallel ?
+impl<T: Send + Sync> FromAdaptiveBlockedIterator<T> for Vec<T> {
     fn from_adapt_iter<I, R>(runner: R) -> Self
     where
-        I: AdaptiveIterator<Item = T>,
-        R: AdaptiveIteratorRunner<I>,
+        I: AdaptiveIterator<Item = T, Power = BlockedPower>,
+        R: AdaptiveBlockedIteratorRunner<I>,
     {
         let capacity = runner.input_len();
         runner
@@ -48,5 +59,32 @@ impl<T: Send + Sync> FromAdaptiveIterator<T> for Vec<T> {
                 }
             })
             .unwrap_or_else(Vec::new)
+    }
+}
+
+impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
+    fn from_adapt_iter<I, R>(runner: R) -> Self
+    where
+        I: AdaptiveIndexedIterator<Item = T>,
+        R: AdaptiveIndexedIteratorRunner<I>,
+    {
+        println!("I know it is indexed");
+        let (input, policy) = runner.input_and_policy();
+        let output_len = input.base_length();
+        let mut output_vector = Vec::with_capacity(output_len);
+        unsafe {
+            output_vector.set_len(output_len);
+        }
+        let output_slice: &mut [T] = &mut output_vector;
+        println!("start");
+        output_slice
+            .into_adapt_iter()
+            .zip(input)
+            .with_policy(policy)
+            .for_each(|(out_ref, in_ref)| {
+                *out_ref = in_ref;
+            });
+        println!("end");
+        output_vector
     }
 }

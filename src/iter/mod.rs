@@ -1,6 +1,7 @@
 use crate::activated_input::ActivatedInput;
 use crate::folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
 use crate::prelude::*;
+use crate::traits::{BasicPower, BlockedPower, IndexedPower};
 use std::marker::PhantomData;
 pub mod map;
 use self::map::Map;
@@ -16,9 +17,10 @@ use crate::policy::ParametrizedInput;
 use std;
 use std::cmp::min;
 mod collect;
-pub use self::collect::FromAdaptiveIterator;
+pub use self::collect::{FromAdaptiveBlockedIterator, FromAdaptiveIndexedIterator};
 pub(crate) mod hash;
 pub(crate) mod str;
+use crate::policy;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -264,7 +266,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
 }
 
 /// Specializations of AdaptiveIteratorRunner.
-pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIterator>: AdaptiveIteratorRunner<I> {
+pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator>: AdaptiveRunner<I> {
     fn collect<C>(self) -> C
     where
         I::Item: Send,
@@ -273,15 +275,25 @@ pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIterator>: AdaptiveIteratorRu
         FromAdaptiveIndexedIterator::from_adapt_iter(self)
     }
 }
-pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator>: AdaptiveIteratorRunner<I> {
+pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator<Power = BlockedPower>>:
+    AdaptiveRunner<I>
+{
     fn collect<C>(self) -> C
     where
         I::Item: Send,
-        C: FromAdaptiveIterator<I::Item>,
+        C: FromAdaptiveBlockedIterator<I::Item>,
     {
-        FromAdaptiveIterator::from_adapt_iter(self)
+        FromAdaptiveBlockedIterator::from_adapt_iter(self)
     }
 }
-
 impl<I: AdaptiveIterator> AdaptiveIteratorRunner<I> for ParametrizedInput<I> {}
 impl<I: AdaptiveIterator> AdaptiveIteratorRunner<I> for I {}
+
+impl<I: AdaptiveIndexedIterator> AdaptiveIndexedIteratorRunner<I> for ParametrizedInput<I> {}
+impl<I: AdaptiveIndexedIterator> AdaptiveIndexedIteratorRunner<I> for I {}
+
+impl<I: AdaptiveIterator<Power = BlockedPower>> AdaptiveBlockedIteratorRunner<I>
+    for ParametrizedInput<I>
+{
+}
+impl<I: AdaptiveIterator<Power = BlockedPower>> AdaptiveBlockedIteratorRunner<I> for I {}

@@ -29,7 +29,7 @@ fn default_max_block_size(n: usize) -> usize {
 /// this allows us to ensure we enforce important bounds on sizes.
 fn compute_size<F: Fn(usize) -> usize>(n: usize, sizing_function: F) -> usize {
     let p = current_num_threads();
-    std::cmp::min(n / (2 * p), sizing_function(n))
+    std::cmp::max(min(n / (2 * p), sizing_function(n)), 1)
 }
 
 pub(crate) fn schedule<F, RF>(
