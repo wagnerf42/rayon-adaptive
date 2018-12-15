@@ -11,7 +11,7 @@ use rayon::ThreadPoolBuilder;
 
 fn main() {
     let v: Vec<u32> = (0..4_000).map(|_| random::<u32>() % 10).collect();
-    //    let answer: Vec<u32> = v.iter().filter(|&i| i % 2 == 0).cloned().collect();
+    let answer: Vec<u32> = v.iter().filter(|&i| i % 2 == 0).cloned().collect();
 
     let pool = ThreadPoolBuilder::new()
         .num_threads(2)
@@ -36,7 +36,6 @@ fn main() {
                 .map(|&i| i + 1)
                 .collect()
         });
-        //assert_eq!(filtered, answer);
-        let my_vec: Vec<usize> = (0..10000).into_adapt_iter().collect::<Vec<usize>>();
+        assert_eq!(filtered, answer);
     }
 }

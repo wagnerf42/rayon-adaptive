@@ -1,6 +1,6 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
-#![allow(unknown_lints)]
-#![warn(clippy)]
+//#![allow(unknown_lints)]
+#![warn(clippy::all)]
 
 #[macro_use]
 extern crate smallvec;

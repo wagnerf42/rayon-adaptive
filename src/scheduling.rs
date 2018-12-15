@@ -58,26 +58,24 @@ where
         Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
             if *s.borrow() {
                 schedule_sequential(input, folder)
+            } else if block_size * 2 * current_num_threads() >= input.base_length() {
+                schedule_join(input, folder, reduce_function, block_size)
+            } else if let Policy::Adaptive(min, max) = policy {
+                schedule_adaptive(
+                    input,
+                    folder.identity(),
+                    folder,
+                    reduce_function,
+                    (|_| min, |_| max),
+                )
             } else {
-                if block_size * current_num_threads() >= input.base_length() {
-                    schedule_join(input, folder, reduce_function, block_size)
-                } else if let Policy::Adaptive(min, max) = policy {
-                    schedule_adaptive(
-                        input,
-                        folder.identity(),
-                        folder,
-                        reduce_function,
-                        (|_| min, |_| max),
-                    )
-                } else {
-                    schedule_adaptive(
-                        input,
-                        folder.identity(),
-                        folder,
-                        reduce_function,
-                        (default_min_block_size, default_max_block_size),
-                    )
-                }
+                schedule_adaptive(
+                    input,
+                    folder.identity(),
+                    folder,
+                    reduce_function,
+                    (default_min_block_size, default_max_block_size),
+                )
             }
         }),
     }

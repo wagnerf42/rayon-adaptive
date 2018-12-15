@@ -1,7 +1,7 @@
 use crate::activated_input::ActivatedInput;
 use crate::folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
 use crate::prelude::*;
-use crate::traits::{BasicPower, BlockedPower, IndexedPower};
+use crate::traits::BlockedPower;
 use std::marker::PhantomData;
 pub mod map;
 use self::map::Map;
@@ -20,7 +20,6 @@ mod collect;
 pub use self::collect::{FromAdaptiveBlockedIterator, FromAdaptiveIndexedIterator};
 pub(crate) mod hash;
 pub(crate) mod str;
-use crate::policy;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -267,6 +266,19 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
 
 /// Specializations of AdaptiveIteratorRunner.
 pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator>: AdaptiveRunner<I> {
+    /// Collect turn an `AdaptiveIterator` into a collection.
+    /// As of now it is only implemented for `Vec`.
+    /// Collecting comes with different algorithms for each Divisibility type
+    /// (`Divisible`, `DivisibleIntoBlocks`, `DivisibleAtIndex`)
+    /// This version is the `DivisibleAtIndex` version and will incur very little overhead.
+    ///
+    /// Example
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v:Vec<_> = (0..10_000).into_adapt_iter().map(|i| i+1).collect();
+    /// let vseq:Vec<_> = (0..=10_000).skip(1).collect();
+    /// assert_eq!(v, vseq)
+    /// ```
     fn collect<C>(self) -> C
     where
         I::Item: Send,
@@ -278,6 +290,21 @@ pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator>: AdaptiveRun
 pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator<Power = BlockedPower>>:
     AdaptiveRunner<I>
 {
+    /// Collect turn an `AdaptiveIterator` into a collection.
+    /// As of now it is only implemented for `Vec`.
+    /// Collecting comes with different algorithms for each Divisibility type
+    /// (`Divisible`, `DivisibleIntoBlocks`, `DivisibleAtIndex`)
+    /// This version is the `DivisibleIntoBlocks` version and will incur very some overhead
+    /// moving data twice.
+    ///
+    /// Example
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v:Vec<_> = (0..10_000).into_adapt_iter().filter(|&i| i%2 == 0).collect();
+    /// let vseq:Vec<_> = (0..5_000).map(|i| i*2).collect();
+    /// assert_eq!(v, vseq)
+    /// ```
+
     fn collect<C>(self) -> C
     where
         I::Item: Send,

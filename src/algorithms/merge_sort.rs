@@ -69,7 +69,7 @@ fn subslice_without_first_value<T: Eq>(slice: &[T]) -> &[T] {
 /// all values equal to value at start point.
 /// cost is O(log(|removed part size|))
 fn split_around<T: Eq>(slice: &[T], start: usize) -> (&[T], &[T], &[T]) {
-    let low_slice = subslice_without_last_value(&slice[0..(start + 1)]);
+    let low_slice = subslice_without_last_value(&slice[0..=start]);
     let high_slice = subslice_without_first_value(&slice[start..]);
     let equal_slice = &slice[low_slice.len()..slice.len() - high_slice.len()];
     (low_slice, equal_slice, high_slice)
@@ -279,13 +279,10 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices
 /// use rayon_adaptive::adaptive_sort;
 /// let v: Vec<u32> = (0..100_000).collect();
 /// let mut inverted_v: Vec<u32> = (0..100_000).rev().collect();
-/// adaptive_sort(&mut inverted_v, 1000);
+/// adaptive_sort(&mut inverted_v);
 /// assert_eq!(v, inverted_v);
 /// ```
-pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(
-    slice: &mut [T],
-    initial_block_size: usize,
-) {
+pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
     let mut tmp_slice1 = Vec::with_capacity(slice.base_length());
     let mut tmp_slice2 = Vec::with_capacity(slice.base_length());
     unsafe {

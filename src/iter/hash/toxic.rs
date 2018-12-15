@@ -1,5 +1,6 @@
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
 use std::hash::Hash;
 use std::marker;
 use std::mem::transmute; // from the depths of hell, I summon you
@@ -75,8 +76,8 @@ fn raw_capacity(len: usize) -> usize {
     try_raw_capacity(len).expect("raw_capacity overflow")
 }
 
-pub(crate) unsafe fn extract_hashmap_slices<'a, K: Eq + Hash, V>(
-    table: &'a HashMap<K, V>,
+pub(crate) unsafe fn extract_hashmap_slices<'a, K: Eq + Hash, V, S: BuildHasher>(
+    table: &'a HashMap<K, V, S>,
 ) -> (&'a [HashUint], &'a [(K, V)]) {
     let capacity = raw_capacity(table.capacity());
     let i: std::collections::hash_map::Iter<'a, K, V> = table.iter();
@@ -87,8 +88,8 @@ pub(crate) unsafe fn extract_hashmap_slices<'a, K: Eq + Hash, V>(
     (hashes, pairs)
 }
 
-pub(crate) unsafe fn extract_hashset_slices<'a, K: Eq + Hash>(
-    table: &'a HashSet<K>,
+pub(crate) unsafe fn extract_hashset_slices<'a, K: Eq + Hash, S: BuildHasher>(
+    table: &'a HashSet<K, S>,
 ) -> (&'a [HashUint], &'a [(K, ())]) {
     let capacity = raw_capacity(table.capacity());
     let i: std::collections::hash_set::Iter<'a, K> = table.iter();

@@ -182,8 +182,8 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
                 // we move back the data, fast
                 unsafe {
                     ptr::copy_nonoverlapping(
-                        final_slice.as_ptr().offset(left_size as isize),
-                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        final_slice.as_ptr().add(left_size),
+                        final_slice.as_mut_ptr().add(left_use),
                         right_use,
                     );
                 }
@@ -191,8 +191,8 @@ impl<'a, T: 'a> EdibleSliceMut<'a, T> {
                 // we move back the data, slowly
                 unsafe {
                     ptr::copy(
-                        final_slice.as_ptr().offset(left_size as isize),
-                        final_slice.as_mut_ptr().offset(left_use as isize),
+                        final_slice.as_ptr().add(left_size),
+                        final_slice.as_mut_ptr().add(left_use),
                         right_use,
                     );
                 }

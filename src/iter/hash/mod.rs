@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
 use std::hash::Hash;
 mod toxic; //don't open this
 use self::toxic::{extract_hashmap_slices, extract_hashset_slices};
@@ -11,8 +12,8 @@ pub trait AdaptiveHashMap<'a> {
     fn adapt_keys(&'a self) -> Self::Iterator;
 }
 
-pub fn par_keys<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
-    hashmap: &'a HashMap<K, V>,
+pub fn par_keys<'a, K: Send + Sync + Eq + Hash, V: Send + Sync, S: BuildHasher>(
+    hashmap: &'a HashMap<K, V, S>,
 ) -> impl AdaptiveIterator<Item = &'a K> {
     let (hashes, pairs) = unsafe { extract_hashmap_slices(hashmap) };
     hashes
@@ -22,8 +23,8 @@ pub fn par_keys<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
         .map(|(_, &(ref k, _))| k)
 }
 
-pub fn par_iter<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
-    hashmap: &'a HashMap<K, V>,
+pub fn par_iter<'a, K: Send + Sync + Eq + Hash, V: Send + Sync, S: BuildHasher>(
+    hashmap: &'a HashMap<K, V, S>,
 ) -> impl AdaptiveIterator<Item = (&'a K, &'a V)> {
     let (hashes, pairs) = unsafe { extract_hashmap_slices(hashmap) };
     hashes
@@ -33,8 +34,8 @@ pub fn par_iter<'a, K: Send + Sync + Eq + Hash, V: Send + Sync>(
         .map(|(_, &(ref k, ref v))| (k, v))
 }
 
-pub fn par_elements<'a, K: Send + Sync + Eq + Hash>(
-    hashset: &'a HashSet<K>,
+pub fn par_elements<'a, K: Send + Sync + Eq + Hash, S: BuildHasher>(
+    hashset: &'a HashSet<K, S>,
 ) -> impl AdaptiveIterator<Item = &'a K> {
     let (hashes, pairs) = unsafe { extract_hashset_slices(hashset) };
     hashes

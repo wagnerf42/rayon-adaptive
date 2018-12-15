@@ -16,9 +16,7 @@ where
     type Input = I;
     type IntermediateOutput = ();
     type Output = I;
-    fn identity(&self) -> Self::IntermediateOutput {
-        ()
-    }
+    fn identity(&self) -> Self::IntermediateOutput {}
     fn fold(
         &self,
         _io: Self::IntermediateOutput,

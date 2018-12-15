@@ -1,4 +1,3 @@
-use crate::iter;
 use crate::prelude::*;
 use crate::traits::BlockedPower;
 use rayon::current_num_threads;
@@ -68,7 +67,6 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
         I: AdaptiveIndexedIterator<Item = T>,
         R: AdaptiveIndexedIteratorRunner<I>,
     {
-        println!("I know it is indexed");
         let (input, policy) = runner.input_and_policy();
         let output_len = input.base_length();
         let mut output_vector = Vec::with_capacity(output_len);
@@ -76,7 +74,6 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
             output_vector.set_len(output_len);
         }
         let output_slice: &mut [T] = &mut output_vector;
-        println!("start");
         output_slice
             .into_adapt_iter()
             .zip(input)
@@ -84,7 +81,6 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
             .for_each(|(out_ref, in_ref)| {
                 *out_ref = in_ref;
             });
-        println!("end");
         output_vector
     }
 }
