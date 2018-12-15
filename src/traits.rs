@@ -18,9 +18,11 @@ pub trait Divisible: Sized + Send + Sync {
     fn divide(self) -> (Self, Self);
     /// Return our length.
     fn base_length(&self) -> usize;
-    /// Is there something left to do ?
-    fn is_empty(&self) -> bool {
-        self.base_length() == 0
+    /// Return whether we can be divided.
+    /// You don't need to implement this if you are sure that anytime
+    /// base length is > 0 we can divide.
+    fn can_be_divided(&self) -> bool {
+        self.base_length() > 0
     }
     fn with_policy(self, policy: Policy) -> ParametrizedInput<Self> {
         ParametrizedInput {
@@ -33,6 +35,14 @@ pub trait Divisible: Sized + Send + Sync {
 pub trait DivisibleIntoBlocks: Divisible {
     /// Divide ourselves where requested.
     fn divide_at(self, index: usize) -> (Self, Self);
+    /// Right now this method is useless.
+    /// However some types we will develop later on might have a
+    /// cost for checking for division which is maybe factorizable
+    /// with the cost for splitting. We thus will need to bind the check
+    /// and the splitting.
+    fn can_be_divided_at(self, index: usize) -> bool {
+        self.can_be_divided()
+    }
     /// Divide ourselves keeping right part in self.
     /// Returns the left part.
     /// NB: this is useful for iterators creation.
