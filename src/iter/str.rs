@@ -17,13 +17,14 @@ impl<'a> IntoIterator for AdaptiveChars<'a> {
 }
 
 impl<'a> AdaptiveChars<'a> {
-    fn find_splitting_index_around(&self, start_index: usize) -> Option<usize> {
+    fn find_splitting_index_around(&self, start_index: usize) -> usize {
         let len = self.real_str.len();
         let higher_indices = start_index..len;
         let lower_indices = (0..start_index).rev();
         lower_indices
             .interleave(higher_indices)
             .find(|&i| self.real_str.is_char_boundary(i))
+            .unwrap_or(len) // if we cannot split we just generate an empty slice
     }
 }
 
@@ -32,23 +33,9 @@ impl<'a> Divisible for AdaptiveChars<'a> {
     fn base_length(&self) -> usize {
         self.real_str.len()
     }
-    fn can_be_divided(&self) -> bool {
-        let mut boundaries = 0;
-        for i in 0..self.real_str.len() {
-            if self.real_str.is_char_boundary(i) {
-                boundaries += 1;
-            }
-            if boundaries == 2 {
-                return true;
-            }
-        }
-        false
-    }
     /// Pre-condition: self.can_be_divided() is true.
     fn divide(self) -> (Self, Self) {
-        let index = self
-            .find_splitting_index_around(self.real_str.len() / 2)
-            .expect("failed dividing str");
+        let index = self.find_splitting_index_around(self.real_str.len() / 2);
         let (left, right) = self.real_str.split_at(index);
         (
             AdaptiveChars { real_str: left },
@@ -60,9 +47,7 @@ impl<'a> Divisible for AdaptiveChars<'a> {
 impl<'a> DivisibleIntoBlocks for AdaptiveChars<'a> {
     /// Pre-condition: self.can_be_divided() is true.
     fn divide_at(self, index: usize) -> (Self, Self) {
-        let index = self
-            .find_splitting_index_around(index)
-            .expect("failed dividing str");
+        let index = self.find_splitting_index_around(index);
         let (left, right) = self.real_str.split_at(index);
         (
             AdaptiveChars { real_str: left },
