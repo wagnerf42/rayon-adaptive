@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::traits::BlockedPower;
+use crate::Policy;
 use rayon::current_num_threads;
 use std::iter::repeat;
 use std::mem;
@@ -67,8 +68,10 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
         I: AdaptiveIndexedIterator<Item = T>,
         R: AdaptiveIndexedIteratorRunner<I>,
     {
+        println!("I am indexed");
         let (input, policy) = runner.input_and_policy();
         let output_len = input.base_length();
+        println!("{}", output_len);
         let mut output_vector = Vec::with_capacity(output_len);
         unsafe {
             output_vector.set_len(output_len);
@@ -79,7 +82,7 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
             .zip(input)
             .with_policy(policy)
             .for_each(|(out_ref, in_ref)| {
-                *out_ref = in_ref;
+                std::mem::forget(std::mem::replace(out_ref, in_ref));
             });
         output_vector
     }

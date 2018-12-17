@@ -56,7 +56,7 @@ where
         Policy::JoinContext(_) => schedule_join_context(input, folder, reduce_function, block_size),
         Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
         Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
-            if *s.borrow() {
+            if *s.borrow() || input.base_length() == 1 {
                 schedule_sequential(input, folder)
             } else if block_size * 2 * current_num_threads() >= input.base_length() {
                 schedule_join(input, folder, reduce_function, block_size)
@@ -247,10 +247,12 @@ where
             let (io, i) = self.folder.fold(self.partial_output, self.input, size);
             return self.folder.to_output(io, i);
         } else {
+            SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
             let (new_partial_output, new_input) =
                 self.folder.fold(self.partial_output, self.input, size);
             self.partial_output = new_partial_output;
             self.input = new_input;
+            SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
                 // it's over
                 self.cancel_stealing_task();
