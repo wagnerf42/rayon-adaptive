@@ -68,10 +68,8 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
         I: AdaptiveIndexedIterator<Item = T>,
         R: AdaptiveIndexedIteratorRunner<I>,
     {
-        println!("I am indexed");
         let (input, policy) = runner.input_and_policy();
         let output_len = input.base_length();
-        println!("{}", output_len);
         let mut output_vector = Vec::with_capacity(output_len);
         unsafe {
             output_vector.set_len(output_len);
