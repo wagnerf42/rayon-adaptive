@@ -186,6 +186,36 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
     fn count(self) -> usize {
         self.fold(|| 0, |s, _| s + 1).reduce(|s1, s2| s1 + s2)
     }
+    /// Computes the maximum of all the items in the iterator.
+    /// If the iterator is empty, None is returned; otherwise, Some(max) is returned.
+    /// Note that the order in which the items will be reduced is not specified,
+    /// so if the Ord impl is not truly associative, then the results are not deterministic.
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0..1000).into_adapt_iter().max().unwrap(), 999)
+    /// ```
+    fn max(self) -> Option<I::Item>
+    where
+        I::Item: Ord + Send + Sync,
+    {
+        let (input, policy) = self.input_and_policy();
+        ActivatedInput {
+            input,
+            folder: Fold {
+                identity_op: || None,
+                fold_op: |previous_max, i: I, limit: usize| {
+                    let (todo, remaining) = i.divide_at(limit);
+                    let new_max = todo.into_iter().max();
+                    (std::cmp::max(previous_max, new_max), remaining)
+                },
+                phantom: PhantomData,
+            },
+            policy,
+        }
+        .reduce(std::cmp::max)
+    }
     fn sum<S>(self) -> S
     where
         S: std::iter::Sum<I::Item> + Send + Sync + std::ops::Add<Output = S>,
