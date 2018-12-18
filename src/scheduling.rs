@@ -61,7 +61,8 @@ where
             } else if block_size * 2 * current_num_threads() >= input.base_length()
                 || 2usize.pow(current_num_threads() as u32) * 100 >= input.base_length()
             {
-                schedule_join_context(input, folder, reduce_function, block_size)
+                let max_size = compute_size(input.base_length(), default_max_block_size);
+                schedule_join_context_max_size(input, folder, reduce_function, block_size, max_size)
             } else if let Policy::Adaptive(min, max) = policy {
                 schedule_adaptive(
                     input,
@@ -134,6 +135,39 @@ where
                     schedule_join_context(i2, folder, reduce_function, block_size)
                 } else {
                     schedule_sequential(i2, folder)
+                }
+            },
+        );
+        reduce_function(r1, r2)
+    }
+}
+
+fn schedule_join_context_max_size<F, RF>(
+    input: F::Input,
+    folder: &F,
+    reduce_function: &RF,
+    min_size: usize,
+    max_size: usize,
+) -> F::Output
+where
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
+{
+    let len = input.base_length();
+    if len <= min_size {
+        schedule_sequential(input, folder)
+    } else {
+        let (i1, i2) = input.divide();
+        let (r1, r2) = rayon::join_context(
+            |_| schedule_join_context_max_size(i1, folder, reduce_function, min_size, max_size),
+            |c| {
+                if len > max_size || c.migrated() {
+                    schedule_join_context_max_size(i2, folder, reduce_function, min_size, max_size)
+                } else {
+                    SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
+                    let sequential_output = schedule_sequential(i2, folder);
+                    SEQUENCE.with(|s| *s.borrow_mut() = false);
+                    sequential_output
                 }
             },
         );
