@@ -76,7 +76,7 @@ where
                     folder.identity(),
                     folder,
                     reduce_function,
-                    (default_min_block_size, default_max_block_size),
+                    (|_| block_size, default_max_block_size),
                 )
             }
         }),
@@ -245,6 +245,7 @@ where
         let size = min(self.input.base_length(), self.current_block_size);
 
         if self.input.base_length() <= self.current_block_size {
+            //println!("adaptive nested parallel fold!");
             self.cancel_stealing_task(); // no need to keep people waiting for nothing
             let (io, i) = self.folder.fold(self.partial_output, self.input, size);
             return self.folder.to_output(io, i);
