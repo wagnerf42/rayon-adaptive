@@ -58,8 +58,10 @@ where
         Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
             if *s.borrow() || input.base_length() == 1 {
                 schedule_sequential(input, folder)
-            } else if block_size * 2 * current_num_threads() >= input.base_length() {
-                schedule_join(input, folder, reduce_function, block_size)
+            } else if block_size * 2 * current_num_threads() >= input.base_length()
+                || 2usize.pow(current_num_threads() as u32) * 100 >= input.base_length()
+            {
+                schedule_join_context(input, folder, reduce_function, block_size)
             } else if let Policy::Adaptive(min, max) = policy {
                 schedule_adaptive(
                     input,
@@ -270,7 +272,9 @@ where
 
             if self.input.base_length() <= self.current_block_size {
                 self.cancel_stealing_task(); // no need to keep people waiting for nothing
+                SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
                 let (io, i) = self.folder.fold(self.partial_output, self.input, size);
+                SEQUENCE.with(|s| *s.borrow_mut() = false);
                 return self.folder.to_output(io, i);
             }
             SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially

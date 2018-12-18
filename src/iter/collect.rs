@@ -79,9 +79,7 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
             .into_adapt_iter()
             .zip(input)
             .with_policy(policy)
-            .for_each(|(out_ref, in_ref)| {
-                std::mem::forget(std::mem::replace(out_ref, in_ref));
-            });
+            .for_each(|(out_ref, in_ref)| unsafe { std::ptr::write(out_ref, in_ref) });
         output_vector
     }
 }
