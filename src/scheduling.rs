@@ -22,7 +22,7 @@ fn default_min_block_size(n: usize) -> usize {
 
 /// by default, max block size is sqrt(n)
 fn default_max_block_size(n: usize) -> usize {
-    (n as f64).sqrt().ceil() as usize
+    ((n as f64).sqrt() * 8.0f64).ceil() as usize
 }
 
 /// compute a block size with the given function.
@@ -59,7 +59,8 @@ where
             if *s.borrow() || input.base_length() == 1 {
                 schedule_sequential(input, folder)
             } else if block_size * 2 * current_num_threads() >= input.base_length()
-                || 2usize.pow(current_num_threads() as u32) * 100 >= input.base_length()
+                || (current_num_threads() as f64).log2() * (50.0f64)
+                    >= (input.base_length() as f64) / (block_size as f64)
             {
                 let max_size = compute_size(input.base_length(), default_max_block_size);
                 schedule_join_context_max_size(input, folder, reduce_function, block_size, max_size)
