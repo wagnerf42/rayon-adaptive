@@ -18,7 +18,7 @@ fn vec_gen(size: u32) -> Vec<u32> {
 }
 
 fn blocks_sizes(c: &mut Criterion) {
-    let sizes = vec![2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+    let sizes = vec![30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
     let sizes = sizes
         .into_iter()
         .map(|block_size| INPUT_SIZE / block_size)
