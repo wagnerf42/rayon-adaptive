@@ -4,9 +4,18 @@ extern crate rand;
 extern crate rayon;
 extern crate rayon_adaptive;
 
-use rayon_adaptive::{Policy, vec_gen, solver_adaptive};
+use rand::seq::SliceRandom;
+use rayon_adaptive::{prelude::*, Policy};
 
 use criterion::{Criterion, ParameterizedBenchmark};
+const INPUT_SIZE: u32 = 100_000;
+
+fn vec_gen(size: u32) -> Vec<u32> {
+    let mut v: Vec<u32> = (0..size).collect();
+    let mut rng = rand::thread_rng();
+    v.shuffle(&mut rng);
+    v
+}
 
 fn blocks_sizes(c: &mut Criterion) {
     let sizes = vec![2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
@@ -16,9 +25,15 @@ fn blocks_sizes(c: &mut Criterion) {
             "adaptive",
             |b, block_size| {
                 b.iter_with_setup(
-                    || vec_gen(100_000),
+                    || vec_gen(INPUT_SIZE),
                     |v| {
-                        solver_adaptive(&v, Policy::Adaptive(*block_size));
+                        assert_eq!(
+                            v.into_adapt_iter()
+                                .with_policy(Policy::Adaptive(*block_size, *block_size))
+                                .max()
+                                .cloned(),
+                            Some(INPUT_SIZE - 1)
+                        );
                     },
                 )
             },
