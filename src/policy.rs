@@ -20,6 +20,8 @@ pub enum Policy {
     /// Advance locally with increasing block sizes. When stolen create tasks
     /// We need an initial block size and a maximal block size.
     Adaptive(usize, usize),
+    /// Mirrors the rayon join context.
+    Rayon,
 }
 
 impl Default for Policy {

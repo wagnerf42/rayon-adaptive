@@ -22,7 +22,7 @@ fn default_min_block_size(n: usize) -> usize {
 
 /// by default, max block size is sqrt(n)
 fn default_max_block_size(n: usize) -> usize {
-    ((n as f64).sqrt() * 8.0f64).ceil() as usize
+    ((n as f64).sqrt() * 10.0f64).ceil() as usize
 }
 
 /// compute a block size with the given function.
@@ -49,6 +49,7 @@ where
         | Policy::JoinContext(block_size)
         | Policy::DepJoin(block_size)
         | Policy::Adaptive(block_size, _) => block_size,
+        Policy::Rayon => 1,
     };
     match policy {
         Policy::Sequential => schedule_sequential(input, folder),
@@ -82,6 +83,12 @@ where
                 )
             }
         }),
+        Policy::Rayon => schedule_rayon_join_context(
+            input,
+            folder,
+            reduce_function,
+            (rayon::current_num_threads() as f64).log2() as usize,
+        ),
     }
 }
 
@@ -136,6 +143,50 @@ where
                     schedule_join_context(i2, folder, reduce_function, block_size)
                 } else {
                     schedule_sequential(i2, folder)
+                }
+            },
+        );
+        reduce_function(r1, r2)
+    }
+}
+
+fn schedule_rayon_join_context<F, RF>(
+    input: F::Input,
+    folder: &F,
+    reduce_function: &RF,
+    split_limit: usize,
+) -> F::Output
+where
+    F: Folder,
+    RF: Fn(F::Output, F::Output) -> F::Output + Sync,
+{
+    if split_limit == 0 {
+        schedule_sequential(input, folder)
+    } else {
+        let (i1, i2) = input.divide();
+        let (r1, r2) = rayon::join_context(
+            |c| {
+                if c.migrated() {
+                    schedule_rayon_join_context(
+                        i1,
+                        folder,
+                        reduce_function,
+                        (rayon::current_num_threads() as f64).log2() as usize,
+                    )
+                } else {
+                    schedule_rayon_join_context(i1, folder, reduce_function, split_limit - 1)
+                }
+            },
+            |c| {
+                if c.migrated() {
+                    schedule_rayon_join_context(
+                        i2,
+                        folder,
+                        reduce_function,
+                        (rayon::current_num_threads() as f64).log2() as usize,
+                    )
+                } else {
+                    schedule_rayon_join_context(i2, folder, reduce_function, split_limit - 1)
                 }
             },
         );
