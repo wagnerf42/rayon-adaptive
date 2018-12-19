@@ -19,6 +19,10 @@ fn vec_gen(size: u32) -> Vec<u32> {
 
 fn blocks_sizes(c: &mut Criterion) {
     let sizes = vec![2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+    let sizes = sizes
+        .into_iter()
+        .map(|block_size| INPUT_SIZE / block_size)
+        .collect::<Vec<_>>();
     c.bench(
         "initial size",
         ParameterizedBenchmark::new(
@@ -29,7 +33,10 @@ fn blocks_sizes(c: &mut Criterion) {
                     |v| {
                         assert_eq!(
                             v.into_adapt_iter()
-                                .with_policy(Policy::Adaptive(*block_size, *block_size))
+                                .with_policy(Policy::Adaptive(
+                                    (INPUT_SIZE / *block_size) as usize,
+                                    (INPUT_SIZE / *block_size) as usize,
+                                ))
                                 .max()
                                 .cloned(),
                             Some(INPUT_SIZE - 1)
