@@ -23,24 +23,30 @@ fn blocks_sizes(c: &mut Criterion) {
         .into_iter()
         .map(|block_size| INPUT_SIZE / block_size)
         .collect::<Vec<_>>();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .expect("pool build failed");
     c.bench(
         "initial size",
         ParameterizedBenchmark::new(
             "adaptive",
-            |b, block_size| {
+            move |b, block_size| {
                 b.iter_with_setup(
                     || vec_gen(INPUT_SIZE),
                     |v| {
-                        assert_eq!(
-                            v.into_adapt_iter()
-                                .with_policy(Policy::Adaptive(
-                                    (INPUT_SIZE / *block_size) as usize,
-                                    (INPUT_SIZE / *block_size) as usize,
-                                ))
-                                .max()
-                                .cloned(),
-                            Some(INPUT_SIZE - 1)
-                        );
+                        pool.install(|| {
+                            assert_eq!(
+                                v.into_adapt_iter()
+                                    .with_policy(Policy::Adaptive(
+                                        (INPUT_SIZE / *block_size) as usize,
+                                        (INPUT_SIZE / *block_size) as usize,
+                                    ))
+                                    .max()
+                                    .cloned(),
+                                Some(INPUT_SIZE - 1)
+                            );
+                        });
                     },
                 )
             },
