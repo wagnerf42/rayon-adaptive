@@ -74,12 +74,13 @@ where
                     (|_| min, |_| max),
                 )
             } else {
+                let max_size = compute_size(input.base_length(), default_max_block_size);
                 schedule_adaptive(
                     input,
                     folder.identity(),
                     folder,
                     reduce_function,
-                    (|_| block_size, default_max_block_size),
+                    (|_| block_size, |_| max_size),
                 )
             }
         }),
