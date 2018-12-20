@@ -87,7 +87,7 @@ where
             input,
             folder,
             reduce_function,
-            (rayon::current_num_threads() as f64).log2() as usize,
+            rayon::current_num_threads(),
         ),
     }
 }
@@ -165,28 +165,17 @@ where
     } else {
         let (i1, i2) = input.divide();
         let (r1, r2) = rayon::join_context(
-            |c| {
-                if c.migrated() {
-                    schedule_rayon_join_context(
-                        i1,
-                        folder,
-                        reduce_function,
-                        (rayon::current_num_threads() as f64).log2() as usize,
-                    )
-                } else {
-                    schedule_rayon_join_context(i1, folder, reduce_function, split_limit - 1)
-                }
-            },
+            |_| schedule_rayon_join_context(i1, folder, reduce_function, split_limit / 2),
             |c| {
                 if c.migrated() {
                     schedule_rayon_join_context(
                         i2,
                         folder,
                         reduce_function,
-                        (rayon::current_num_threads() as f64).log2() as usize,
+                        rayon::current_num_threads() * 2,
                     )
                 } else {
-                    schedule_rayon_join_context(i2, folder, reduce_function, split_limit - 1)
+                    schedule_rayon_join_context(i2, folder, reduce_function, split_limit / 2)
                 }
             },
         );
