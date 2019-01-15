@@ -7,8 +7,8 @@ edition = "2018"
 [dev-dependencies]
 criterion="*"
 
-##[profile.release]
-##debug = true
+[profile.release]
+debug = true
 
 [features]
 # enable this to log using rayon_logs
@@ -18,12 +18,14 @@ logs = ["rayon_logs"]
 rayon_logs={optional=true, path="../rayon-logs"}
 derive-divisible={path="../derive-divisible"}
 rayon="*"
+rayon-core = "*"
 itertools="*"
 rand="*"
 time = "0.1"
 smallvec = "*"
 hwloc = "*"
 libc = "*"
+atomic-option = "*"
 [[bench]]
 name = "merge_sort"
 harness = false
