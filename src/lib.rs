@@ -30,6 +30,7 @@ pub use crate::folders::Folder;
 mod policy;
 pub use crate::policy::Policy;
 pub mod prelude;
+mod smallchannel;
 
 mod algorithms;
 pub use crate::algorithms::infix_solvers::*;
