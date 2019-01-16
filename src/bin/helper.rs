@@ -1,4 +1,4 @@
-use atomic_option::AtomicOption;
+use crossbeam::atomic::AtomicCell;
 use rayon::current_num_threads;
 use rayon_adaptive::prelude::*;
 use rayon_core::current_thread_index;
@@ -14,11 +14,9 @@ type Link<O2, I> = Arc<Node<O2, I>>;
 
 struct Node<O2, I> {
     id: ThreadId,
-    finished: AtomicOption<bool>,
-
-    output: AtomicOption<O2>,
-    input: AtomicOption<I>,
-    next: AtomicOption<Link<O2, I>>,
+    output: AtomicCell<Option<O2>>,
+    input: AtomicCell<Option<I>>,
+    next: AtomicCell<Option<Link<O2, I>>>,
 }
 
 fn f(e: usize) -> usize {
@@ -48,18 +46,13 @@ fn compute_size<F: Fn(usize) -> usize>(n: usize, sizing_function: F) -> usize {
 fn split<O2, I>(split_me: Link<O2, I>, id: ThreadId) -> Link<O2, I> {
     let new_node = Arc::new(Node {
         id,
-        finished: AtomicOption::empty(),
-        output: AtomicOption::empty(),
-        input: AtomicOption::empty(),
-        next: AtomicOption::empty(),
+        output: AtomicCell::new(None),
+        input: AtomicCell::new(None),
+        next: AtomicCell::new(None),
     });
     let new_node_clone = new_node.clone();
-    new_node
-        .next
-        .replace(split_me.next.take(Ordering::SeqCst), Ordering::SeqCst);
-    split_me
-        .next
-        .replace(Some(Box::new(new_node)), Ordering::SeqCst);
+    new_node.next.store(split_me.next.into_inner());
+    split_me.next.store(Some(new_node));
     new_node_clone
 }
 
@@ -111,6 +104,7 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
     let mut max_block_size = compute_size(remaining_input.base_length(), default_max_block_size);
     let mut partial_output = id2();
     //let mut stolen: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(NOTHREAD));
+    assert!(remaining_input.base_length() != 0);
     while remaining_input.base_length() > 0 {
         let (mut sender, mut stolen) = slave_spawn(&vector, id2, fold2);
         loop {
@@ -120,10 +114,9 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
                 vector[current_thread_index().unwrap()].store(false, Ordering::SeqCst);
                 sender.send(None).expect("Steal cancel failed");
                 if remaining_input.base_length() > 0 {
-                    node.input.swap(Box::new(remaining_input), Ordering::SeqCst);
+                    node.input.store(Some(remaining_input));
                 }
-                node.output.swap(Box::new(partial_output), Ordering::SeqCst);
-                node.finished.swap(Box::new(true), Ordering::SeqCst);
+                node.output.swap(Some(partial_output));
                 return;
             }
             let temp = fold2(partial_output, remaining_input, current_block_size);
@@ -158,7 +151,6 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
             );
         }
     }
-    node.finished.swap(Box::new(true), Ordering::SeqCst);
 }
 
 // Consume the list only as long as you have only O2s in the nodes. As soon as you encounter O2,
@@ -176,37 +168,34 @@ where
     RET: Fn(O1, O2) -> O1 + Sync,
     O1: Send + Sync,
 {
-    let mut iter_link = Some(Box::new(head));
+    let mut iter_link = Some(head);
     let mut partial_output = processed_output;
     let return_node = Arc::new(Node {
         id: current_thread_index().unwrap(),
-        finished: AtomicOption::empty(),
-        output: AtomicOption::empty(),
-        input: AtomicOption::empty(),
-        next: AtomicOption::empty(),
+        output: AtomicCell::new(None),
+        input: AtomicCell::new(None),
+        next: AtomicCell::new(None),
     });
     while iter_link.is_some() {
         let task_node = iter_link.unwrap();
         if task_node.id != current_thread_index().unwrap() {
             //Pessimistically signal it and spinlock on the option.
             vector[task_node.id].store(true, Ordering::SeqCst);
-            task_node.finished.spinlock(Ordering::SeqCst);
-            let his_output = task_node.output.take(Ordering::SeqCst);
-            let his_input = task_node.input.take(Ordering::SeqCst);
+            while task_node.output.get_mut().is_none() {}
+            let his_output = task_node.output.into_inner();
+            let his_input = task_node.input.into_inner();
             if his_output.is_some() {
-                partial_output = retrieve_fn(partial_output, *his_output.unwrap());
+                partial_output = retrieve_fn(partial_output, his_output.unwrap());
             }
             if his_input.is_some() {
                 //let his_input = his_input.unwrap();
                 assert!(his_input.as_ref().unwrap().base_length() > 0);
-                return_node.input.replace(his_input, Ordering::SeqCst);
-                return_node
-                    .next
-                    .replace(task_node.next.take(Ordering::SeqCst), Ordering::SeqCst);
+                return_node.input.store(his_input);
+                return_node.next.store(task_node.next.into_inner());
                 break;
             }
         }
-        iter_link = task_node.next.take(Ordering::SeqCst);
+        iter_link = task_node.next.into_inner();
     }
     return (partial_output, return_node);
 }
@@ -230,10 +219,9 @@ where
 {
     let mut head: Link<O2, I> = Arc::new(Node {
         id: current_thread_index().unwrap(),
-        finished: AtomicOption::empty(),
-        output: AtomicOption::empty(),
-        input: AtomicOption::empty(),
-        next: AtomicOption::empty(),
+        output: AtomicCell::new(None),
+        input: AtomicCell::new(None),
+        next: AtomicCell::new(None),
     });
     let mut remaining_input = i;
     let mut partial_output = o1;
@@ -289,10 +277,10 @@ where
         let res = start_retrieve(partial_output, head, retrieve, retrieve_vec.clone());
         partial_output = res.0;
         head = res.1;
-        let maybe_input = head.input.take(Ordering::SeqCst);
+        let maybe_input = head.input.into_inner();
         match maybe_input {
             Some(input) => {
-                remaining_input = *input;
+                remaining_input = input;
             }
             None => {
                 break;
