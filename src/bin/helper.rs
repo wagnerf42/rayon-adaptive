@@ -1,5 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use rayon::current_num_threads;
+use rayon_adaptive::linkedlist::*;
 use rayon_adaptive::prelude::*;
 use rayon_core::current_thread_index;
 use std::cmp::min;
@@ -10,14 +11,6 @@ use std::sync::Arc;
 const MINSIZE: usize = 10;
 const NOTHREAD: ThreadId = ThreadId::max_value();
 type ThreadId = usize;
-type Link<O2, I> = Arc<Node<O2, I>>;
-
-struct Node<O2, I> {
-    id: ThreadId,
-    output: AtomicCell<Option<O2>>,
-    input: AtomicCell<Option<I>>,
-    next: AtomicCell<Option<Link<O2, I>>>,
-}
 
 fn f(e: usize) -> usize {
     let mut c = 0;
@@ -43,51 +36,35 @@ fn compute_size<F: Fn(usize) -> usize>(n: usize, sizing_function: F) -> usize {
     let p = current_num_threads();
     std::cmp::max(min(n / (2 * p), sizing_function(n)), 1)
 }
-fn split<O2, I>(split_me: Link<O2, I>, id: ThreadId) -> Link<O2, I> {
-    let new_node = Arc::new(Node {
-        id,
-        output: AtomicCell::new(None),
-        input: AtomicCell::new(None),
-        next: AtomicCell::new(None),
-    });
-    let new_node_clone = new_node.clone();
-    new_node.next.store(split_me.next.into_inner());
-    split_me.next.store(Some(new_node));
-    new_node_clone
-}
 
 fn slave_spawn<FOLD2, I, ID2, O2>(
     vector: &Arc<Vec<AtomicBool>>,
     id2: ID2,
     fold2: FOLD2,
-) -> (Sender<Option<(I, Link<O2, I>)>>, Arc<AtomicUsize>)
+) -> (Sender<Option<Link<O2, I>>>, Arc<AtomicUsize>)
 where
     I: DivisibleIntoBlocks + 'static,
     ID2: Fn() -> O2 + Sync + Send + Copy + 'static,
     O2: Send + Sync + 'static,
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy + 'static,
 {
-    let (sender, receiver) = channel::<Option<(I, Link<O2, I>)>>();
+    let (sender, receiver) = channel::<Option<Link<O2, I>>>();
     let stolen = Arc::new(AtomicUsize::new(NOTHREAD));
     let vector_clone = vector.clone();
     let stolen_copy = stolen.clone();
     rayon::spawn(move || {
         stolen_copy.store(current_thread_index().unwrap(), Ordering::SeqCst);
-        let mut input = receiver.recv().expect("receiving failed");
-        let input = input.take();
-        if input.is_none() {
+        let mut received = receiver.recv().expect("receiving failed");
+        if received.is_none() {
             return;
-        } else {
-            let (work, slave_node) = input.unwrap();
-            assert!(work.base_length() > 0);
-            schedule_slave(work, id2, fold2, slave_node, vector_clone);
         }
+        let slave_node = received.unwrap();
+        schedule_slave(id2, fold2, slave_node, vector_clone);
     });
     (sender, stolen)
 }
 
 fn schedule_slave<I, O2, FOLD2, ID2>(
-    i: I,
     id2: ID2,
     fold2: FOLD2,
     node: Link<O2, I>,
@@ -98,13 +75,14 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
     O2: Send + Sync + 'static,
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy + 'static,
 {
-    let mut remaining_input = i;
+    let remaining_input = node.take_input();
+    assert!(remaining_input.is_some());
+    let mut remaining_input = remaining_input.unwrap();
+    assert!(remaining_input.base_length() > 0);
     let mut current_block_size =
         compute_size(remaining_input.base_length(), default_min_block_size);
     let mut max_block_size = compute_size(remaining_input.base_length(), default_max_block_size);
     let mut partial_output = id2();
-    //let mut stolen: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(NOTHREAD));
-    assert!(remaining_input.base_length() != 0);
     while remaining_input.base_length() > 0 {
         let (mut sender, mut stolen) = slave_spawn(&vector, id2, fold2);
         loop {
@@ -114,26 +92,24 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
                 vector[current_thread_index().unwrap()].store(false, Ordering::SeqCst);
                 sender.send(None).expect("Steal cancel failed");
                 if remaining_input.base_length() > 0 {
-                    node.input.store(Some(remaining_input));
+                    node.store_input(remaining_input);
+                    node.store_output(partial_output);
+                    return; //bad design, but borrow checker complains if I break.
                 }
-                node.output.swap(Some(partial_output));
-                return;
+                break;
             }
-            let temp = fold2(partial_output, remaining_input, current_block_size);
-            partial_output = temp.0;
-            remaining_input = temp.1;
             if stolen.load(Ordering::SeqCst) != NOTHREAD {
                 if remaining_input.base_length() == 0 {
                     sender.send(None).expect("Steal cancel failed");
                     break;
                 }
                 let (my_half, his_half) = remaining_input.divide();
-                sender
-                    .send(Some((
-                        his_half,
-                        split((&node).clone(), (&stolen).load(Ordering::SeqCst)),
-                    )))
-                    .expect("Sending work failed!");
+                if his_half.base_length() == 0 {
+                    sender.send(None).expect("Steal cancel failed");
+                } else {
+                    let slave_node = node.split((&stolen).load(Ordering::SeqCst), his_half);
+                    sender.send(Some(slave_node)).expect("Sending work failed!");
+                }
                 remaining_input = my_half;
                 current_block_size =
                     compute_size(remaining_input.base_length(), default_min_block_size);
@@ -145,59 +121,16 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
                 stolen = rustc_does_not_allow_mutable_tuples_on_the_left_side.1;
                 continue;
             }
+            let temp = fold2(partial_output, remaining_input, current_block_size);
+            partial_output = temp.0;
+            remaining_input = temp.1;
             current_block_size = min(
                 current_block_size * 2,
                 min(max_block_size, remaining_input.base_length()),
             );
         }
     }
-}
-
-// Consume the list only as long as you have only O2s in the nodes. As soon as you encounter O2,
-// I(non-empty), return a head node along with the O1 that you (may) have generated in this function.
-// The head NEVER contains an input!
-fn start_retrieve<O2, I, RET, O1>(
-    processed_output: O1,
-    head: Link<O2, I>,
-    retrieve_fn: RET,
-    vector: Arc<Vec<AtomicBool>>,
-) -> (O1, Link<O2, I>)
-where
-    I: DivisibleIntoBlocks,
-    O2: Send + Sync + Sized,
-    RET: Fn(O1, O2) -> O1 + Sync,
-    O1: Send + Sync,
-{
-    let mut iter_link = Some(head);
-    let mut partial_output = processed_output;
-    let return_node = Arc::new(Node {
-        id: current_thread_index().unwrap(),
-        output: AtomicCell::new(None),
-        input: AtomicCell::new(None),
-        next: AtomicCell::new(None),
-    });
-    while iter_link.is_some() {
-        let task_node = iter_link.unwrap();
-        if task_node.id != current_thread_index().unwrap() {
-            //Pessimistically signal it and spinlock on the option.
-            vector[task_node.id].store(true, Ordering::SeqCst);
-            while task_node.output.get_mut().is_none() {}
-            let his_output = task_node.output.into_inner();
-            let his_input = task_node.input.into_inner();
-            if his_output.is_some() {
-                partial_output = retrieve_fn(partial_output, his_output.unwrap());
-            }
-            if his_input.is_some() {
-                //let his_input = his_input.unwrap();
-                assert!(his_input.as_ref().unwrap().base_length() > 0);
-                return_node.input.store(his_input);
-                return_node.next.store(task_node.next.into_inner());
-                break;
-            }
-        }
-        iter_link = task_node.next.into_inner();
-    }
-    return (partial_output, return_node);
+    node.store_output(partial_output);
 }
 
 fn fold_with_help<I, O1, O2, ID2, FOLD1, FOLD2, RET>(
@@ -217,75 +150,80 @@ where
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy + 'static,
     RET: Fn(O1, O2) -> O1 + Sync + Copy,
 {
-    let mut head: Link<O2, I> = Arc::new(Node {
-        id: current_thread_index().unwrap(),
-        output: AtomicCell::new(None),
-        input: AtomicCell::new(None),
-        next: AtomicCell::new(None),
-    });
-    let mut remaining_input = i;
+    let mut linkedlist = LinkedList::new(i, retrieve);
     let mut partial_output = o1;
-    if remaining_input.base_length() <= MINSIZE {
-        let length = remaining_input.base_length();
-        return fold1(partial_output, remaining_input, length).0;
+    let remaining_input_length = linkedlist.remaining_input_length();
+    if remaining_input_length <= MINSIZE {
+        return fold1(
+            partial_output,
+            linkedlist.take_input().unwrap(),
+            remaining_input_length,
+        )
+        .0;
     }
-    let mut current_block_size =
-        compute_size(remaining_input.base_length(), default_min_block_size);
-    let mut max_block_size = compute_size(remaining_input.base_length(), default_max_block_size);
+    let mut current_block_size = compute_size(remaining_input_length, default_min_block_size);
+    let mut max_block_size = compute_size(remaining_input_length, default_max_block_size);
     let retrieve_vec: Vec<_> = repeat_with(|| AtomicBool::new(false))
         .take(rayon::current_num_threads())
         .collect();
     let retrieve_vec = Arc::new(retrieve_vec);
-    while remaining_input.base_length() > 0 {
+    while linkedlist.remaining_input_length() > 0 {
         let (mut sender, mut stolen) = slave_spawn(&retrieve_vec, id2, fold2);
         loop {
-            if remaining_input.base_length() == 0 {
+            if linkedlist.remaining_input_length() == 0 {
                 sender.send(None).expect("Steal cancel failed");
                 break;
             }
-            let temp = fold1(partial_output, remaining_input, current_block_size);
-            partial_output = temp.0;
-            remaining_input = temp.1;
-            if stolen.load(Ordering::SeqCst) != NOTHREAD {
-                if remaining_input.base_length() == 0 {
+            if stolen.load(Ordering::SeqCst) == NOTHREAD {
+                let temp = fold1(
+                    partial_output,
+                    linkedlist.take_input().unwrap(),
+                    current_block_size,
+                );
+                partial_output = temp.0;
+                if temp.1.base_length() == 0 {
                     sender.send(None).expect("Steal cancel failed");
                     break;
                 }
-                let (my_half, his_half) = remaining_input.divide();
-                sender
-                    .send(Some((
-                        his_half,
-                        split((&head).clone(), (&stolen).load(Ordering::SeqCst)),
-                    )))
-                    .expect("Sending work failed!");
-                remaining_input = my_half;
-                max_block_size =
-                    compute_size(remaining_input.base_length(), default_max_block_size);
-                current_block_size =
-                    compute_size(remaining_input.base_length(), default_min_block_size);
-                let rustc_does_not_allow_mutable_tuples_on_the_left_side =
-                    slave_spawn(&retrieve_vec, id2, fold2);
-                sender = rustc_does_not_allow_mutable_tuples_on_the_left_side.0;
-                stolen = rustc_does_not_allow_mutable_tuples_on_the_left_side.1;
-                continue;
+                linkedlist.store_input(temp.1);
+                current_block_size = min(
+                    current_block_size * 2,
+                    min(max_block_size, linkedlist.remaining_input_length()),
+                );
+            } else {
+                let (my_half, his_half) = linkedlist.take_input().unwrap().divide();
+                assert!(my_half.base_length() != 0 || his_half.base_length() != 0);
+                if his_half.base_length() != 0 {
+                    let slave_node = linkedlist.push_node(his_half, stolen.load(Ordering::Relaxed));
+                    sender.send(Some(slave_node)).expect("Sending work failed!");
+                    if my_half.base_length() != 0 {
+                        linkedlist.store_input(my_half);
+                        max_block_size = compute_size(
+                            linkedlist.remaining_input_length(),
+                            default_max_block_size,
+                        );
+                        current_block_size = compute_size(
+                            linkedlist.remaining_input_length(),
+                            default_min_block_size,
+                        );
+                        let rustc_does_not_allow_mutable_tuples_on_the_left_side =
+                            slave_spawn(&retrieve_vec, id2, fold2);
+                        sender = rustc_does_not_allow_mutable_tuples_on_the_left_side.0;
+                        stolen = rustc_does_not_allow_mutable_tuples_on_the_left_side.1;
+                    } else {
+                        break;
+                    }
+                } else {
+                    sender.send(None).expect("Steal cancel failed");
+                    let temp_len = my_half.base_length();
+                    partial_output = fold1(partial_output, my_half, temp_len).0;
+                    break;
+                }
             }
-            current_block_size = min(
-                current_block_size * 2,
-                min(max_block_size, remaining_input.base_length()),
-            );
         }
-        let res = start_retrieve(partial_output, head, retrieve, retrieve_vec.clone());
-        partial_output = res.0;
-        head = res.1;
-        let maybe_input = head.input.into_inner();
-        match maybe_input {
-            Some(input) => {
-                remaining_input = input;
-            }
-            None => {
-                break;
-            }
-        }
+        let retrieve_result = linkedlist.start_retrieve(partial_output, retrieve_vec.clone());
+        partial_output = retrieve_result.0;
+        linkedlist = retrieve_result.1;
     }
     partial_output
 }

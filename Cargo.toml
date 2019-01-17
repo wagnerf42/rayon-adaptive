@@ -15,7 +15,6 @@ debug = true
 logs = ["rayon_logs"]
 
 [dependencies]
-crossbeam="*"
 rayon_logs={optional=true, path="../rayon-logs"}
 derive-divisible={path="../derive-divisible"}
 rayon="*"

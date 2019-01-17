@@ -29,8 +29,9 @@ mod folders;
 pub use crate::folders::Folder;
 mod policy;
 pub use crate::policy::Policy;
+pub mod linkedlist;
 pub mod prelude;
-mod smallchannel;
+pub mod smallchannel;
 
 mod algorithms;
 pub use crate::algorithms::infix_solvers::*;
