@@ -76,9 +76,9 @@ fn schedule_slave<I, O2, FOLD2, ID2>(
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy + 'static,
 {
     let remaining_input = node.take_input();
-    assert!(remaining_input.is_some());
+    debug_assert!(remaining_input.is_some());
     let mut remaining_input = remaining_input.unwrap();
-    assert!(remaining_input.base_length() > 0);
+    debug_assert!(remaining_input.base_length() > 0);
     let mut current_block_size =
         compute_size(remaining_input.base_length(), default_min_block_size);
     let mut max_block_size = compute_size(remaining_input.base_length(), default_max_block_size);
@@ -192,7 +192,7 @@ where
                 );
             } else {
                 let (my_half, his_half) = linkedlist.take_input().unwrap().divide();
-                assert!(my_half.base_length() != 0 || his_half.base_length() != 0);
+                debug_assert!(my_half.base_length() != 0 || his_half.base_length() != 0);
                 if his_half.base_length() != 0 {
                     let slave_node = linkedlist.push_node(his_half, stolen.load(Ordering::Relaxed));
                     sender.send(Some(slave_node)).expect("Sending work failed!");
@@ -229,38 +229,39 @@ where
 }
 
 fn main() {
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(10)
-        .build()
-        .expect("Thread pool build failed");
-    pool.install(|| {
-        fold_with_help(
-            0..100_000,
-            (),
-            |_, i, limit| {
-                let (todo, remaining) = i.divide_at(limit);
-                for e in todo {
-                    println!("{}", f(e));
-                }
-                ((), remaining)
-            },
-            Vec::new,
-            |mut v, i, limit| {
-                let len_before_divide = i.base_length();
-                let (todo, remaining) = i.divide_at(limit);
-                let left_len = todo.base_length();
-                let right_len = remaining.base_length();
-                let len_after_divide = right_len + left_len;
-                assert_eq!(len_before_divide, len_after_divide);
-                v.extend(todo.into_iter().map(|e| f(e)));
-                (v, remaining)
-            },
-            |_, v| {
-                for e in &v {
-                    println!("{}", e);
-                }
-                ()
-            },
-        );
+    (1..10).for_each(|number_of_threads| {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(number_of_threads)
+            .build()
+            .expect("Thread pool build failed");
+        let time_taken_ms = pool.install(|| {
+            let start = time::precise_time_ns();
+            fold_with_help(
+                0..100_000,
+                (),
+                |_, i, limit| {
+                    let (todo, remaining) = i.divide_at(limit);
+                    for e in todo {
+                        println!("{}", f(e));
+                    }
+                    ((), remaining)
+                },
+                Vec::new,
+                |mut v, i, limit| {
+                    let (todo, remaining) = i.divide_at(limit);
+                    v.extend(todo.into_iter().map(|e| f(e)));
+                    (v, remaining)
+                },
+                |_, v| {
+                    for e in &v {
+                        println!("{}", e);
+                    }
+                    ()
+                },
+            );
+            let end = time::precise_time_ns();
+            ((end - start) as f64) / (1e6 as f64)
+        });
+        println!("{}, {}", time_taken_ms, number_of_threads);
     });
 }

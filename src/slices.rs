@@ -226,6 +226,22 @@ impl<'a, T: 'a + Sync + Send> Divisible for EdibleSliceMut<'a, T> {
     }
 }
 
+impl<'a, T: 'a + Send + Sync> DivisibleIntoBlocks for EdibleSliceMut<'a, T> {
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let splitting_index = self.used + index;
+        let (left_slice, right_slice) = self.slice.split_at_mut(splitting_index);
+        (
+            EdibleSliceMut {
+                slice: left_slice,
+                used: self.used,
+            },
+            EdibleSliceMut {
+                slice: right_slice,
+                used: 0,
+            },
+        )
+    }
+}
 //TODO: factorize with other iterator using some more traits.
 /// Iterator on `EdibleSlice`.
 /// Updates slice's state on drop.

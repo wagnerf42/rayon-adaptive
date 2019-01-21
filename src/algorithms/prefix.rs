@@ -37,7 +37,8 @@ where
                 *e = op(e, &c);
             }
             slice
-        }).map(|slice| slice.slice())
+        })
+        .map(|slice| slice.slice())
         .into_iter()
         .fold(
             None,

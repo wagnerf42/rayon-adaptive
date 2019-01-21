@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use crate::traits::BlockedPower;
-use crate::Policy;
 use rayon::current_num_threads;
 use std::iter::repeat;
 use std::mem;
