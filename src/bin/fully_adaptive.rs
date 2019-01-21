@@ -1,7 +1,7 @@
 use rayon::current_num_threads;
 use rayon::Scope;
+use rayon_adaptive::atomiclist::*;
 use rayon_adaptive::fuse_slices;
-use rayon_adaptive::linkedlist::*;
 use rayon_adaptive::prelude::*;
 use rayon_core::current_thread_index;
 use std::cmp::min;
@@ -30,7 +30,7 @@ fn compute_size<F: Fn(usize) -> usize>(n: usize, sizing_function: F) -> usize {
 }
 
 fn slave_spawn<'scope, FOLD2, I, ID2, O2>(
-    vector: &Arc<Vec<AtomicBool>>,
+    retrieving_booleans: &'scope Vec<AtomicBool>,
     id2: ID2,
     fold2: FOLD2,
     scope: &Scope<'scope>,
@@ -43,7 +43,6 @@ where
 {
     let (sender, receiver) = channel::<Option<Link<O2, I>>>();
     let stolen = Arc::new(AtomicUsize::new(NOTHREAD));
-    let vector_clone = vector.clone();
     let stolen_copy = stolen.clone();
     scope.spawn(move |same_scope| {
         stolen_copy.store(current_thread_index().unwrap(), Ordering::SeqCst);
@@ -52,7 +51,7 @@ where
             return;
         }
         let slave_node = received.unwrap();
-        schedule_slave(id2, fold2, slave_node, vector_clone, same_scope);
+        schedule_slave(id2, fold2, slave_node, retrieving_booleans, same_scope);
     });
     (sender, stolen)
 }
@@ -61,7 +60,7 @@ fn schedule_slave<'scope, I, O2, FOLD2, ID2>(
     id2: ID2,
     fold2: FOLD2,
     node: Link<O2, I>,
-    vector: Arc<Vec<AtomicBool>>,
+    retrieving_booleans: &'scope Vec<AtomicBool>,
     scope: &Scope<'scope>,
 ) where
     I: Divisible + 'scope,
@@ -79,17 +78,17 @@ fn schedule_slave<'scope, I, O2, FOLD2, ID2>(
     let mut max_block_size = compute_size(remaining_input.base_length(), default_max_block_size);
     let mut partial_output = id2();
     while remaining_input.base_length() > 0 {
-        let (mut sender, mut stolen) = slave_spawn(&vector, id2, fold2, scope);
+        let (mut sender, mut stolen) = slave_spawn(retrieving_booleans, id2, fold2, scope);
         loop {
             if remaining_input.base_length() == 0
-                || vector[current_thread_index().unwrap()].load(Ordering::SeqCst) == true
+                || retrieving_booleans[current_thread_index().unwrap()].load(Ordering::SeqCst)
             {
-                vector[current_thread_index().unwrap()].store(false, Ordering::SeqCst);
+                retrieving_booleans[current_thread_index().unwrap()].store(false, Ordering::SeqCst);
                 sender.send(None).expect("Steal cancel failed");
                 if remaining_input.base_length() > 0 {
                     node.store_input(remaining_input);
                     node.store_output(partial_output);
-                    return; //bad design, but borrow checker complains if I break.
+                    return;
                 }
                 break;
             }
@@ -111,7 +110,7 @@ fn schedule_slave<'scope, I, O2, FOLD2, ID2>(
                     min_block_size =
                         compute_size(remaining_input.base_length(), default_min_block_size);
                     let rustc_does_not_allow_mutable_tuples_on_the_left_side =
-                        slave_spawn(&vector, id2, fold2, scope);
+                        slave_spawn(retrieving_booleans, id2, fold2, scope);
                     sender = rustc_does_not_allow_mutable_tuples_on_the_left_side.0;
                     stolen = rustc_does_not_allow_mutable_tuples_on_the_left_side.1;
                 } else {
@@ -153,23 +152,22 @@ where
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy,
     RET: Fn(O1, O2) -> O1 + Sync + Send + Copy,
 {
-    //let mut linkedlist = LinkedList::new(i, retrieve);
-    let remaining_input_length = i.base_length();
-    let mut current_block_size = compute_size(remaining_input_length, default_min_block_size);
-    let mut min_block_size = compute_size(remaining_input_length, default_min_block_size);
-    let mut max_block_size = compute_size(remaining_input_length, default_max_block_size);
-    let retrieve_vec: Vec<_> = repeat_with(|| AtomicBool::new(false))
+    let input_length = i.base_length();
+    let mut min_block_size = compute_size(input_length, default_min_block_size);
+    let mut max_block_size = compute_size(input_length, default_max_block_size);
+    let retrieving_booleans: Vec<_> = repeat_with(|| AtomicBool::new(false))
         .take(rayon::current_num_threads())
         .collect();
-    let retrieve_vec = Arc::new(retrieve_vec);
-    let chunk_size = ((i.base_length() as f64).sqrt().ceil()) as usize;
+    let retrieving_booleans = &retrieving_booleans;
+    let chunk_size = ((input_length as f64).sqrt().ceil()) as usize;
     rayon::scope(|inner_scope| {
         i.chunks(repeat(chunk_size))
             .fold(o1, |mut partial_output, chunk| {
+                let mut current_block_size = min(min_block_size, chunk.base_length());
                 let mut linkedlist = LinkedList::new(chunk, retrieve);
                 while linkedlist.remaining_input_length() > 0 {
                     let (mut sender, mut stolen) =
-                        slave_spawn(&retrieve_vec, id2, fold2, inner_scope);
+                        slave_spawn(retrieving_booleans, id2, fold2, inner_scope);
                     loop {
                         if linkedlist.remaining_input_length() == 0 {
                             sender.send(None).expect("Steal cancel failed");
@@ -178,7 +176,8 @@ where
                         if stolen.load(Ordering::SeqCst) == NOTHREAD
                             || linkedlist.remaining_input_length() <= min_block_size
                         {
-                            // You have input and you were not stolen.
+                            assert!(current_block_size <= linkedlist.remaining_input_length());
+                            // You have input and you were not stolen or stolen too late.
                             let temp = fold1(
                                 partial_output,
                                 linkedlist.take_input().unwrap(),
@@ -212,16 +211,19 @@ where
                                 linkedlist.remaining_input_length(),
                                 default_max_block_size,
                             );
-                            current_block_size = min_block_size;
-                            let temp = slave_spawn(&retrieve_vec, id2, fold2, inner_scope);
+                            current_block_size =
+                                min(min_block_size, linkedlist.remaining_input_length());
+                            let temp = slave_spawn(retrieving_booleans, id2, fold2, inner_scope);
                             sender = temp.0;
                             stolen = temp.1;
                         }
                     }
                     let retrieve_result =
-                        linkedlist.start_retrieve(partial_output, retrieve_vec.clone());
+                        linkedlist.start_retrieve(partial_output, retrieving_booleans);
                     partial_output = retrieve_result.0;
                     linkedlist = retrieve_result.1;
+                    current_block_size = min(min_block_size, linkedlist.remaining_input_length());
+                    assert!(current_block_size <= linkedlist.remaining_input_length());
                 }
                 partial_output
             })
@@ -229,7 +231,7 @@ where
 }
 
 fn main() {
-    (1..15).for_each(|number_of_threads| {
+    (2..3).for_each(|number_of_threads| {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(number_of_threads)
             .build()
@@ -269,14 +271,17 @@ fn main() {
                     )
                 },
                 |last_num, dirty_slice| {
-                    let last_num_dirty = dirty_slice.as_ref().unwrap().last().cloned().unwrap_or(0);
-                    s.spawn(move |_| {
-                        dirty_slice
-                            .unwrap()
-                            .into_adapt_iter()
-                            .for_each(|e| *e += last_num)
-                    });
-                    last_num + last_num_dirty
+                    if let Some(retrieved_slice) = dirty_slice {
+                        let last_slice_num = retrieved_slice.last().cloned().unwrap();
+                        s.spawn(move |_| {
+                            retrieved_slice
+                                .into_adapt_iter()
+                                .for_each(|e| *e += last_num)
+                        });
+                        last_num + last_slice_num
+                    } else {
+                        last_num
+                    }
                 },
             );
             let end = time::precise_time_ns();
