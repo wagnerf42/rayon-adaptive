@@ -1,9 +1,9 @@
 //! adaptive parallel merge sort.
-
 use crate::prelude::*;
 use crate::traits::{BasicPower, BlockedPower};
 use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
 use std;
+use std::cmp::min;
 use std::iter::repeat;
 
 // main related code
