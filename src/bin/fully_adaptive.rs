@@ -167,17 +167,17 @@ where
 {
     let input_length = i.base_length();
     let macro_block_size = compute_size(input_length, default_max_block_size);
+    let stolen_stuffs: &AtomicList<(Option<O2>, Option<I>)> = &AtomicList::new();
     i.chunks(repeat(macro_block_size))
         .flat_map(|chunk| {
-            let stolen_stuffs: AtomicList<(Option<O2>, Option<I>)> = AtomicList::new();
-            once(FoldElement::Input(chunk)).chain(stolen_stuffs.flat_map(|(o2, i)| {
+            once(FoldElement::Input(chunk)).chain(stolen_stuffs.iter().flat_map(|(o2, i)| {
                 o2.map(|o| FoldElement::Output(o))
                     .into_iter()
                     .chain(i.map(|i| FoldElement::Input(i)).into_iter())
             }))
         })
         .fold(o1, |o1, element| match element {
-            FoldElement::Input(i) => unimplemented!(),
+            FoldElement::Input(i) => master_work(o1, i, fold1, stolen_stuffs),
             FoldElement::Output(o2) => retrieve(o1, o2),
         })
     //     let input_length = i.base_length();
@@ -256,6 +256,21 @@ where
     //                 partial_output
     //             })
     //     })
+}
+
+fn master_work<I, O1, O2, FOLD1>(
+    output: O1,
+    input: I,
+    fold: FOLD1,
+    stolen_stuffs: &AtomicList<(Option<O2>, Option<I>)>,
+) -> O1
+where
+    I: DivisibleIntoBlocks,
+    O1: Send + Sync + Copy,
+    O2: Send + Sync,
+    FOLD1: Fn(O1, I, usize) -> (O1, I) + Sync + Send + Copy,
+{
+    unimplemented!()
 }
 
 fn main() {

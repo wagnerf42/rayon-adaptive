@@ -30,15 +30,17 @@ impl<T> AtomicNode<T> {
     }
 }
 
+#[derive(Default)]
 pub struct AtomicList<T> {
-    head: Option<AtomicLink<T>>,
+    head: AtomicCell<Option<AtomicLink<T>>>,
 }
 
-impl<T> Iterator for AtomicList<T> {
+impl<'a, T> Iterator for AtomicListIterator<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.head.is_some() {
-            let mut head = self.head.take().unwrap();
+        let possible_head = self.list.head.swap(None);
+        if possible_head.is_some() {
+            let mut head = possible_head.unwrap();
             head.request.store(true, Ordering::SeqCst);
             let node = {
                 loop {
@@ -48,7 +50,7 @@ impl<T> Iterator for AtomicList<T> {
                     }
                 }
             };
-            self.head = node.next.swap(None);
+            self.list.head.swap(node.next.swap(None));
             node.take()
         } else {
             None
@@ -56,14 +58,23 @@ impl<T> Iterator for AtomicList<T> {
     }
 }
 
+pub struct AtomicListIterator<'a, T> {
+    list: &'a AtomicList<T>,
+}
+
 impl<T> AtomicList<T> {
     pub fn new() -> Self {
-        AtomicList { head: None }
+        AtomicList {
+            head: AtomicCell::new(None),
+        }
     }
-    pub fn push_front(&mut self, content: T) {
+    pub fn iter(&self) -> AtomicListIterator<T> {
+        AtomicListIterator { list: self }
+    }
+    pub fn push_front(&self, content: T) {
         let new_node = Arc::new(AtomicNode::new(content));
-        let next_node = self.head.take();
+        let next_node = self.head.swap(None);
         new_node.next.swap(next_node);
-        self.head = Some(new_node);
+        self.head.swap(Some(new_node));
     }
 }
