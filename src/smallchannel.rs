@@ -1,16 +1,21 @@
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
-pub struct SmallChannel<T> {
+pub struct SmallSender<T> {
     data: Arc<AtomicCell<Option<T>>>,
 }
 
-impl<T> SmallChannel<T> {
-    pub fn new() -> (Self, Self) {
-        let data = Arc::new(AtomicCell::new(None));
-        let data_clone = data.clone();
-        (SmallChannel { data }, SmallChannel { data: data_clone })
-    }
+pub struct SmallReceiver<T> {
+    data: Arc<AtomicCell<Option<T>>>,
+}
+
+/// Communicate between threads like a channel but only once.
+pub fn small_channel<T: Send>() -> (SmallSender<T>, SmallReceiver<T>) {
+    let data = Arc::new(AtomicCell::new(None));
+    (SmallSender { data: data.clone() }, SmallReceiver { data })
+}
+
+impl<T> SmallReceiver<T> {
     pub fn recv(self) -> Option<T> {
         let mut data = self.data;
         loop {
@@ -21,10 +26,10 @@ impl<T> SmallChannel<T> {
             }
         }
     }
+}
+
+impl<T> SmallSender<T> {
     pub fn send(self, t: T) {
         self.data.store(Some(t));
-    }
-    pub fn close_channel(self) {
-        self.data.store(None);
     }
 }

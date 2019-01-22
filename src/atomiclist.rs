@@ -17,8 +17,16 @@ impl<T> AtomicNode<T> {
         }
     }
 
+    pub fn requested(&self) -> bool {
+        self.request.load(Ordering::Relaxed)
+    }
+
     pub fn take(&self) -> Option<T> {
         self.content.swap(None)
+    }
+
+    pub fn replace(&self, new_content: T) {
+        self.content.store(Some(new_content))
     }
 
     pub fn split(&self, content: T) -> Arc<Self> {
@@ -71,10 +79,11 @@ impl<T> AtomicList<T> {
     pub fn iter(&self) -> AtomicListIterator<T> {
         AtomicListIterator { list: self }
     }
-    pub fn push_front(&self, content: T) {
+    pub fn push_front(&self, content: T) -> AtomicLink<T> {
         let new_node = Arc::new(AtomicNode::new(content));
         let next_node = self.head.swap(None);
         new_node.next.swap(next_node);
-        self.head.swap(Some(new_node));
+        self.head.swap(Some(new_node.clone()));
+        new_node
     }
 }
