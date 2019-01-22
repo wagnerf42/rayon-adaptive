@@ -13,7 +13,7 @@ use std::sync::mpsc::channel;
 mod traits;
 pub use crate::traits::*;
 mod scheduling;
-mod utils;
+pub mod utils;
 pub use crate::utils::fuse_slices;
 mod slices;
 pub use crate::slices::{EdibleSlice, EdibleSliceMut};

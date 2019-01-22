@@ -10,3 +10,11 @@ pub fn fuse_slices<'a, 'b, 'c: 'a + 'b, T: 'c>(s1: &'a mut [T], s2: &'b mut [T])
         std::slice::from_raw_parts_mut(ptr1, s1.len() + s2.len())
     }
 }
+
+/// iterate on starting_value * 2**i
+pub fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
+    (0..).scan(starting_value, |state, _| {
+        *state *= 2;
+        Some(*state)
+    })
+}

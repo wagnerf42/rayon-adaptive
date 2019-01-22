@@ -20,6 +20,7 @@ mod collect;
 pub use self::collect::{FromAdaptiveBlockedIterator, FromAdaptiveIndexedIterator};
 pub(crate) mod hash;
 pub(crate) mod str;
+use crate::utils::powers;
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -71,13 +72,6 @@ pub trait AdaptiveIndexedIterator: AdaptiveIterator + DivisibleAtIndex {
     fn zip<U: AdaptiveIndexedIterator>(self, other: U) -> Zip<Self, U> {
         Zip { a: self, b: other }
     }
-}
-
-fn powers(starting_value: usize) -> impl Iterator<Item = usize> {
-    (0..).scan(starting_value, |state, _| {
-        *state *= 2;
-        Some(*state)
-    })
 }
 
 pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {

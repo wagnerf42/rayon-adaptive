@@ -4,6 +4,7 @@ use rayon_adaptive::atomiclist::AtomicList;
 use rayon_adaptive::atomiclist::*;
 use rayon_adaptive::fuse_slices;
 use rayon_adaptive::prelude::*;
+use rayon_adaptive::utils::powers;
 use rayon_core::current_thread_index;
 use std::cmp::min;
 use std::iter::once;
@@ -15,11 +16,11 @@ use std::sync::Arc;
 // const NOTHREAD: ThreadId = ThreadId::max_value();
 // type ThreadId = usize;
 //
-// /// by default, min block size is log(n)
-// fn default_min_block_size(n: usize) -> usize {
-//     (n as f64).log(2.0).floor() as usize
-// }
-//
+/// by default, min block size is log(n)
+fn default_min_block_size(n: usize) -> usize {
+    (n as f64).log(2.0).floor() as usize
+}
+
 /// by default, max block size is sqrt(n)
 fn default_max_block_size(n: usize) -> usize {
     ((n as f64).sqrt() * 10.0f64).ceil() as usize
@@ -149,7 +150,7 @@ enum FoldElement<I, O2> {
 }
 
 fn fold_with_help<I, O1, O2, ID2, FOLD1, FOLD2, RET>(
-    i: I,
+    input: I,
     o1: O1,
     fold1: FOLD1,
     id2: ID2,
@@ -165,19 +166,22 @@ where
     FOLD2: Fn(O2, I, usize) -> (O2, I) + Sync + Send + Copy,
     RET: Fn(O1, O2) -> O1 + Sync + Send + Copy,
 {
-    let input_length = i.base_length();
+    let input_length = input.base_length();
     let macro_block_size = compute_size(input_length, default_max_block_size);
+    let nano_block_size = compute_size(input_length, default_min_block_size);
     let stolen_stuffs: &AtomicList<(Option<O2>, Option<I>)> = &AtomicList::new();
-    i.chunks(repeat(macro_block_size))
+    input
+        .chunks(repeat(macro_block_size))
         .flat_map(|chunk| {
-            once(FoldElement::Input(chunk)).chain(stolen_stuffs.iter().flat_map(|(o2, i)| {
+            stolen_stuffs.push_front((None, Some(chunk)));
+            stolen_stuffs.iter().flat_map(|(o2, i)| {
                 o2.map(|o| FoldElement::Output(o))
                     .into_iter()
                     .chain(i.map(|i| FoldElement::Input(i)).into_iter())
-            }))
+            })
         })
         .fold(o1, |o1, element| match element {
-            FoldElement::Input(i) => master_work(o1, i, fold1, stolen_stuffs),
+            FoldElement::Input(i) => master_work(o1, i, fold1, stolen_stuffs, nano_block_size),
             FoldElement::Output(o2) => retrieve(o1, o2),
         })
     //     let input_length = i.base_length();
@@ -259,10 +263,11 @@ where
 }
 
 fn master_work<I, O1, O2, FOLD1>(
-    output: O1,
+    init: O1,
     input: I,
     fold: FOLD1,
     stolen_stuffs: &AtomicList<(Option<O2>, Option<I>)>,
+    initial_size: usize,
 ) -> O1
 where
     I: DivisibleIntoBlocks,
@@ -270,7 +275,21 @@ where
     O2: Send + Sync,
     FOLD1: Fn(O1, I, usize) -> (O1, I) + Sync + Send + Copy,
 {
-    unimplemented!()
+    let stolen = &AtomicBool::new(false);
+    // let's work sequentially until stolen
+    match powers(initial_size)
+        .take_while(|_| !stolen.load(Ordering::Relaxed))
+        .try_fold((init, input), |(output, input), size| {
+            let checked_size = min(input.base_length(), size);
+            if checked_size > 0 {
+                Ok(fold(output, input, checked_size))
+            } else {
+                Err(output)
+            }
+        }) {
+        Ok((output, input)) => panic!("TODO: we were stolen!"),
+        Err(output) => panic!("everything done!"),
+    }
 }
 
 fn main() {
