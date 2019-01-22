@@ -17,8 +17,8 @@ logs = ["rayon_logs"]
 [dependencies]
 rayon_logs={optional=true, path="../rayon-logs"}
 derive-divisible={path="../derive-divisible"}
-rayon="*"
-rayon-core = "*"
+rayon="*"   #{path="../clone_rayon"}
+rayon-core ="*" #{path="../clone_rayon/rayon-core"}
 itertools="*"
 rand="*"
 time = "0.1"

@@ -1,15 +1,16 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use crate::depjoin;
 use crate::folders::Folder;
+use crate::smallchannel::SmallChannel;
 use crate::traits::Divisible;
 use crate::Policy;
-use rayon;
 use rayon::current_num_threads;
+#[cfg(feature = "logs")]
+use rayon_logs::sequential_task;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
 
 // we use this boolean to prevent fine grain parallelism when coarse grain
 // parallelism is still available in composed algorithms.
@@ -255,7 +256,7 @@ struct AdaptiveWorker<
     min_block_size: usize,
     max_block_size: usize,
     stolen: &'a AtomicBool,
-    sender: Sender<Option<F::Input>>,
+    sender: SmallChannel<F::Input>,
     folder: &'b F,
     reduce_function: &'b RF,
     phantom: PhantomData<(F::Output)>,
@@ -273,7 +274,7 @@ where
         partial_output: F::IntermediateOutput,
         block_sizes: (MINSIZE, MAXSIZE),
         stolen: &'a AtomicBool,
-        sender: Sender<Option<F::Input>>,
+        sender: SmallChannel<F::Input>,
         folder: &'b F,
         reduce_function: &'b RF,
     ) -> Self {
@@ -300,7 +301,11 @@ where
     }
     fn answer_steal(self) -> F::Output {
         let (my_half, his_half) = self.input.divide();
-        self.sender.send(Some(his_half)).expect("sending failed");
+        if his_half.base_length() == 0 {
+            self.sender.close_channel();
+        } else {
+            self.sender.send(his_half);
+        }
         schedule_adaptive(
             my_half,
             self.partial_output,
@@ -310,10 +315,6 @@ where
         )
     }
 
-    fn cancel_stealing_task(&mut self) {
-        self.sender.send(None).expect("canceling task failed");
-    }
-
     fn schedule(mut self) -> F::Output {
         // TODO: automate this min everywhere ?
         // TODO: factorize a little bit
@@ -321,8 +322,7 @@ where
         let size = min(self.input.base_length(), self.current_block_size);
 
         if self.input.base_length() <= self.current_block_size {
-            //println!("adaptive nested parallel fold!");
-            self.cancel_stealing_task(); // no need to keep people waiting for nothing
+            self.sender.close_channel();
             let (io, i) = self.folder.fold(self.partial_output, self.input, size);
             return self.folder.to_output(io, i);
         } else {
@@ -334,7 +334,7 @@ where
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
                 // it's over
-                self.cancel_stealing_task();
+                self.sender.close_channel();
                 return self.folder.to_output(self.partial_output, self.input);
             }
         }
@@ -348,7 +348,7 @@ where
             let size = min(self.input.base_length(), self.current_block_size);
 
             if self.input.base_length() <= self.current_block_size {
-                self.cancel_stealing_task(); // no need to keep people waiting for nothing
+                self.sender.close_channel();
                 SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
                 let (io, i) = self.folder.fold(self.partial_output, self.input, size);
                 SEQUENCE.with(|s| *s.borrow_mut() = false);
@@ -360,8 +360,7 @@ where
             self.input = result.1;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
-                // it's over
-                self.cancel_stealing_task();
+                self.sender.close_channel();
                 return self.folder.to_output(self.partial_output, self.input);
             }
         }
@@ -387,7 +386,7 @@ where
         folder.to_output(io, i)
     } else {
         let stolen = &AtomicBool::new(false);
-        let (sender, receiver) = channel();
+        let (sender, receiver) = SmallChannel::new();
 
         let worker = AdaptiveWorker::new(
             input,
@@ -404,11 +403,16 @@ where
             move || worker.schedule(),
             move || {
                 stolen.store(true, Ordering::Relaxed);
+                let input: F::Input;
                 #[cfg(feature = "logs")]
-                let input =
-                    rayon::sequential_task(1, 1, || receiver.recv().expect("receiving failed"))?;
+                {
+                    let option = sequential_task(1, 1, || receiver.recv());
+                    input = option?;
+                }
                 #[cfg(not(feature = "logs"))]
-                let input = receiver.recv().expect("receiving failed")?;
+                {
+                    input = receiver.recv()?;
+                }
                 assert!(input.base_length() > 0);
                 Some(schedule_adaptive(
                     input,
@@ -428,18 +432,3 @@ where
         }
     }
 }
-
-// pub fn fully_adaptive_schedule<I, WF, RETF>(input: I, work_function: &WF, retrieve_function: &RETF)
-// where
-//     I: Divisible,
-//     WF: Fn(I, usize) -> I + Sync,
-//     RETF: Fn(I, I, I) -> I + Sync,
-// {
-//     //so, what kind of communications do we have ?
-//     // * main thread is stolen
-//     //   - stolen input
-//     //   -
-//     // * main thread retrieves data
-//     // * helper thread is stolen
-//     unimplemented!()
-// }
