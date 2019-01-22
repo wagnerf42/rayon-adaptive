@@ -18,8 +18,8 @@ thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
 
 /// by default, min block size is log(n)
 fn default_min_block_size(n: usize) -> usize {
-    let power = ((n as f64 / (n as f64).log(2.0)).log(2.0)).floor();
-    ((n as f64) / (2.0f64.powi(power as i32) - 1.0)).ceil() as usize
+    let power = ((n as f64 / (n as f64).log(2.0) + 1.0).log(2.0) - 1.0).floor();
+    ((n as f64) / (2.0f64.powi(power as i32 + 1) - 1.0)).ceil() as usize
 }
 
 /// by default, max block size is sqrt(n)
