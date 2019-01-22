@@ -24,7 +24,7 @@ mod folders;
 pub use crate::folders::Folder;
 mod policy;
 pub use crate::policy::Policy;
-pub mod linkedlist;
+pub mod atomiclist;
 pub mod prelude;
 pub mod smallchannel;
 

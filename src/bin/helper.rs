@@ -1,6 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use rayon::current_num_threads;
-use rayon_adaptive::linkedlist::*;
+use rayon_adaptive::atomiclist::*;
 use rayon_adaptive::prelude::*;
 use rayon_core::current_thread_index;
 use std::cmp::min;

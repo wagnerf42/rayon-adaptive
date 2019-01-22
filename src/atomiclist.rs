@@ -98,7 +98,7 @@ where
     pub fn start_retrieve<O1>(
         mut self,
         processed_output: O1,
-        vector: Arc<Vec<AtomicBool>>,
+        retrieving_booleans: &[AtomicBool],
     ) -> (O1, Self)
     where
         RET: Fn(O1, O2) -> O1 + Sync + Copy,
@@ -113,7 +113,7 @@ where
             }
             let iter_node = iter_node.unwrap();
             //Pessimistically signal it and spinlock on the option.
-            vector[iter_node.id].store(true, Ordering::SeqCst);
+            retrieving_booleans[iter_node.id].store(true, Ordering::SeqCst);
             let unwrapped_node;
             match Arc::try_unwrap(iter_node) {
                 Ok(task_node) => {
