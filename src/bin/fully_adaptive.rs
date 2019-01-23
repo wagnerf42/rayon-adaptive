@@ -160,7 +160,7 @@ fn slave_work<I, O2, ID2, FOLD2>(
         || {
             let input = node.take().unwrap().1.unwrap();
             // let's work sequentially until stolen
-            powers(initial_size)
+            let work_done = powers(initial_size)
                 .take_while(|_| !stolen.load(Ordering::Relaxed) && !node.requested())
                 .try_fold((id2(), input), |(output2, input), size| {
                     let checked_size = min(input.base_length(), size); //TODO: remove all these mins
@@ -169,11 +169,12 @@ fn slave_work<I, O2, ID2, FOLD2>(
                     } else {
                         Err(output2)
                     }
-                })
-                .map(|(output2, remaining_input)| {
+                });
+            match work_done {
+                Ok((output2, remaining_input)) => {
                     if node.requested() {
                         // retrieval operations are prioritized over steal ops
-                        unimplemented!("retrieve");
+                        node.replace((Some(output2), None))
                     } else {
                         // check if enough is left
                         let length = remaining_input.base_length();
@@ -184,15 +185,18 @@ fn slave_work<I, O2, ID2, FOLD2>(
                                 let stolen_node = node.split((None, Some(his_half)));
                                 sender.send(stolen_node)
                             }
+                            unimplemented!("we need to keep o2");
                             slave_work(node, id2, fold2, initial_size);
-                            unimplemented!("not ok we need to abort all")
                         } else {
                             // just fold it locally
                             node.replace((Some(fold2(output2, remaining_input, length).0), None))
                         }
                     }
-                })
-                .unwrap_or_else(|output| node.replace((Some(output), None)));
+                }
+                Err(output2) => {
+                    node.replace((Some(output2), None));
+                }
+            }
         },
         || {
             stolen.store(true, Ordering::Relaxed);
