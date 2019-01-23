@@ -332,6 +332,7 @@ where
             self.input = new_input;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
+                //TODO ASK is this a redundant check?
                 // it's over
                 return self.folder.to_output(self.partial_output, self.input);
             }
