@@ -157,7 +157,7 @@ fn slave_work<I, O2, ID2, FOLD2>(
     let stolen = &AtomicBool::new(false);
     let (sender, receiver) = small_channel();
     rayon::join(
-        || {
+        move || {
             let input = node.take().unwrap().1.unwrap();
             // let's work sequentially until stolen
             let work_done = powers(initial_size)
@@ -182,7 +182,7 @@ fn slave_work<I, O2, ID2, FOLD2>(
                             let (my_half, his_half) = remaining_input.divide();
                             // TODO: have an empty method
                             if his_half.base_length() > 0 {
-                                let stolen_node = node.split((None, Some(his_half)));
+                                let stolen_node = (&node).split((None, Some(his_half)));
                                 sender.send(stolen_node)
                             }
                             unimplemented!("we need to keep o2");
@@ -200,12 +200,10 @@ fn slave_work<I, O2, ID2, FOLD2>(
         },
         || {
             stolen.store(true, Ordering::Relaxed);
-            // ? operator is complaining ???
-            let stolen_node: Option<AtomicLink<(Option<O2>, Option<I>)>> = receiver.recv();
-            if stolen_node.is_none() {
-                return;
+            let stolen_node = receiver.recv();
+            if let Some(node) = stolen_node {
+                slave_work(node, id2, fold2, initial_size)
             }
-            slave_work(stolen_node.unwrap(), id2, fold2, initial_size)
         },
     );
 }
