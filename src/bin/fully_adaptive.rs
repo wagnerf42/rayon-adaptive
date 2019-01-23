@@ -157,7 +157,7 @@ fn slave_work<I, O2, ID2, FOLD2>(
     let stolen = &AtomicBool::new(false);
     let (sender, receiver) = small_channel();
     rayon::join(
-        || {
+        move || {
             let input = node.take().unwrap().1.unwrap();
             // let's work sequentially until stolen
             powers(initial_size)
@@ -171,9 +171,10 @@ fn slave_work<I, O2, ID2, FOLD2>(
                     }
                 })
                 .map(|(output2, remaining_input)| {
-                    if node.requested() {
+                    if (&node).requested() {
                         // retrieval operations are prioritized over steal ops
-                        unimplemented!("retrieve");
+                        (&node).replace((Some(output2), Some(remaining_input)))
+                    //unimplemented!("retrieve");
                     } else {
                         // check if enough is left
                         let length = remaining_input.base_length();
@@ -181,18 +182,18 @@ fn slave_work<I, O2, ID2, FOLD2>(
                             let (my_half, his_half) = remaining_input.divide();
                             // TODO: have an empty method
                             if his_half.base_length() > 0 {
-                                let stolen_node = node.split((None, Some(his_half)));
+                                let stolen_node = (&node).split((None, Some(his_half)));
                                 sender.send(stolen_node)
                             }
-                            slave_work(node, id2, fold2, initial_size);
+                            slave_work(node.clone(), id2, fold2, initial_size);
                             unimplemented!("not ok we need to abort all")
                         } else {
                             // just fold it locally
-                            node.replace((Some(fold2(output2, remaining_input, length).0), None))
+                            (&node).replace((Some(fold2(output2, remaining_input, length).0), None))
                         }
                     }
                 })
-                .unwrap_or_else(|output| node.replace((Some(output), None)));
+                .unwrap_or_else(|output| (&node).replace((Some(output), None)));
         },
         || {
             stolen.store(true, Ordering::Relaxed);
