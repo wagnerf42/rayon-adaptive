@@ -61,13 +61,14 @@ where
         Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
             if *s.borrow() || input.base_length() == 1 {
                 schedule_sequential(input, folder)
-            } else if block_size * 2 * current_num_threads() >= input.base_length()
+            } else if block_size * 2 * current_num_threads() >= input.base_length() //TODO ASK should I call schedule_adaptive in this case?
                 || (current_num_threads() as f64).log2() * (50.0f64)
                     >= (input.base_length() as f64) / (block_size as f64)
             {
                 let max_size = compute_size(input.base_length(), default_max_block_size);
                 schedule_join_context_max_size(input, folder, reduce_function, block_size, max_size)
             } else if let Policy::Adaptive(min, max) = policy {
+                //TODO ASK should this be factored out?
                 schedule_adaptive(
                     input,
                     folder.identity(),
