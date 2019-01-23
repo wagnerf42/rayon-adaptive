@@ -160,41 +160,39 @@ fn slave_work<I, O2, ID2, FOLD2>(
         || {
             let input = node.take().unwrap().1.unwrap();
             // let's work sequentially until stolen
-            node.replace(
-                powers(initial_size)
-                    .take_while(|_| !stolen.load(Ordering::Relaxed) && !node.requested())
-                    .try_fold((id2(), input), |(output2, input), size| {
-                        let checked_size = min(input.base_length(), size); //TODO: remove all these mins
-                        if checked_size > 0 {
-                            Ok(fold2(output2, input, checked_size))
-                        } else {
-                            Err(output2)
-                        }
-                    })
-                    .map(|(output2, remaining_input)| {
-                        if node.requested() {
-                            // retrieval operations are prioritized over steal ops
-                            unimplemented!("retrieve");
-                        } else {
-                            // check if enough is left
-                            let length = remaining_input.base_length();
-                            if length > initial_size {
-                                let (my_half, his_half) = remaining_input.divide();
-                                // TODO: have an empty method
-                                if his_half.base_length() > 0 {
-                                    let stolen_node = node.split((None, Some(his_half)));
-                                    sender.send(stolen_node)
-                                }
-                                unimplemented!("slave work does not return anything");
-                                (slave_work(node, id2, fold2, initial_size), None)
-                            } else {
-                                // just fold it locally
-                                (fold2(output2, remaining_input, length).0, None)
+            powers(initial_size)
+                .take_while(|_| !stolen.load(Ordering::Relaxed) && !node.requested())
+                .try_fold((id2(), input), |(output2, input), size| {
+                    let checked_size = min(input.base_length(), size); //TODO: remove all these mins
+                    if checked_size > 0 {
+                        Ok(fold2(output2, input, checked_size))
+                    } else {
+                        Err(output2)
+                    }
+                })
+                .map(|(output2, remaining_input)| {
+                    if node.requested() {
+                        // retrieval operations are prioritized over steal ops
+                        unimplemented!("retrieve");
+                    } else {
+                        // check if enough is left
+                        let length = remaining_input.base_length();
+                        if length > initial_size {
+                            let (my_half, his_half) = remaining_input.divide();
+                            // TODO: have an empty method
+                            if his_half.base_length() > 0 {
+                                let stolen_node = node.split((None, Some(his_half)));
+                                sender.send(stolen_node)
                             }
+                            slave_work(node, id2, fold2, initial_size);
+                            unimplemented!("not ok we need to abort all")
+                        } else {
+                            // just fold it locally
+                            node.replace((Some(fold2(output2, remaining_input, length).0), None))
                         }
-                    })
-                    .unwrap_or_else(|output| (Some(output), None)),
-            )
+                    }
+                })
+                .unwrap_or_else(|output| node.replace((Some(output), None)));
         },
         || {
             stolen.store(true, Ordering::Relaxed);

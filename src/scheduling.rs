@@ -1,7 +1,7 @@
 //! Let factorize a huge amount of scheduling policies into one api.
 use crate::depjoin;
 use crate::folders::Folder;
-use crate::smallchannel::SmallChannel;
+use crate::smallchannel::{small_channel, SmallSender};
 use crate::traits::Divisible;
 use crate::Policy;
 use rayon::current_num_threads;
@@ -257,7 +257,7 @@ struct AdaptiveWorker<
     min_block_size: usize,
     max_block_size: usize,
     stolen: &'a AtomicBool,
-    sender: SmallChannel<F::Input>,
+    sender: SmallSender<F::Input>,
     folder: &'b F,
     reduce_function: &'b RF,
     phantom: PhantomData<(F::Output)>,
@@ -275,7 +275,7 @@ where
         partial_output: F::IntermediateOutput,
         block_sizes: (MINSIZE, MAXSIZE),
         stolen: &'a AtomicBool,
-        sender: SmallChannel<F::Input>,
+        sender: SmallSender<F::Input>,
         folder: &'b F,
         reduce_function: &'b RF,
     ) -> Self {
@@ -302,9 +302,7 @@ where
     }
     fn answer_steal(self) -> F::Output {
         let (my_half, his_half) = self.input.divide();
-        if his_half.base_length() == 0 {
-            self.sender.close_channel();
-        } else {
+        if his_half.base_length() != 0 {
             self.sender.send(his_half);
         }
         schedule_adaptive(
@@ -323,7 +321,6 @@ where
         let size = min(self.input.base_length(), self.current_block_size);
 
         if self.input.base_length() <= self.current_block_size {
-            self.sender.close_channel();
             let (io, i) = self.folder.fold(self.partial_output, self.input, size);
             return self.folder.to_output(io, i);
         } else {
@@ -335,7 +332,6 @@ where
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
                 // it's over
-                self.sender.close_channel();
                 return self.folder.to_output(self.partial_output, self.input);
             }
         }
@@ -349,7 +345,6 @@ where
             let size = min(self.input.base_length(), self.current_block_size);
 
             if self.input.base_length() <= self.current_block_size {
-                self.sender.close_channel();
                 SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
                 let (io, i) = self.folder.fold(self.partial_output, self.input, size);
                 SEQUENCE.with(|s| *s.borrow_mut() = false);
@@ -361,7 +356,6 @@ where
             self.input = result.1;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
-                self.sender.close_channel();
                 return self.folder.to_output(self.partial_output, self.input);
             }
         }
@@ -387,7 +381,7 @@ where
         folder.to_output(io, i)
     } else {
         let stolen = &AtomicBool::new(false);
-        let (sender, receiver) = SmallChannel::new();
+        let (sender, receiver) = small_channel();
 
         let worker = AdaptiveWorker::new(
             input,
