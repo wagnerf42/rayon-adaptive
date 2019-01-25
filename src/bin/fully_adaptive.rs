@@ -219,31 +219,32 @@ fn main() {
             .num_threads(number_of_threads)
             .build()
             .expect("Thread pool build failed");
-        let mut input_vector = vec![1usize; SIZE];
-        let time_taken_ms = pool.scope(|s| {
-            let start = time::precise_time_ns();
+        let mut input_vector = vec![1.0; SIZE];
+        let expected_result: Vec<_> = vec![1.0; SIZE];
+        let start = time::precise_time_ns();
+        pool.scope(|s| {
             fold_with_help(
                 input_vector.as_mut_slice(),
-                0,
+                1.0,
                 |last_elem_prev_slice, remaining_slice, limit| {
                     let (todo, remaining) = remaining_slice.divide_at(limit);
                     (
                         todo.iter_mut().fold(last_elem_prev_slice, |c, e| {
-                            *e = *e + c;
+                            *e = *e * c;
                             e.clone()
                         }),
                         remaining,
                     )
                 },
                 || None,
-                |possible_previous_slice: Option<&mut [usize]>, input, limit| {
+                |possible_previous_slice: Option<&mut [f64]>, input, limit| {
                     let last_elem_prev_slice = possible_previous_slice
                         .as_ref()
                         .and_then(|c| c.last().cloned())
-                        .unwrap_or(0);
+                        .unwrap_or(1.0);
                     let (todo, remaining) = input.divide_at(limit);
                     todo.iter_mut().fold(last_elem_prev_slice, |c, e| {
-                        *e = *e + c;
+                        *e = *e * c;
                         e.clone()
                     });
                     (
@@ -259,18 +260,17 @@ fn main() {
                         s.spawn(move |_| {
                             retrieved_slice
                                 .into_adapt_iter()
-                                .for_each(|e| *e += last_num)
+                                .for_each(|e| *e *= last_num)
                         });
-                        last_num + last_slice_num
+                        last_num * last_slice_num
                     } else {
                         last_num
                     }
                 },
             );
-            let end = time::precise_time_ns();
-            ((end - start) as f64) / (1e6 as f64)
         });
-        let expected_result: Vec<_> = (1..=SIZE).collect();
+        let end = time::precise_time_ns();
+        let time_taken_ms = ((end - start) as f64) / (1e6 as f64);
         assert_eq!(input_vector, expected_result);
 
         println!("{}, {}", time_taken_ms, number_of_threads);
