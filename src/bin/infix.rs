@@ -6,7 +6,7 @@ extern crate rayon;
 extern crate rayon_logs as rayon;
 extern crate time;
 use rayon::ThreadPoolBuilder;
-const NUM_THREADS: usize = 2;
+const NUM_THREADS: usize = 1;
 const SIZE: u64 = 1_000_000;
 fn main() {
     #[cfg(feature = "logs")]
@@ -26,18 +26,21 @@ fn main() {
                     solver_seq(&vec);
                     vec
                 },
-            ).attach_algorithm_with_setup(
+            )
+            .attach_algorithm_with_setup(
                 "adaptive",
                 || vec_gen(SIZE),
                 |vec| {
                     solver_adaptive(&vec, Default::default());
                     vec
                 },
-            ).generate_logs(format!(
+            )
+            .generate_logs(format!(
                 "comparisons_{}mil_{}threads.html",
                 SIZE / (1e6 as u64),
                 NUM_THREADS
-            )).expect("comparison failed");
+            ))
+            .expect("comparison failed");
     }
     #[cfg(not(feature = "logs"))]
     {

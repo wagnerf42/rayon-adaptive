@@ -1,15 +1,8 @@
 extern crate rand;
 use crate::prelude::*;
-
-#[cfg(not(feature = "logs"))]
-use rayon::prelude::*;
-#[cfg(feature = "logs")]
-use rayon_logs::prelude::*;
-
-use smallvec::SmallVec;
-
+use crate::rayon::prelude::*;
 use crate::Policy;
-
+use smallvec::SmallVec;
 #[derive(Debug, Clone)]
 pub struct PartialProducts {
     products: SmallVec<[u64; 3]>,
@@ -99,7 +92,8 @@ pub fn solver_seq(inp: &[Token]) -> u64 {
 
 //Not logged by rayon_logs.
 pub fn solver_par_split(inp: &[Token]) -> u64 {
-    use rayon::prelude::ParallelSlice;
+    #[cfg(feature = "logs")]
+    use crate::real_rayon::prelude::ParallelSlice;
     inp.as_parallel_slice()
         .par_split(|tok| *tok == Token::Add)
         .map(|slice| {
@@ -107,7 +101,7 @@ pub fn solver_par_split(inp: &[Token]) -> u64 {
             #[cfg(not(feature = "logs"))]
             let iterator = slice.into_par_iter();
             #[cfg(feature = "logs")]
-            let iterator = rayon::prelude::IntoParallelIterator::into_par_iter(slice);
+            let iterator = crate::real_rayon::prelude::IntoParallelIterator::into_par_iter(slice);
             iterator
                 .filter_map(|tok| match tok {
                     Token::Mult | Token::Add => None,
