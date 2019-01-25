@@ -1,6 +1,13 @@
 //! This crate provides mechanisms for designing adaptive algorithms for rayon.
 //#![allow(unknown_lints)]
+#![type_length_limit = "2097152"]
 #![warn(clippy::all)]
+#[cfg(not(feature = "logs"))]
+extern crate rayon;
+#[cfg(feature = "logs")]
+extern crate rayon as real_rayon;
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
 #[macro_use]
 extern crate smallvec;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -44,55 +44,66 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    let block_size = match policy {
-        Policy::Sequential => input.base_length(),
-        Policy::DefaultPolicy => compute_size(input.base_length(), default_min_block_size),
-        Policy::Join(block_size)
-        | Policy::JoinContext(block_size)
-        | Policy::DepJoin(block_size)
-        | Policy::Adaptive(block_size, _) => block_size,
-        Policy::Rayon => 1,
-    };
-    match policy {
-        Policy::Sequential => schedule_sequential(input, folder),
-        Policy::Join(_) => schedule_join(input, folder, reduce_function, block_size),
-        Policy::JoinContext(_) => schedule_join_context(input, folder, reduce_function, block_size),
-        Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
-        Policy::Adaptive(_, _) | Policy::DefaultPolicy => SEQUENCE.with(|s| {
-            if *s.borrow() || input.base_length() == 1 {
-                schedule_sequential(input, folder)
-            } else if block_size * 2 * current_num_threads() >= input.base_length()
-                || (current_num_threads() as f64).log2() * (50.0f64)
-                    >= (input.base_length() as f64) / (block_size as f64)
-            {
-                let max_size = compute_size(input.base_length(), default_max_block_size);
-                schedule_join_context_max_size(input, folder, reduce_function, block_size, max_size)
-            } else if let Policy::Adaptive(min, max) = policy {
-                schedule_adaptive(
+    SEQUENCE.with(|s| {
+        if *s.borrow() || input.base_length() == 1 {
+            schedule_sequential(input, folder)
+        } else {
+            let block_size = match policy {
+                Policy::Sequential => input.base_length(),
+                Policy::DefaultPolicy => compute_size(input.base_length(), default_min_block_size),
+                Policy::Join(block_size)
+                | Policy::JoinContext(block_size)
+                | Policy::DepJoin(block_size)
+                | Policy::Adaptive(block_size, _) => block_size,
+                Policy::Rayon => 1,
+            };
+            match policy {
+                Policy::Sequential => schedule_sequential(input, folder),
+                Policy::Join(_) => schedule_join(input, folder, reduce_function, block_size),
+                Policy::JoinContext(_) => {
+                    schedule_join_context(input, folder, reduce_function, block_size)
+                }
+                Policy::DepJoin(_) => schedule_depjoin(input, folder, reduce_function, block_size),
+                Policy::Adaptive(min, max) => schedule_adaptive(
                     input,
                     folder.identity(),
                     folder,
                     reduce_function,
                     (|_| min, |_| max),
-                )
-            } else {
-                let max_size = compute_size(input.base_length(), default_max_block_size);
-                schedule_adaptive(
+                ),
+                Policy::DefaultPolicy => {
+                    if block_size * 2 * current_num_threads() >= input.base_length() //TODO ASK should I call schedule_adaptive in this case?
+                || (current_num_threads() as f64).log2() * (50.0f64)
+                    >= (input.base_length() as f64) / (block_size as f64)
+                    {
+                        let max_size = compute_size(input.base_length(), default_max_block_size);
+                        schedule_join_context_max_size(
+                            input,
+                            folder,
+                            reduce_function,
+                            block_size,
+                            max_size,
+                        )
+                    } else {
+                        let max_size = compute_size(input.base_length(), default_max_block_size);
+                        schedule_adaptive(
+                            input,
+                            folder.identity(),
+                            folder,
+                            reduce_function,
+                            (|_| block_size, |_| max_size),
+                        )
+                    }
+                }
+                Policy::Rayon => schedule_rayon_join_context(
                     input,
-                    folder.identity(),
                     folder,
                     reduce_function,
-                    (|_| block_size, |_| max_size),
-                )
+                    rayon::current_num_threads(),
+                ),
             }
-        }),
-        Policy::Rayon => schedule_rayon_join_context(
-            input,
-            folder,
-            reduce_function,
-            rayon::current_num_threads(),
-        ),
-    }
+        }
+    })
 }
 
 fn schedule_sequential<F: Folder>(input: F::Input, folder: &F) -> F::Output {
@@ -331,6 +342,7 @@ where
             self.input = new_input;
             SEQUENCE.with(|s| *s.borrow_mut() = false);
             if self.input.base_length() == 0 {
+                //TODO ASK is this a redundant check?
                 // it's over
                 return self.folder.to_output(self.partial_output, self.input);
             }
