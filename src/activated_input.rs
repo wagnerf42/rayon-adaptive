@@ -1,9 +1,9 @@
 //! the folded stuff, ready to be reduced.
 use crate::folders::Map;
-use crate::scheduling::schedule;
+use crate::scheduling::{fold_with_help, schedule};
+use crate::{DivisibleIntoBlocks, Folder, Policy};
 use std::collections::linked_list;
 use std::collections::linked_list::LinkedList;
-use crate::{DivisibleIntoBlocks, Folder, Policy};
 
 /// Lazily store everything for folding.
 pub struct ActivatedInput<F: Folder> {
@@ -56,7 +56,16 @@ impl<F: Folder> ActivatedInput<F> {
     }
 }
 
-impl<I: DivisibleIntoBlocks, F: Folder<Input = I>> ActivatedInput<F> {
+impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send> ActivatedInput<F> {
+    pub fn helping_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
+    where
+        B: Send,
+        FOLD: Fn(B, I, usize) -> (B, I) + Sync,
+        RET: Fn(B, F::Output) -> B + Sync,
+    {
+        let (input, folder) = (self.input, self.folder);
+        fold_with_help(input, init, f, &folder, retrieve)
+    }
     pub fn by_blocks<S: Iterator<Item = usize>>(
         self,
         blocks_sizes: S,

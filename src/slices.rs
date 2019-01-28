@@ -108,7 +108,7 @@ impl<'a, T: 'a> Iterator for EatingIterator<'a, T> {
 
 impl<'a, T: 'a> EatingIterator<'a, T> {
     pub fn peek(&mut self) -> Option<&T> {
-        self.iterator.peek().map(|e| *e)
+        self.iterator.peek().cloned()
     }
 }
 

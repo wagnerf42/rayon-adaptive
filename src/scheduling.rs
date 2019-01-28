@@ -1,14 +1,18 @@
 //! Let factorize a huge amount of scheduling policies into one api.
+use crate::atomiclist::{AtomicLink, AtomicList};
 use crate::depjoin;
 use crate::folders::Folder;
+use crate::prelude::*;
 use crate::smallchannel::{small_channel, SmallSender};
 use crate::traits::Divisible;
+use crate::utils::powers;
 use crate::Policy;
-use rayon::current_num_threads;
+use rayon::{current_num_threads, Scope};
 #[cfg(feature = "logs")]
 use rayon_logs::sequential_task;
 use std::cell::RefCell;
 use std::cmp::min;
+use std::iter::{once, repeat};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -436,6 +440,198 @@ where
             reduce_function(o1, maybe_o2.unwrap())
         } else {
             o1
+        }
+    }
+}
+
+/******************** fully adaptive scheduling ***********************/
+
+/// We are going to do one big fold operation in order to compute
+/// the final result.
+/// Sometimes we fold on some input but sometimes we also fold
+/// on intermediate outputs.
+/// Having an enumerated type enables to conveniently iterate on both types.
+enum FoldElement<I, O2> {
+    Input(I),
+    Output(O2),
+}
+
+pub(crate) fn fold_with_help<F, O1, FOLD1, RET>(
+    input: F::Input,
+    o1: O1,
+    fold1: FOLD1,
+    slave_folder: &F,
+    retrieve: RET,
+) -> O1
+where
+    F: Folder + Send,
+    O1: Send,
+    F::Input: DivisibleIntoBlocks,
+    FOLD1: Fn(O1, F::Input, usize) -> (O1, F::Input) + Sync,
+    RET: Fn(O1, F::Output) -> O1 + Sync,
+{
+    let input_length = input.base_length();
+    let macro_block_size = compute_size(input_length, default_max_block_size);
+    let nano_block_size = compute_size(input_length, default_min_block_size);
+    let stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)> = &AtomicList::new();
+    rayon::scope(|s| {
+        input
+            .chunks(repeat(macro_block_size))
+            .flat_map(|chunk| {
+                once(FoldElement::Input(chunk)).chain(stolen_stuffs.iter().flat_map(|(o2, i)| {
+                    o2.map(FoldElement::Output)
+                        .into_iter()
+                        .chain(i.map(FoldElement::Input).into_iter())
+                }))
+            })
+            .fold(o1, |o1, element| match element {
+                FoldElement::Input(i) => master_work(
+                    s,
+                    o1,
+                    i,
+                    &fold1,
+                    slave_folder,
+                    stolen_stuffs,
+                    nano_block_size,
+                ),
+                FoldElement::Output(o2) => retrieve(o1, o2),
+            })
+    })
+}
+
+fn spawn_stealing_task<'scope, F>(
+    scope: &Scope<'scope>,
+    slave_folder: &'scope F,
+    initial_size: usize,
+) -> SmallSender<AtomicLink<(Option<F::Output>, Option<F::Input>)>>
+where
+    F: Folder + 'scope + Send,
+    F::Input: DivisibleIntoBlocks + 'scope,
+{
+    let (sender, receiver) = small_channel();
+    scope.spawn(move |s| {
+        let stolen_input: Option<AtomicLink<(Option<F::Output>, Option<F::Input>)>> =
+            receiver.recv();
+        if stolen_input.is_none() {
+            return;
+        }
+        slave_work(s, stolen_input.unwrap(), slave_folder, initial_size)
+    });
+    sender
+}
+
+fn master_work<'scope, F, O1, FOLD1>(
+    scope: &Scope<'scope>,
+    init: O1,
+    input: F::Input,
+    fold: &FOLD1,
+    slave_folder: &'scope F,
+    stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)>,
+    initial_size: usize,
+) -> O1
+where
+    F: Folder + 'scope + Send,
+    F::Input: DivisibleIntoBlocks + 'scope,
+    O1: Send,
+    FOLD1: Fn(O1, F::Input, usize) -> (O1, F::Input),
+{
+    let mut input = input;
+    let mut current_output = init;
+    loop {
+        let sender = spawn_stealing_task(scope, slave_folder, initial_size);
+        // let's work sequentially until stolen
+        match powers(initial_size)
+            .take_while(|_| !sender.receiver_is_waiting())
+            .try_fold((current_output, input), |(output, input), size| {
+                let checked_size = min(input.base_length(), size); //TODO: remove all these mins
+                if checked_size > 0 {
+                    Ok(fold(output, input, checked_size))
+                } else {
+                    Err(output)
+                }
+            }) {
+            Ok((output, remaining_input)) => {
+                if remaining_input.base_length() > initial_size {
+                    let (my_half, his_half) = remaining_input.divide();
+                    if his_half.base_length() > 0 {
+                        let stolen_node = stolen_stuffs.push_front((None, Some(his_half)));
+                        sender.send(stolen_node);
+                    }
+                    input = my_half;
+                    current_output = output;
+                } else {
+                    let length = remaining_input.base_length();
+                    return fold(output, remaining_input, length).0;
+                }
+            }
+            Err(output) => return output,
+        }
+    }
+}
+
+//TODO: we could maybe avoid code duplication between master and slave with a dummy head of the
+//list for the master
+fn slave_work<'scope, F>(
+    scope: &Scope<'scope>,
+    node: AtomicLink<(Option<F::Output>, Option<F::Input>)>,
+    slave_folder: &'scope F,
+    initial_size: usize,
+) where
+    F: Folder + 'scope + Send,
+    F::Input: DivisibleIntoBlocks + 'scope,
+{
+    let mut input = node.take().unwrap().1.unwrap();
+    let mut o2 = slave_folder.identity();
+    loop {
+        let sender = spawn_stealing_task(scope, slave_folder, initial_size);
+        // let's work sequentially until stolen
+        match powers(initial_size)
+            .take_while(|_| !sender.receiver_is_waiting() && !node.requested())
+            .try_fold((o2, input), |(output2, input), size| {
+                let checked_size = min(input.base_length(), size); //TODO: remove all these mins
+                if checked_size > 0 {
+                    Ok(slave_folder.fold(output2, input, checked_size))
+                } else {
+                    Err((output2, input))
+                }
+            }) {
+            Ok((output2, remaining_input)) => {
+                if node.requested() {
+                    // retrieval operations are prioritized over steal ops
+                    let (completed, remaining_input) = remaining_input.divide_at(0);
+                    node.replace((
+                        Some(slave_folder.to_output(output2, completed)),
+                        Some(remaining_input),
+                    ));
+                    return;
+                } else {
+                    // check if enough is left
+                    let length = remaining_input.base_length();
+                    if length > initial_size {
+                        let (my_half, his_half) = remaining_input.divide();
+                        // TODO: have an empty method
+                        if his_half.base_length() > 0 {
+                            let stolen_node = (&node).split((None, Some(his_half)));
+                            sender.send(stolen_node)
+                        }
+                        input = my_half;
+                        o2 = output2;
+                    } else {
+                        // just fold it locally
+                        let (intermediate_output, input) =
+                            slave_folder.fold(output2, remaining_input, length);
+                        node.replace((
+                            Some(slave_folder.to_output(intermediate_output, input)),
+                            None,
+                        ));
+                        return;
+                    }
+                }
+            }
+            Err((output2, input)) => {
+                node.replace((Some(slave_folder.to_output(output2, input)), None));
+                return;
+            }
         }
     }
 }
