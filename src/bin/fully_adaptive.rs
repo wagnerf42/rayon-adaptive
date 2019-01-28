@@ -36,7 +36,7 @@ fn main() {
                         )
                     },
                 )
-                .helping_fold(
+                .helping_partial_fold(
                     1.0,
                     //TODO: have a nicer fold api
                     |last_elem_prev_slice, remaining_slice, limit| {

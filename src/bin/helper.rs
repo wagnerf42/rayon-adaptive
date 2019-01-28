@@ -11,24 +11,17 @@ fn f(e: usize) -> usize {
 fn main() {
     (0..10_000)
         .into_adapt_iter()
+        .map(|e| f(e))
         .fold(Vec::new, |mut v, e| {
-            v.push(f(e));
+            v.push(e);
             v
         })
-        .helping_fold(
-            (),
-            |_, i, limit| {
-                let (todo, remaining) = i.divide_at(limit);
-                for e in todo {
-                    println!("{}", f(e));
-                }
-                ((), remaining)
-            },
-            |_, v| {
+        .helping_for_each(
+            |e| println!("{}", e),
+            |v| {
                 for e in v {
                     println!("{}", e);
                 }
-                ()
             },
         );
 }

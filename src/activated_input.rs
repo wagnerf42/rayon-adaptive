@@ -1,5 +1,6 @@
 //! the folded stuff, ready to be reduced.
 use crate::folders::Map;
+use crate::prelude::*;
 use crate::scheduling::{fold_with_help, schedule};
 use crate::{DivisibleIntoBlocks, Folder, Policy};
 use std::collections::linked_list;
@@ -56,8 +57,26 @@ impl<F: Folder> ActivatedInput<F> {
     }
 }
 
+impl<I: AdaptiveIterator + DivisibleIntoBlocks, F: Folder<Input = I> + Send> ActivatedInput<F> {
+    pub fn helping_for_each<FOREACH, RET>(self, f: FOREACH, retrieve: RET)
+    where
+        FOREACH: Fn(I::Item) + Sync,
+        RET: Fn(F::Output) + Sync,
+    {
+        let (input, folder) = (self.input, self.folder);
+        let f_ref = &f;
+        let master_fold = |_: (), i: I, size: usize| -> ((), I) {
+            let (todo, remaining) = i.divide_at(size);
+            todo.into_iter().for_each(f_ref);
+            ((), remaining)
+        };
+        let master_retrieve = |_, v| retrieve(v);
+        fold_with_help(input, (), master_fold, &folder, master_retrieve)
+    }
+}
+
 impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send> ActivatedInput<F> {
-    pub fn helping_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
+    pub fn helping_partial_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
     where
         B: Send,
         FOLD: Fn(B, I, usize) -> (B, I) + Sync,
@@ -66,6 +85,7 @@ impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send> ActivatedInput<F> {
         let (input, folder) = (self.input, self.folder);
         fold_with_help(input, init, f, &folder, retrieve)
     }
+
     pub fn by_blocks<S: Iterator<Item = usize>>(
         self,
         blocks_sizes: S,
