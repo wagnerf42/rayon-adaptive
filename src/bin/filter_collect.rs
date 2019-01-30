@@ -17,25 +17,11 @@ fn main() {
         .num_threads(2)
         .build()
         .expect("failed building pool");
-    #[cfg(feature = "logs")]
-    {
-        let (filtered, log) = pool.install(|| {
-            v.into_adapt_iter()
-                .filter(|&i| *i % 2 == 0)
-                .cloned()
-                .collect::<Vec<u32>>()
-        });
-        assert_eq!(filtered, answer);
-        log.save_svg("filter.svg").expect("failed saving svg");
-    }
-    #[cfg(not(feature = "logs"))]
-    {
-        let filtered: Vec<_> = pool.install(|| {
-            v.into_adapt_iter()
-                .filter(|&i| *i % 2 == 0)
-                .map(|&i| i + 1)
-                .collect()
-        });
-        assert_eq!(filtered, answer);
-    }
+    let filtered: Vec<_> = pool.install(|| {
+        v.into_adapt_iter()
+            .filter(|&i| *i % 2 == 0)
+            .cloned()
+            .collect()
+    });
+    assert_eq!(filtered, answer);
 }
