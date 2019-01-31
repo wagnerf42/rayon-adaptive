@@ -1,5 +1,3 @@
-#[cfg(not(feature = "logs"))]
-extern crate rayon;
 extern crate rayon_adaptive;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;

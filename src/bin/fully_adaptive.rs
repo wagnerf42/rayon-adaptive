@@ -1,3 +1,5 @@
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
 use rayon_adaptive::fuse_slices;
 use rayon_adaptive::prelude::*;
 

@@ -1,7 +1,4 @@
-extern crate rayon_adaptive;
 use rayon_adaptive::*;
-#[cfg(not(feature = "logs"))]
-extern crate rayon;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 extern crate time;

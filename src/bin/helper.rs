@@ -1,5 +1,3 @@
-#[cfg(not(feature = "logs"))]
-extern crate rayon;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 use rayon::ThreadPoolBuilder;

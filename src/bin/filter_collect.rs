@@ -1,6 +1,4 @@
 extern crate rand;
-#[cfg(not(feature = "logs"))]
-extern crate rayon;
 extern crate rayon_adaptive;
 use rayon_adaptive::prelude::*;
 #[cfg(feature = "logs")]
