@@ -2,6 +2,7 @@
 extern crate rayon_logs as rayon;
 use rayon_adaptive::fuse_slices;
 use rayon_adaptive::prelude::*;
+use std::iter::repeat;
 
 const SIZE: usize = 1_000_000;
 
@@ -14,9 +15,11 @@ fn main() {
         let mut input_vector = vec![1.0; SIZE];
         let expected_result: Vec<_> = vec![1.0; SIZE];
         let start = time::precise_time_ns();
+        let length = input_vector.len();
         pool.scope(|s| {
             input_vector
                 .as_mut_slice()
+                .by_blocks(repeat(length / 10))
                 .partial_fold(
                     //TODO: let's also have an auto-dividing fold
                     || None,
