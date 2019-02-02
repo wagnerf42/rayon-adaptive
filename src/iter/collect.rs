@@ -7,20 +7,22 @@ pub trait FromAdaptiveBlockedIterator<T>
 where
     T: Send,
 {
-    fn from_adapt_iter<I, R>(runner: R) -> Self
+    fn from_adapt_iter<I, R, S>(runner: R) -> Self
     where
         I: AdaptiveIterator<Item = T, Power = BlockedPower>,
-        R: AdaptiveBlockedIteratorRunner<I>;
+        R: AdaptiveBlockedIteratorRunner<I, S>,
+        S: Iterator<Item = usize>;
 }
 
 pub trait FromAdaptiveIndexedIterator<T>
 where
     T: Send,
 {
-    fn from_adapt_iter<I, R>(runner: R) -> Self
+    fn from_adapt_iter<I, R, S>(runner: R) -> Self
     where
         I: AdaptiveIndexedIterator<Item = T>,
-        R: AdaptiveIndexedIteratorRunner<I>;
+        R: AdaptiveIndexedIteratorRunner<I, S>,
+        S: Iterator<Item = usize>;
 }
 
 //TODO:
@@ -28,13 +30,20 @@ where
 // 2) we still need the fully adaptive algorithm
 // 3) extend in parallel ?
 impl<T: Send + Sync> FromAdaptiveBlockedIterator<T> for Vec<T> {
-    fn from_adapt_iter<I, R>(runner: R) -> Self
+    fn from_adapt_iter<I, R, S>(runner: R) -> Self
     where
         I: AdaptiveIterator<Item = T, Power = BlockedPower>,
-        R: AdaptiveBlockedIteratorRunner<I>,
+        R: AdaptiveBlockedIteratorRunner<I, S>,
+        S: Iterator<Item = usize>,
     {
-        let capacity = runner.input_len();
-        runner
+        let (input, policy, sizes) = runner.input_policy_sizes();
+        let capacity = input.base_length();
+        input
+            .with_policy(policy)
+            .by_blocks(sizes.chain(repeat(
+                // let's fit in 1mb cache
+                1_000_000 * current_num_threads() / mem::size_of::<T>(),
+            )))
             .partial_fold(
                 move || Vec::with_capacity(capacity),
                 |mut v, i, limit| {
@@ -43,10 +52,7 @@ impl<T: Send + Sync> FromAdaptiveBlockedIterator<T> for Vec<T> {
                     (v, remaining)
                 },
             )
-            .by_blocks(repeat(
-                // let's fit in 1mb cache
-                1_000_000 * current_num_threads() / mem::size_of::<T>(),
-            ))
+            .into_iter()
             .fold(None, |final_v: Option<Vec<T>>, v| {
                 if final_v.is_some() {
                     final_v.map(|mut f| {
@@ -62,12 +68,12 @@ impl<T: Send + Sync> FromAdaptiveBlockedIterator<T> for Vec<T> {
 }
 
 impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
-    fn from_adapt_iter<I, R>(runner: R) -> Self
+    fn from_adapt_iter<I, R, S: Iterator<Item = usize>>(runner: R) -> Self
     where
         I: AdaptiveIndexedIterator<Item = T>,
-        R: AdaptiveIndexedIteratorRunner<I>,
+        R: AdaptiveIndexedIteratorRunner<I, S>,
     {
-        let (input, policy) = runner.input_and_policy();
+        let (input, policy, sizes) = runner.input_policy_sizes();
         let output_len = input.base_length();
         let mut output_vector = Vec::with_capacity(output_len);
         unsafe {
@@ -78,6 +84,7 @@ impl<T: Send + Sync> FromAdaptiveIndexedIterator<T> for Vec<T> {
             .into_adapt_iter()
             .zip(input)
             .with_policy(policy)
+            .by_blocks(sizes)
             .for_each(|(out_ref, in_ref)| unsafe { std::ptr::write(out_ref, in_ref) });
         output_vector
     }

@@ -12,7 +12,7 @@ use rayon::{current_num_threads, Scope};
 use rayon_logs::sequential_task;
 use std::cell::RefCell;
 use std::cmp::min;
-use std::iter::{once, repeat};
+use std::iter::once;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -456,12 +456,13 @@ enum FoldElement<I, O2> {
     Output(O2),
 }
 
-pub(crate) fn fold_with_help<F, O1, FOLD1, RET>(
+pub(crate) fn fold_with_help<F, O1, FOLD1, RET, S>(
     input: F::Input,
     o1: O1,
     fold1: FOLD1,
     slave_folder: &F,
     retrieve: RET,
+    sizes: S,
 ) -> O1
 where
     F: Folder + Send,
@@ -469,14 +470,14 @@ where
     F::Input: DivisibleIntoBlocks,
     FOLD1: Fn(O1, F::Input, usize) -> (O1, F::Input) + Sync,
     RET: Fn(O1, F::Output) -> O1 + Sync,
+    S: Iterator<Item = usize> + Send,
 {
     let input_length = input.base_length();
-    let macro_block_size = compute_size(input_length, default_max_block_size);
     let nano_block_size = compute_size(input_length, default_min_block_size);
     let stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)> = &AtomicList::new();
     rayon::scope(|s| {
         input
-            .chunks(repeat(macro_block_size))
+            .chunks(sizes)
             .flat_map(|chunk| {
                 once(FoldElement::Input(chunk)).chain(stolen_stuffs.iter().flat_map(|(o2, i)| {
                     o2.map(FoldElement::Output)

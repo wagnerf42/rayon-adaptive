@@ -1,7 +1,8 @@
 use crate::activated_input::ActivatedInput;
 use crate::folders::{fold::Fold, iterator_fold::AdaptiveIteratorFold};
 use crate::prelude::*;
-use crate::traits::BlockedPower;
+use crate::traits::{BlockedOrMore, BlockedPower};
+use std::iter::Empty;
 use std::marker::PhantomData;
 pub mod map;
 use self::map::Map;
@@ -74,7 +75,9 @@ pub trait AdaptiveIndexedIterator: AdaptiveIterator + DivisibleAtIndex {
     }
 }
 
-pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
+pub trait AdaptiveIteratorRunner<I: AdaptiveIterator, S: Iterator<Item = usize>>:
+    AdaptiveRunner<I, S>
+{
     /// Find first e in iterator such that predicate(e) is true.
     /// This implementation is efficient.
     ///
@@ -89,23 +92,27 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
         P: Fn(&I::Item) -> bool + Sync + Send,
         I::Item: Sync + Send,
     {
-        let len = self.input_len();
+        let (input, policy, sizes) = self.input_policy_sizes();
+        let len = input.base_length();
         let base_size = min((len as f64).log(2.0).ceil() as usize, len);
-        self.partial_fold(
-            || None,
-            |found, i, limit| {
-                //TODO: nothing is remaining if found.
-                //should we have options ???
-                let (todo, remaining) = i.divide_at(limit);
-                (
-                    found.or_else(|| todo.into_iter().find(&predicate)),
-                    remaining,
-                )
-            },
-        )
-        .by_blocks(powers(base_size))
-        .filter_map(|o| o)
-        .next()
+        input
+            .with_policy(policy)
+            .by_blocks(sizes.chain(powers(base_size)))
+            .partial_fold(
+                || None,
+                |found, i, limit| {
+                    //TODO: nothing is remaining if found.
+                    //should we have options ???
+                    let (todo, remaining) = i.divide_at(limit);
+                    (
+                        found.or_else(|| todo.into_iter().find(&predicate)),
+                        remaining,
+                    )
+                },
+            )
+            .into_iter()
+            .filter_map(|o| o)
+            .next()
     }
     /// Return if any element e in the iterator is such that
     /// predicate(e) is true.
@@ -142,7 +149,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
     where
         P: Fn(I::Item) -> bool + Sync + Send,
     {
-        let (input, policy) = self.input_and_policy();
+        let (input, policy, sizes) = self.input_policy_sizes();
         let base_size = std::cmp::min(
             (input.base_length() as f64).log(2.0).ceil() as usize,
             input.base_length(),
@@ -165,8 +172,10 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
+            sizes: sizes.chain(powers(base_size)), // this way if empty we take powers
+            power: PhantomData,
         }
-        .by_blocks(powers(base_size))
+        .into_iter()
         .all(|b| b)
     }
     /// Counts the number of items in this adaptive iterator.
@@ -194,7 +203,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
     where
         I::Item: Ord + Send + Sync,
     {
-        let (input, policy) = self.input_and_policy();
+        let (input, policy, sizes) = self.input_policy_sizes();
         ActivatedInput {
             input,
             folder: Fold {
@@ -207,19 +216,21 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
+            sizes,
+            power: PhantomData,
         }
         .reduce(std::cmp::max)
     }
-    fn sum<S>(self) -> S
+    fn sum<SUM>(self) -> SUM
     where
-        S: std::iter::Sum<I::Item> + Send + Sync + std::ops::Add<Output = S>,
+        SUM: std::iter::Sum<I::Item> + Send + Sync + std::ops::Add<Output = SUM>,
     {
-        let (input, policy) = self.input_and_policy();
+        let (input, policy, sizes) = self.input_policy_sizes();
         ActivatedInput {
             input,
             folder: Fold {
                 identity_op: || None.into_iter().sum(),
-                fold_op: |s: S, i: I, limit: usize| {
+                fold_op: |s: SUM, i: I, limit: usize| {
                     let (todo, remaining) = i.divide_at(limit);
                     let s2 = todo.into_iter().sum();
                     (s + s2, remaining)
@@ -227,6 +238,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
+            sizes,
+            power: PhantomData,
         }
         .reduce(|a, b| a + b)
     }
@@ -248,7 +261,7 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
     where
         OP: Fn(I::Item) + Sync + Send,
     {
-        let (input, policy) = self.input_and_policy();
+        let (input, policy, sizes) = self.input_policy_sizes();
         ActivatedInput {
             input,
             folder: Fold {
@@ -261,6 +274,8 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
+            sizes,
+            power: PhantomData,
         }
         .reduce(|_, _| ())
     }
@@ -269,13 +284,13 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
         self,
         identity: ID,
         fold_op: F,
-    ) -> ActivatedInput<AdaptiveIteratorFold<I, IO, ID, F>>
+    ) -> ActivatedInput<AdaptiveIteratorFold<I, IO, ID, F>, S, BlockedOrMore>
     where
         IO: Send + Sync + Clone,
         ID: Fn() -> IO + Sync + Send + Clone,
         F: Fn(IO, I::Item) -> IO + Sync + Send + Clone,
     {
-        let (input, policy) = self.input_and_policy();
+        let (input, policy, sizes) = self.input_policy_sizes();
         ActivatedInput {
             input,
             folder: AdaptiveIteratorFold {
@@ -284,12 +299,16 @@ pub trait AdaptiveIteratorRunner<I: AdaptiveIterator>: AdaptiveRunner<I> {
                 phantom: PhantomData,
             },
             policy,
+            sizes,
+            power: PhantomData,
         }
     }
 }
 
 /// Specializations of AdaptiveIteratorRunner.
-pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator>: AdaptiveRunner<I> {
+pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator, S: Iterator<Item = usize>>:
+    AdaptiveRunner<I, S>
+{
     /// Collect turn an `AdaptiveIterator` into a collection.
     /// As of now it is only implemented for `Vec`.
     /// Collecting comes with different algorithms for each Divisibility type
@@ -311,8 +330,10 @@ pub trait AdaptiveIndexedIteratorRunner<I: AdaptiveIndexedIterator>: AdaptiveRun
         FromAdaptiveIndexedIterator::from_adapt_iter(self)
     }
 }
-pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator<Power = BlockedPower>>:
-    AdaptiveRunner<I>
+pub trait AdaptiveBlockedIteratorRunner<
+    I: AdaptiveIterator<Power = BlockedPower>,
+    S: Iterator<Item = usize>,
+>: AdaptiveRunner<I, S>
 {
     /// Collect turn an `AdaptiveIterator` into a collection.
     /// As of now it is only implemented for `Vec`.
@@ -337,14 +358,24 @@ pub trait AdaptiveBlockedIteratorRunner<I: AdaptiveIterator<Power = BlockedPower
         FromAdaptiveBlockedIterator::from_adapt_iter(self)
     }
 }
-impl<I: AdaptiveIterator> AdaptiveIteratorRunner<I> for ParametrizedInput<I> {}
-impl<I: AdaptiveIterator> AdaptiveIteratorRunner<I> for I {}
 
-impl<I: AdaptiveIndexedIterator> AdaptiveIndexedIteratorRunner<I> for ParametrizedInput<I> {}
-impl<I: AdaptiveIndexedIterator> AdaptiveIndexedIteratorRunner<I> for I {}
-
-impl<I: AdaptiveIterator<Power = BlockedPower>> AdaptiveBlockedIteratorRunner<I>
-    for ParametrizedInput<I>
+impl<I: AdaptiveIterator, S: Iterator<Item = usize>> AdaptiveIteratorRunner<I, S>
+    for ParametrizedInput<I, S>
 {
 }
-impl<I: AdaptiveIterator<Power = BlockedPower>> AdaptiveBlockedIteratorRunner<I> for I {}
+impl<I: AdaptiveIterator> AdaptiveIteratorRunner<I, Empty<usize>> for I {}
+
+impl<I: AdaptiveIndexedIterator, S: Iterator<Item = usize>> AdaptiveIndexedIteratorRunner<I, S>
+    for ParametrizedInput<I, S>
+{
+}
+impl<I: AdaptiveIndexedIterator> AdaptiveIndexedIteratorRunner<I, Empty<usize>> for I {}
+
+impl<I: AdaptiveIterator<Power = BlockedPower>, S: Iterator<Item = usize>>
+    AdaptiveBlockedIteratorRunner<I, S> for ParametrizedInput<I, S>
+{
+}
+impl<I: AdaptiveIterator<Power = BlockedPower>> AdaptiveBlockedIteratorRunner<I, Empty<usize>>
+    for I
+{
+}

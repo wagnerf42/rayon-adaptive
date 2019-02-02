@@ -1,5 +1,6 @@
 //! This module contains all traits enabling us to express some parallelism.
 use std;
+use std::iter::{empty, Empty};
 use std::ops::Range;
 use std::ptr;
 
@@ -11,6 +12,7 @@ use crate::Policy;
 pub struct BasicPower();
 pub struct BlockedPower();
 pub struct IndexedPower();
+pub struct BlockedOrMore();
 
 pub trait Divisible: Sized + Send + Sync {
     type Power;
@@ -25,10 +27,11 @@ pub trait Divisible: Sized + Send + Sync {
     /// * TODO: for now we require base_length to be exactly equal to the number of loops
     /// we should remove this constraint
     fn base_length(&self) -> usize;
-    fn with_policy(self, policy: Policy) -> ParametrizedInput<Self> {
+    fn with_policy(self, policy: Policy) -> ParametrizedInput<Self, Empty<usize>> {
         ParametrizedInput {
             input: self,
             policy,
+            sizes: empty(),
         }
     }
 }
