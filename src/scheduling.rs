@@ -417,7 +417,7 @@ where
                 let input: F::Input;
                 #[cfg(feature = "logs")]
                 {
-                    let option = sequential_task(1, 1, || receiver.recv());
+                    let option = sequential_task("waiting", 1, || receiver.recv());
                     input = option?;
                 }
                 #[cfg(not(feature = "logs"))]
