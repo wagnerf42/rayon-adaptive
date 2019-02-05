@@ -236,4 +236,18 @@ impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send, S: Iterator<Item = usi
         let (input, folder, sizes) = (self.input, self.folder, self.sizes);
         fold_with_help(input, init, f, &folder, retrieve, sizes)
     }
+
+    pub fn helping_cutting_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
+    where
+        B: Send,
+        FOLD: Fn(B, I) -> B + Sync,
+        RET: Fn(B, F::Output) -> B + Sync,
+    {
+        let (input, folder, sizes) = (self.input, self.folder, self.sizes);
+        let cutting_fold = |io, i: I, limit| {
+            let (todo, remaining) = i.divide_at(limit);
+            (f(io, todo), remaining)
+        };
+        fold_with_help(input, init, cutting_fold, &folder, retrieve, sizes)
+    }
 }

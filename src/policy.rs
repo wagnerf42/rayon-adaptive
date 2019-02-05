@@ -1,6 +1,6 @@
 use crate::activated_input::ActivatedInput;
 /// All scheduling available scheduling policies.
-use crate::folders::{fold::Fold, work_fold::WorkFold, Folder};
+use crate::folders::{cutting_fold::CuttingFold, fold::Fold, work_fold::WorkFold, Folder};
 use crate::scheduling::schedule;
 use crate::traits::{BasicPower, BlockedOrMore};
 use crate::{Divisible, DivisibleIntoBlocks};
@@ -110,6 +110,31 @@ pub trait AllAdaptiveRunner<I: Divisible, S: Iterator<Item = usize>, P>:
 pub trait BlockAdaptiveRunner<I: DivisibleIntoBlocks, S: Iterator<Item = usize>>:
     AdaptiveRunner<I, S>
 {
+    fn cutting_fold<O, ID, F>(
+        self,
+        identity: ID,
+        fold_op: F,
+    ) -> ActivatedInput<CuttingFold<I, O, ID, F>, S, BlockedOrMore>
+    where
+        O: Send + Sync,
+        ID: Fn() -> O + Sync,
+        F: Fn(O, I) -> O + Sync,
+    {
+        let (input, policy, sizes) = self.input_policy_sizes();
+        let folder = CuttingFold {
+            identity_op: identity,
+            fold_op,
+            phantom: PhantomData,
+        };
+        ActivatedInput {
+            input,
+            folder,
+            policy,
+            sizes,
+            power: PhantomData,
+        }
+    }
+
     /// Replace block sizes iterator (if any) by given one.
     fn by_blocks<S2: Iterator<Item = usize>>(self, sizes: S2) -> ParametrizedInput<I, S2> {
         let (input, policy, _) = self.input_policy_sizes();

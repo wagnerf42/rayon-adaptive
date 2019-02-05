@@ -1,8 +1,9 @@
 //! Folder trait and all its implementations.
-use std::marker::PhantomData;
 use crate::Divisible;
+use std::marker::PhantomData;
 mod map;
 pub use self::map::Map;
+pub(crate) mod cutting_fold;
 pub(crate) mod fold;
 pub(crate) mod iterator_fold;
 pub(crate) mod work_fold;

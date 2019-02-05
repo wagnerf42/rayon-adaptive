@@ -20,39 +20,29 @@ fn main() {
             input_vector
                 .as_mut_slice()
                 .by_blocks(repeat(length / 10))
-                .partial_fold(
-                    //TODO: let's also have an auto-dividing fold
+                .cutting_fold(
                     || None,
-                    |possible_previous_slice: Option<&mut [f64]>, input, limit| {
+                    |possible_previous_slice: Option<&mut [f64]>, slice| {
                         let last_elem_prev_slice = possible_previous_slice
                             .as_ref()
                             .and_then(|c| c.last().cloned())
                             .unwrap_or(1.0);
-                        let (todo, remaining) = input.divide_at(limit);
-                        todo.iter_mut().fold(last_elem_prev_slice, |c, e| {
+                        slice.iter_mut().fold(last_elem_prev_slice, |c, e| {
                             *e *= c;
                             *e
                         });
-                        (
-                            possible_previous_slice
-                                .map(|previous| fuse_slices(previous, todo))
-                                .or_else(move || Some(todo)),
-                            remaining,
-                        )
+                        possible_previous_slice
+                            .map(|previous| fuse_slices(previous, slice))
+                            .or_else(move || Some(slice))
                     },
                 )
-                .helping_partial_fold(
+                .helping_cutting_fold(
                     1.0,
-                    //TODO: have a nicer fold api
-                    |last_elem_prev_slice, remaining_slice, limit| {
-                        let (todo, remaining) = remaining_slice.divide_at(limit);
-                        (
-                            todo.iter_mut().fold(last_elem_prev_slice, |c, e| {
-                                *e *= c;
-                                *e
-                            }),
-                            remaining,
-                        )
+                    |last_elem_prev_slice, slice| {
+                        slice.iter_mut().fold(last_elem_prev_slice, |c, e| {
+                            *e *= c;
+                            *e
+                        })
                     },
                     |last_num, dirty_slice| {
                         if let Some(retrieved_slice) = dirty_slice {
@@ -62,6 +52,11 @@ fn main() {
                                     .into_adapt_iter()
                                     .for_each(|e| *e *= last_num)
                             });
+                            for _ in 0..rayon::current_num_threads() {
+                                // we add a protective layer to redirect slaves to steal
+                                // each others
+                                s.spawn(|_| ());
+                            }
                             last_num * last_slice_num
                         } else {
                             last_num
