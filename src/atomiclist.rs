@@ -50,14 +50,25 @@ impl<'a, T> Iterator for AtomicListIterator<'a, T> {
         if possible_head.is_some() {
             let mut head = possible_head.unwrap();
             head.request.store(true, Ordering::SeqCst);
-            let node = {
-                loop {
+            let node: AtomicNode<T>;
+            #[cfg(feature = "logs")]
+            {
+                node = rayon_logs::sequential_task("wait retrieving", 1, || loop {
+                    match Arc::try_unwrap(head) {
+                        Ok(real_node) => break real_node,
+                        Err(failed) => head = failed,
+                    }
+                })
+            }
+            #[cfg(not(feature = "logs"))]
+            {
+                node = loop {
                     match Arc::try_unwrap(head) {
                         Ok(real_node) => break real_node,
                         Err(failed) => head = failed,
                     }
                 }
-            };
+            }
             self.list.head.swap(node.next.swap(None));
             node.take()
         } else {
