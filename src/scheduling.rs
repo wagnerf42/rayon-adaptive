@@ -475,9 +475,10 @@ where
     let input_length = input.base_length();
     let nano_block_size = compute_size(input_length, default_min_block_size);
     let stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)> = &AtomicList::new();
+    let completed_sizes = sizes.chain(once(input_length));
     rayon::scope(|s| {
         input
-            .chunks(sizes)
+            .chunks(completed_sizes)
             .flat_map(|chunk| {
                 once(FoldElement::Input(chunk)).chain(stolen_stuffs.iter().flat_map(|(o2, i)| {
                     o2.map(FoldElement::Output)
@@ -511,8 +512,15 @@ where
 {
     let (sender, receiver) = small_channel();
     scope.spawn(move |s| {
-        let stolen_input: Option<AtomicLink<(Option<F::Output>, Option<F::Input>)>> =
-            receiver.recv();
+        let stolen_input: Option<AtomicLink<(Option<F::Output>, Option<F::Input>)>>;
+        #[cfg(feature = "logs")]
+        {
+            stolen_input = rayon_logs::sequential_task("slave wait", 1, || receiver.recv());
+        }
+        #[cfg(not(feature = "logs"))]
+        {
+            stolen_input = receiver.recv();
+        }
         if stolen_input.is_none() {
             return;
         }
