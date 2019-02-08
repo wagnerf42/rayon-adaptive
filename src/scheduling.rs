@@ -13,6 +13,7 @@ use rayon_logs::sequential_task;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::iter::once;
+use std::iter::repeat;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -463,6 +464,7 @@ pub(crate) fn fold_with_help<F, O1, FOLD1, RET, S>(
     slave_folder: &F,
     retrieve: RET,
     sizes: S,
+    policy: Policy,
 ) -> O1
 where
     F: Folder + Send,
@@ -472,8 +474,15 @@ where
     RET: Fn(O1, F::Output) -> O1 + Sync,
     S: Iterator<Item = usize> + Send,
 {
+    let (min_size, max_size) = match policy {
+        Policy::Adaptive(min_size, max_size) => (min_size, max_size),
+        Policy::DefaultPolicy => (
+            compute_size(input.base_length(), default_min_block_size),
+            compute_size(input.base_length(), default_max_block_size),
+        ),
+        _ => panic!("for now only adaptive or default policies for help"),
+    };
     let input_length = input.base_length();
-    let nano_block_size = compute_size(input_length, default_min_block_size);
     let stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)> = &AtomicList::new();
     let completed_sizes = sizes.chain(once(input_length));
     rayon::scope(|s| {
@@ -494,7 +503,8 @@ where
                     &fold1,
                     slave_folder,
                     stolen_stuffs,
-                    nano_block_size,
+                    min_size,
+                    max_size,
                 ),
                 FoldElement::Output(o2) => retrieve(o1, o2),
             })
@@ -504,7 +514,8 @@ where
 fn spawn_stealing_task<'scope, F>(
     scope: &Scope<'scope>,
     slave_folder: &'scope F,
-    initial_size: usize,
+    min_size: usize,
+    max_size: usize,
 ) -> SmallSender<AtomicLink<(Option<F::Output>, Option<F::Input>)>>
 where
     F: Folder + 'scope + Send,
@@ -524,7 +535,7 @@ where
         if stolen_input.is_none() {
             return;
         }
-        slave_work(s, stolen_input.unwrap(), slave_folder, initial_size)
+        slave_work(s, stolen_input.unwrap(), slave_folder, min_size, max_size)
     });
     sender
 }
@@ -536,7 +547,8 @@ fn master_work<'scope, F, O1, FOLD1>(
     fold: &FOLD1,
     slave_folder: &'scope F,
     stolen_stuffs: &AtomicList<(Option<F::Output>, Option<F::Input>)>,
-    initial_size: usize,
+    min_size: usize,
+    max_size: usize,
 ) -> O1
 where
     F: Folder + 'scope + Send,
@@ -547,9 +559,11 @@ where
     let mut input = input;
     let mut current_output = init;
     loop {
-        let sender = spawn_stealing_task(scope, slave_folder, initial_size);
+        let sender = spawn_stealing_task(scope, slave_folder, min_size, max_size);
         // let's work sequentially until stolen
-        match powers(initial_size)
+        match powers(min_size)
+            .take_while(|&p| p < max_size)
+            .chain(repeat(max_size))
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((current_output, input), |(output, input), size| {
                 let checked_size = min(input.base_length(), size); //TODO: remove all these mins
@@ -560,7 +574,7 @@ where
                 }
             }) {
             Ok((output, remaining_input)) => {
-                if remaining_input.base_length() > initial_size {
+                if remaining_input.base_length() > min_size {
                     let (my_half, his_half) = remaining_input.divide();
                     if his_half.base_length() > 0 {
                         let stolen_node = stolen_stuffs.push_front((None, Some(his_half)));
@@ -584,7 +598,8 @@ fn slave_work<'scope, F>(
     scope: &Scope<'scope>,
     node: AtomicLink<(Option<F::Output>, Option<F::Input>)>,
     slave_folder: &'scope F,
-    initial_size: usize,
+    min_size: usize,
+    max_size: usize,
 ) where
     F: Folder + 'scope + Send,
     F::Input: DivisibleIntoBlocks + 'scope,
@@ -592,9 +607,11 @@ fn slave_work<'scope, F>(
     let mut input = node.take().unwrap().1.unwrap();
     let mut o2 = slave_folder.identity();
     loop {
-        let sender = spawn_stealing_task(scope, slave_folder, initial_size);
+        let sender = spawn_stealing_task(scope, slave_folder, min_size, max_size);
         // let's work sequentially until stolen
-        match powers(initial_size)
+        match powers(min_size)
+            .take_while(|&p| p < max_size)
+            .chain(repeat(max_size))
             .take_while(|_| !sender.receiver_is_waiting() && !node.requested())
             .try_fold((o2, input), |(output2, input), size| {
                 let checked_size = min(input.base_length(), size); //TODO: remove all these mins
@@ -616,7 +633,7 @@ fn slave_work<'scope, F>(
                 } else {
                     // check if enough is left
                     let length = remaining_input.base_length();
-                    if length > initial_size {
+                    if length > min_size {
                         let (my_half, his_half) = remaining_input.divide();
                         // TODO: have an empty method
                         if his_half.base_length() > 0 {

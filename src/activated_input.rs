@@ -212,7 +212,7 @@ impl<
         FOREACH: Fn(I::Item) + Sync,
         RET: Fn(F::Output) + Sync,
     {
-        let (input, folder, sizes) = (self.input, self.folder, self.sizes);
+        let (input, folder, sizes, policy) = (self.input, self.folder, self.sizes, self.policy);
         let f_ref = &f;
         let master_fold = |_: (), i: I, size: usize| -> ((), I) {
             let (todo, remaining) = i.divide_at(size);
@@ -220,7 +220,15 @@ impl<
             ((), remaining)
         };
         let master_retrieve = |_, v| retrieve(v);
-        fold_with_help(input, (), master_fold, &folder, master_retrieve, sizes)
+        fold_with_help(
+            input,
+            (),
+            master_fold,
+            &folder,
+            master_retrieve,
+            sizes,
+            policy,
+        )
     }
 }
 
@@ -233,8 +241,8 @@ impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send, S: Iterator<Item = usi
         FOLD: Fn(B, I, usize) -> (B, I) + Sync,
         RET: Fn(B, F::Output) -> B + Sync,
     {
-        let (input, folder, sizes) = (self.input, self.folder, self.sizes);
-        fold_with_help(input, init, f, &folder, retrieve, sizes)
+        let (input, folder, sizes, policy) = (self.input, self.folder, self.sizes, self.policy);
+        fold_with_help(input, init, f, &folder, retrieve, sizes, policy)
     }
 
     pub fn helping_cutting_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
@@ -243,11 +251,11 @@ impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send, S: Iterator<Item = usi
         FOLD: Fn(B, I) -> B + Sync,
         RET: Fn(B, F::Output) -> B + Sync,
     {
-        let (input, folder, sizes) = (self.input, self.folder, self.sizes);
+        let (input, folder, sizes, policy) = (self.input, self.folder, self.sizes, self.policy);
         let cutting_fold = |io, i: I, limit| {
             let (todo, remaining) = i.divide_at(limit);
             (f(io, todo), remaining)
         };
-        fold_with_help(input, init, cutting_fold, &folder, retrieve, sizes)
+        fold_with_help(input, init, cutting_fold, &folder, retrieve, sizes, policy)
     }
 }
