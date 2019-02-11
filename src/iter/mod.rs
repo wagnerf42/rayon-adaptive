@@ -22,6 +22,8 @@ pub use self::collect::{FromAdaptiveBlockedIterator, FromAdaptiveIndexedIterator
 pub(crate) mod hash;
 pub(crate) mod str;
 use crate::utils::powers;
+use crate::utils::AbortingDivisible;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub trait IntoAdaptiveIterator: IntoIterator + DivisibleIntoBlocks {
     fn into_adapt_iter(self) -> Iter<Self> {
@@ -78,6 +80,39 @@ pub trait AdaptiveIndexedIterator: AdaptiveIterator + DivisibleAtIndex {
 pub trait AdaptiveIteratorRunner<I: AdaptiveIterator, S: Iterator<Item = usize>>:
     AdaptiveRunner<I, S>
 {
+    fn find_any<P>(self, predicate: P) -> Option<I::Item>
+    where
+        P: Fn(&I::Item) -> bool + Sync + Send,
+        I::Item: Sync + Send,
+    {
+        let found = AtomicBool::new(false);
+        let (input, policy, sizes) = self.input_policy_sizes();
+        let aborting_input = AbortingDivisible {
+            real_content: input,
+            abort: &found,
+        };
+        aborting_input
+            .with_policy(policy)
+            .by_blocks(sizes)
+            .cutting_fold(
+                || None,
+                |f, i| {
+                    if f.is_some() {
+                        f
+                    } else {
+                        let new_f = i.into_iter().find(&predicate);
+                        if new_f.is_some() {
+                            found.store(true, Ordering::Relaxed)
+                        }
+                        new_f
+                    }
+                },
+            )
+            .into_iter()
+            .filter_map(|o| o)
+            .next()
+    }
+
     /// Find first e in iterator such that predicate(e) is true.
     /// This implementation is efficient.
     ///
