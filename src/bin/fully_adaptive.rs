@@ -52,11 +52,6 @@ fn main() {
                                     .into_adapt_iter()
                                     .for_each(|e| *e *= last_num)
                             });
-                            for _ in 0..rayon::current_num_threads() {
-                                // we add a protective layer to redirect slaves to steal
-                                // each others
-                                s.spawn(|_| ());
-                            }
                             last_num * last_slice_num
                         } else {
                             last_num
