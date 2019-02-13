@@ -165,7 +165,7 @@ where
     F: Folder,
     RF: Fn(F::Output, F::Output) -> F::Output + Sync,
 {
-    if split_limit == 0 {
+    if split_limit == 0 || input.base_length() == 1 {
         schedule_sequential(input, folder)
     } else {
         let (i1, i2) = input.divide();
