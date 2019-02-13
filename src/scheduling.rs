@@ -22,8 +22,9 @@ thread_local!(static SEQUENCE: RefCell<bool> = RefCell::new(false));
 
 /// by default, min block size is log(n)
 fn default_min_block_size(n: usize) -> usize {
-    let power = ((n as f64 / (n as f64).log(2.0) + 1.0).log(2.0) - 1.0).floor();
-    ((n as f64) / (2.0f64.powi(power as i32 + 1) - 1.0)).ceil() as usize
+    1
+    //let power = ((n as f64 / (n as f64).log(2.0) + 1.0).log(2.0) - 1.0).floor();
+    //((n as f64) / (2.0f64.powi(power as i32 + 1) - 1.0)).ceil() as usize
 }
 
 /// by default, max block size is sqrt(n)
@@ -76,28 +77,14 @@ where
                     (|_| min, |_| max),
                 ),
                 Policy::DefaultPolicy => {
-                    if block_size * 2 * current_num_threads() >= input.base_length() //TODO ASK should I call schedule_adaptive in this case?
-                || (current_num_threads() as f64).log2() * (50.0f64)
-                    >= (input.base_length() as f64) / (block_size as f64)
-                    {
-                        let max_size = compute_size(input.base_length(), default_max_block_size);
-                        schedule_join_context_max_size(
-                            input,
-                            folder,
-                            reduce_function,
-                            block_size,
-                            max_size,
-                        )
-                    } else {
-                        let max_size = compute_size(input.base_length(), default_max_block_size);
-                        schedule_adaptive(
-                            input,
-                            folder.identity(),
-                            folder,
-                            reduce_function,
-                            (|_| block_size, |_| max_size),
-                        )
-                    }
+                    let max_size = compute_size(input.base_length(), default_max_block_size);
+                    schedule_adaptive(
+                        input,
+                        folder.identity(),
+                        folder,
+                        reduce_function,
+                        (|_| block_size, |_| max_size),
+                    )
                 }
                 Policy::Rayon => schedule_rayon_join_context(
                     input,
