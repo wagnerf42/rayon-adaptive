@@ -7,6 +7,7 @@ use crate::smallchannel::{small_channel, SmallSender};
 use crate::traits::Divisible;
 use crate::utils::powers;
 use crate::Policy;
+use core::iter::repeat;
 use rayon::{current_num_threads, Scope};
 #[cfg(feature = "logs")]
 use rayon_logs::sequential_task;
@@ -255,7 +256,6 @@ struct AdaptiveWorker<
     input: F::Input,
     partial_output: F::IntermediateOutput,
     block_sizes: (MINSIZE, MAXSIZE),
-    current_block_size: usize,
     min_block_size: usize,
     max_block_size: usize,
     stolen: &'a AtomicBool,
@@ -283,13 +283,11 @@ where
     ) -> Self {
         let min_block_size = compute_size(input.base_length(), block_sizes.0);
         let max_block_size = compute_size(input.base_length(), block_sizes.1);
-        let current_block_size = min_block_size;
 
         AdaptiveWorker {
             input,
             partial_output,
             block_sizes,
-            current_block_size,
             min_block_size,
             max_block_size,
             stolen,
@@ -316,52 +314,91 @@ where
         )
     }
 
-    fn schedule(mut self) -> F::Output {
+    fn schedule(self) -> F::Output {
         // TODO: automate this min everywhere ?
         // TODO: factorize a little bit
         // start by computing a little bit in order to get a first output
-        let size = min(self.input.base_length(), self.current_block_size);
-
-        if self.input.base_length() <= self.current_block_size {
-            let (io, i) = self.folder.fold(self.partial_output, self.input, size);
-            return self.folder.to_output(io, i);
-        } else {
-            SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
-            let (new_partial_output, new_input) =
-                self.folder.fold(self.partial_output, self.input, size);
-            self.partial_output = new_partial_output;
-            self.input = new_input;
-            SEQUENCE.with(|s| *s.borrow_mut() = false);
-            if self.input.base_length() == 0 {
-                //TODO ASK is this a redundant check?
-                // it's over
-                return self.folder.to_output(self.partial_output, self.input);
+        let partial_output = self.partial_output;
+        let remaining_input = self.input;
+        let stolen_bool = self.stolen;
+        let folder = self.folder;
+        let max_size = self.max_block_size;
+        match powers(self.min_block_size)
+            .take_while(|&size| size < max_size)
+            .chain(repeat(max_size))
+            .take_while(|_| !stolen_bool.load(Ordering::Relaxed))
+            .try_fold(
+                (partial_output, remaining_input),
+                |(output, input), size| {
+                    let checked_size = min(input.base_length(), size); //TODO: remove all these mins
+                    if checked_size > 0 {
+                        Ok(folder.fold(output, input, checked_size))
+                    } else {
+                        Err(folder.to_output(output, input))
+                    }
+                },
+            ) {
+            Ok((output, remaining_input)) => {
+                if remaining_input.base_length() > self.min_block_size {
+                    let (my_half, his_half) = remaining_input.divide();
+                    if his_half.base_length() > 0 {
+                        self.sender.send(his_half);
+                    }
+                    schedule_adaptive(
+                        my_half,
+                        output,
+                        self.folder,
+                        self.reduce_function,
+                        self.block_sizes,
+                    )
+                } else {
+                    self.folder.to_output(output, remaining_input)
+                }
             }
+            Err(output) => output,
         }
+        //let size = min(self.input.base_length(), self.current_block_size);
 
-        // loop while not stolen or something left to do
-        loop {
-            if self.is_stolen() && self.input.base_length() > self.min_block_size {
-                return self.answer_steal();
-            }
-            self.current_block_size = min(self.current_block_size * 2, self.max_block_size);
-            let size = min(self.input.base_length(), self.current_block_size);
+        //if self.input.base_length() <= self.current_block_size {
+        //    let (io, i) = self.folder.fold(self.partial_output, self.input, size);
+        //    return self.folder.to_output(io, i);
+        //} else {
+        //    SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
+        //    let (new_partial_output, new_input) =
+        //        self.folder.fold(self.partial_output, self.input, size);
+        //    self.partial_output = new_partial_output;
+        //    self.input = new_input;
+        //    SEQUENCE.with(|s| *s.borrow_mut() = false);
+        //    if self.input.base_length() == 0 {
+        //        //TODO ASK is this a redundant check?
+        //        // it's over
+        //        return self.folder.to_output(self.partial_output, self.input);
+        //    }
+        //}
 
-            if self.input.base_length() <= self.current_block_size {
-                SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
-                let (io, i) = self.folder.fold(self.partial_output, self.input, size);
-                SEQUENCE.with(|s| *s.borrow_mut() = false);
-                return self.folder.to_output(io, i);
-            }
-            SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
-            let result = self.folder.fold(self.partial_output, self.input, size);
-            self.partial_output = result.0;
-            self.input = result.1;
-            SEQUENCE.with(|s| *s.borrow_mut() = false);
-            if self.input.base_length() == 0 {
-                return self.folder.to_output(self.partial_output, self.input);
-            }
-        }
+        //// loop while not stolen or something left to do
+        //loop {
+        //    if self.is_stolen() && self.input.base_length() > self.min_block_size {
+        //        return self.answer_steal();
+        //    }
+        //    self.current_block_size = min(self.current_block_size * 2, self.max_block_size);
+        //    let size = min(self.input.base_length(), self.current_block_size);
+
+        //    if self.input.base_length() <= self.current_block_size {
+        //        SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
+        //        let (io, i) = self.folder.fold(self.partial_output, self.input, size);
+        //        SEQUENCE.with(|s| *s.borrow_mut() = false);
+        //        return self.folder.to_output(io, i);
+        //    }
+        //    SEQUENCE.with(|s| *s.borrow_mut() = true); // we force subtasks to work sequentially
+        //    let result = self.folder.fold(self.partial_output, self.input, size);
+        //    self.partial_output = result.0;
+        //    self.input = result.1;
+        //    SEQUENCE.with(|s| *s.borrow_mut() = false);
+        //    if self.input.base_length() == 0 {
+        //        return self.folder.to_output(self.partial_output, self.input);
+        //    }
+        //}
     }
 }
 
