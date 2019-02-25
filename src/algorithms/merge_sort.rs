@@ -2,6 +2,7 @@
 use crate::prelude::*;
 use crate::traits::{BasicPower, BlockedPower};
 use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
+use itertools::Itertools;
 use std;
 use std::iter::repeat;
 
@@ -91,6 +92,7 @@ fn merge_split<'a, T: Ord>(
     (split_large, split_small)
 }
 
+#[derive(Debug)]
 struct FusionSlice<'a, T: 'a> {
     left: EdibleSlice<'a, T>,
     right: EdibleSlice<'a, T>,
@@ -144,20 +146,45 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
         .with_policy(policy)
         .partial_for_each(|mut slices, limit| {
             {
-                let mut left_i = slices.left.iter();
-                let mut right_i = slices.right.iter();
-                for o in slices.output.iter_mut().take(limit) {
-                    let go_left = match (left_i.peek(), right_i.peek()) {
-                        (Some(l), Some(r)) => l <= r,
-                        (Some(_), None) => true,
-                        (None, Some(_)) => false,
-                        (None, None) => panic!("not enough input when merging"),
-                    };
-                    *o = if go_left {
-                        *left_i.next().unwrap()
-                    } else {
-                        *right_i.next().unwrap()
-                    };
+                if slices.left.base_length() > limit && slices.right.base_length() > limit {
+                    let mut left_i = slices.left.iter();
+                    let mut right_i = slices.right.iter();
+                    for o in slices.output.iter_mut().take(limit) {
+                        let go_left = left_i.peek() <= right_i.peek();
+                        *o = if go_left {
+                            *left_i.next().unwrap()
+                        } else {
+                            *right_i.next().unwrap()
+                        };
+                    }
+                } else {
+                    let mut left_i = slices.left.iter();
+                    let mut right_i = slices.right.iter();
+                    for o in slices.output.iter_mut().take(limit) {
+                        let go_left = left_i.peek() <= right_i.peek();
+                        if go_left {
+                            if left_i.peek().is_none() {
+                                *o = *right_i.next().unwrap();
+                                slices
+                                    .output
+                                    .eat_remaining_slice()
+                                    .copy_from_slice(slices.right.eat_remaining_slice());
+
+                                break;
+                            }
+                            *o = *left_i.next().unwrap();
+                        } else {
+                            if right_i.peek().is_none() {
+                                *o = *left_i.next().unwrap();
+                                slices
+                                    .output
+                                    .eat_remaining_slice()
+                                    .copy_from_slice(slices.left.eat_remaining_slice());
+                                break;
+                            }
+                            *o = *right_i.next().unwrap();
+                        };
+                    }
                 }
             }
             slices
@@ -167,6 +194,7 @@ fn fuse<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut [T], 
 // sort related code
 
 /// We'll need slices of several vectors at once.
+#[derive(Debug)]
 struct SortingSlices<'a, T: 'a> {
     s: Vec<&'a mut [T]>,
     i: usize,
@@ -276,12 +304,19 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices
 ///
 /// ```
 /// use rayon_adaptive::adaptive_sort;
+/// use rand::{thread_rng, Rng};
+///
 /// let v: Vec<u32> = (0..100_000).collect();
 /// let mut inverted_v: Vec<u32> = (0..100_000).rev().collect();
+/// let mut rng = thread_rng();
+/// let mut random_v: Vec<u32> = (0..100_000).collect();
+/// rng.shuffle(&mut random_v);
+/// adaptive_sort(&mut random_v);
 /// adaptive_sort(&mut inverted_v);
 /// assert_eq!(v, inverted_v);
+/// assert_eq!(v, random_v);
 /// ```
-pub fn adaptive_sort<T: Ord + Copy + Send + Sync + std::fmt::Debug>(slice: &mut [T]) {
+pub fn adaptive_sort<T: Ord + Copy + Send + Sync>(slice: &mut [T]) {
     let mut tmp_slice1 = Vec::with_capacity(slice.base_length());
     let mut tmp_slice2 = Vec::with_capacity(slice.base_length());
     unsafe {
