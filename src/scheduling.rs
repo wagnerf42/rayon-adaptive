@@ -351,8 +351,9 @@ where
                     }
                 },
             ) {
-            Ok((output, remaining_input)) => {
-                if remaining_input.base_length() > self.min_block_size {
+            Ok((mut output, mut remaining_input)) => {
+                let remaining_length = remaining_input.base_length();
+                if remaining_length > self.min_block_size {
                     let (my_half, his_half) = remaining_input.divide();
                     if his_half.base_length() > 0 {
                         self.sender.send(his_half);
@@ -365,6 +366,11 @@ where
                         self.block_sizes,
                     )
                 } else {
+                    if remaining_length != 0 {
+                        let final_result = folder.fold(output, remaining_input, remaining_length);
+                        output = final_result.0;
+                        remaining_input = final_result.1;
+                    }
                     self.folder.to_output(output, remaining_input)
                 }
             }
