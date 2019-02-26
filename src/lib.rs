@@ -34,6 +34,7 @@ pub use crate::policy::Policy;
 pub mod atomiclist;
 pub mod prelude;
 pub mod smallchannel;
+pub use smallchannel::{small_channel, SmallReceiver, SmallSender};
 
 mod algorithms;
 pub use crate::algorithms::infix_solvers::*;
@@ -52,8 +53,8 @@ where
     RC: Send,
 {
     let done = &AtomicBool::new(false);
-    let (sender_a, receiver_b) = channel();
-    let (sender_b, receiver_a) = channel();
+    let (sender_a, receiver_a) = small_channel();
+    let (sender_b, receiver_b) = small_channel();
     let results = rayon::join(
         move || {
             let ra = oper_a();
@@ -62,7 +63,7 @@ where
                 let rb = receiver_a.recv().expect("receiving result failed");
                 Some(oper_c(ra, rb))
             } else {
-                sender_a.send((ra, oper_c)).expect("sending result failed");
+                sender_b.send((ra, oper_c));
                 None
             }
         },
@@ -73,7 +74,7 @@ where
                 let (ra, oper_c) = receiver_b.recv().expect("receiving result failed");
                 Some(oper_c(ra, rb))
             } else {
-                sender_b.send(rb).expect("sending result failed");
+                sender_a.send(rb);
                 None
             }
         },
