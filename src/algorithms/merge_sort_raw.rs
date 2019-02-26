@@ -331,7 +331,7 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices
 /// # Examples
 ///
 /// ```
-/// use rayon_adaptive::adaptive_sort;
+/// use rayon_adaptive::adaptive_sort_raw;
 /// use rand::{thread_rng, Rng};
 ///
 /// let v: Vec<u32> = (0..100_000).collect();
@@ -339,8 +339,8 @@ impl<'a, T: 'a + Ord + Copy + Sync + Send> DivisibleIntoBlocks for SortingSlices
 /// let mut rng = thread_rng();
 /// let mut random_v: Vec<u32> = (0..100_000).collect();
 /// rng.shuffle(&mut random_v);
-/// adaptive_sort(&mut random_v);
-/// adaptive_sort(&mut inverted_v);
+/// adaptive_sort_raw(&mut random_v);
+/// adaptive_sort_raw(&mut inverted_v);
 /// assert_eq!(v, inverted_v);
 /// assert_eq!(v, random_v);
 /// ```
