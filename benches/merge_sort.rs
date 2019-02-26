@@ -10,7 +10,7 @@ use rayon_adaptive::{adaptive_sort, adaptive_sort_raw};
 use criterion::{Criterion, ParameterizedBenchmark};
 
 fn merge_sort_adaptive(c: &mut Criterion) {
-    let sizes = vec![20_000, 50_000, 100_000, 150_000];
+    let sizes = vec![50_000, 100_000, 150_000, 262_144];
     c.bench(
         "merge sort (random input)",
         ParameterizedBenchmark::new(
