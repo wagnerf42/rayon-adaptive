@@ -323,19 +323,23 @@ pub fn adaptive_sort<T: Ord + Copy + Send + Sync>(slice: &mut [T]) {
         tmp_slice1.set_len(slice.base_length());
         tmp_slice2.set_len(slice.base_length());
     }
+    let slice_len = slice.len();
+    let num_threads = rayon::current_num_threads();
 
     let slices = SortingSlices {
         s: vec![slice, tmp_slice1.as_mut_slice(), tmp_slice2.as_mut_slice()],
         i: 0,
     };
 
-    let mut result_slices = slices.map_reduce(
-        |mut slices| {
-            slices.s[slices.i].sort();
-            slices
-        },
-        |s1, s2| s1.fuse_with_policy(s2, Default::default()),
-    );
+    let mut result_slices = slices
+        .with_policy(Policy::DepJoin(slice_len / (2 * num_threads)))
+        .map_reduce(
+            |mut slices| {
+                slices.s[slices.i].sort();
+                slices
+            },
+            |s1, s2| s1.fuse_with_policy(s2, Default::default()),
+        );
 
     if result_slices.i != 0 {
         let i = result_slices.i;
