@@ -1,8 +1,7 @@
 //! adaptive parallel merge sort.
 use crate::prelude::*;
 use crate::traits::{BasicPower, BlockedPower};
-use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
-use itertools::Itertools;
+use crate::{fuse_slices, Policy};
 use std;
 use std::iter::repeat;
 

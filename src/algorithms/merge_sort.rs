@@ -2,7 +2,6 @@
 use crate::prelude::*;
 use crate::traits::{BasicPower, BlockedPower};
 use crate::{fuse_slices, EdibleSlice, EdibleSliceMut, Policy};
-use itertools::Itertools;
 use std;
 use std::iter::repeat;
 

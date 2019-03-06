@@ -1,7 +1,7 @@
 use rayon_adaptive::*;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
-extern crate time;
+
 use rayon::ThreadPoolBuilder;
 const NUM_THREADS: usize = 1;
 const SIZE: u64 = 1_000_000;
@@ -10,7 +10,6 @@ fn main() {
     {
         let pool = ThreadPoolBuilder::new()
             .num_threads(NUM_THREADS)
-            .bind_threads()
             .build()
             .expect("Pool creation failed");
 

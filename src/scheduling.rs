@@ -9,7 +9,7 @@ use crate::utils::powers;
 use crate::Policy;
 use rayon::{current_num_threads, Scope};
 #[cfg(feature = "logs")]
-use rayon_logs::sequential_task;
+use rayon_logs::subgraph;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::iter::once;
@@ -418,7 +418,7 @@ where
                 let input: F::Input;
                 #[cfg(feature = "logs")]
                 {
-                    let option = sequential_task("waiting", 1, || receiver.recv());
+                    let option = subgraph("waiting", 1, || receiver.recv());
                     input = option?;
                 }
                 #[cfg(not(feature = "logs"))]
@@ -526,7 +526,7 @@ where
         let stolen_input: Option<AtomicLink<(Option<F::Output>, Option<F::Input>)>>;
         #[cfg(feature = "logs")]
         {
-            stolen_input = rayon_logs::sequential_task("slave wait", 1, || receiver.recv());
+            stolen_input = rayon_logs::subgraph("slave wait", 1, || receiver.recv());
         }
         #[cfg(not(feature = "logs"))]
         {

@@ -53,7 +53,7 @@ impl<'a, T> Iterator for AtomicListIterator<'a, T> {
             let node: AtomicNode<T>;
             #[cfg(feature = "logs")]
             {
-                node = rayon_logs::sequential_task("wait retrieving", 1, || loop {
+                node = rayon_logs::subgraph("wait retrieving", 1, || loop {
                     match Arc::try_unwrap(head) {
                         Ok(real_node) => break real_node,
                         Err(failed) => head = failed,

@@ -11,7 +11,6 @@ extern crate rayon_logs as rayon;
 #[macro_use]
 extern crate smallvec;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
 mod traits;
 pub use crate::traits::*;
 mod scheduling;
@@ -31,10 +30,10 @@ mod folders;
 pub use crate::folders::Folder;
 mod policy;
 pub use crate::policy::Policy;
-pub mod atomiclist;
+mod atomiclist;
 pub mod prelude;
-pub mod smallchannel;
-pub use smallchannel::{small_channel, SmallReceiver, SmallSender};
+mod smallchannel;
+pub use crate::smallchannel::{small_channel, SmallReceiver, SmallSender};
 
 mod algorithms;
 pub use crate::algorithms::infix_solvers::*;
