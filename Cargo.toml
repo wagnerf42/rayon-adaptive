@@ -15,10 +15,10 @@ debug = true
 logs = ["rayon_logs"]
 
 [dependencies]
-rayon_logs={optional=true, path="../rayon-logs"}
-derive-divisible={path="../derive-divisible"}
-rayon="*"   #{path="../clone_rayon"}
-rayon-core ="*" #{path="../clone_rayon/rayon-core"}
+rayon_logs={optional=true, version="0.1.2"}
+derive-divisible={git="https://github.com/wagnerf42/derive-divisible"}
+rayon="*"
+rayon-core ="*"
 itertools="*"
 rand="*"
 time = "0.1"
