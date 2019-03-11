@@ -37,7 +37,7 @@ pub use crate::smallchannel::{small_channel, SmallReceiver, SmallSender};
 
 mod algorithms;
 pub use crate::algorithms::infix_solvers::*;
-pub use crate::algorithms::prefix::adaptive_prefix;
+pub use crate::algorithms::prefix::{adaptive_prefix, fully_adaptive_prefix};
 pub use crate::algorithms::{merge_sort::adaptive_sort, merge_sort_raw::adaptive_sort_raw};
 
 /// Execute potentially `oper_a` and `oper_b` in parallel like in a standard join.

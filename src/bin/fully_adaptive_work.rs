@@ -1,7 +1,5 @@
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
-use derive_divisible::{Divisible, DivisibleAtIndex, DivisibleIntoBlocks};
-use rayon_adaptive::fuse_slices;
 use rayon_adaptive::prelude::*;
 use rayon_adaptive::BlockedPower;
 use std::iter::repeat;
@@ -112,4 +110,15 @@ fn main() {
 
         println!("{}, {}", time_taken_ms, number_of_threads);
     });
+
+    let mut input_vector = vec![1.0; SIZE];
+    let expected_result: Vec<_> = vec![1.0; SIZE];
+    let start = time::precise_time_ns();
+    input_vector.iter_mut().fold(1.0, |value, e| {
+        *e *= value;
+        *e
+    });
+    let end = time::precise_time_ns();
+    assert_eq!(input_vector, expected_result);
+    println!("sequential time: {}", (end - start) as f64 / (1e6 as f64));
 }
