@@ -10,7 +10,8 @@ use std::collections::LinkedList;
 use criterion::{Criterion, ParameterizedBenchmark};
 
 fn prefix_adaptive(c: &mut Criterion) {
-    let sizes = vec![100_000, 1_000_000, 2_000_000];
+    let sizes = vec![5_000_000];
+    //let sizes = vec![100_000, 1_000_000, 2_000_000];
     c.bench(
         "prefix (adding floats)",
         ParameterizedBenchmark::new(
@@ -44,41 +45,30 @@ fn prefix_adaptive(c: &mut Criterion) {
                 },
             )
         })
-        .with_function("rayon", |b, input_size| {
+        .with_function("rayon with chunks", |b, input_size| {
             b.iter_with_setup(
                 || (0..*input_size).map(|_| 1.0).collect::<Vec<f64>>(),
                 |mut v| {
-                    let blocks = v
-                        .par_iter_mut()
-                        .fold(
-                            || (0.0, 0),
-                            |(previous_value, count), x| {
-                                *x += previous_value;
-                                (*x, count + 1)
-                            },
-                        )
-                        .map(|(_, count)| {
-                            let mut l = LinkedList::new();
-                            l.push_back(count);
-                            l
-                        })
-                        .reduce(LinkedList::new, |mut l1, l2| {
-                            l1.extend(l2);
-                            l1
+                    let block_sizes = v.len() / (2 * rayon::current_num_threads());
+                    v.par_chunks_mut(block_sizes).for_each(|c| {
+                        c.iter_mut().fold(0.0, |last_value, e| {
+                            *e += last_value;
+                            *e
                         });
-                    let mut sizes = blocks.into_iter();
-                    let start_size = sizes.next().unwrap();
-                    let mut current_position = start_size;
-                    for size in sizes {
-                        let previous_value = v[current_position - 1];
-                        let next_position = current_position + size;
-                        v[current_position..next_position]
-                            .par_iter_mut()
-                            .for_each(|x| {
-                                *x += previous_value;
-                            });
-                        current_position = next_position;
-                    }
+                    });
+                    let increments: Vec<f64> = v[(block_sizes - 1)..]
+                        .iter()
+                        .step_by(block_sizes)
+                        .scan(0.0, |value, e| {
+                            *value += *e;
+                            Some(*value)
+                        })
+                        .collect();
+                    v.par_chunks_mut(block_sizes)
+                        .skip(1)
+                        .zip(increments.par_iter())
+                        .for_each(|(c, v)| c.iter_mut().for_each(|e| *e += *v));
+                    v
                 },
             )
         }),

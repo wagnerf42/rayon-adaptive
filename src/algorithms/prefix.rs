@@ -108,7 +108,7 @@ impl<'a, T: 'a + Send + Sync> DivisibleIntoBlocks for PrefixSlice<'a, T> {
 pub fn fully_adaptive_prefix<T, O>(input_vector: &mut [T], op: O)
 where
     T: Send + Sync + Copy,
-    O: Fn(&T, &T) -> T + Sync,
+    O: Fn(&T, &T) -> T + Sync + Send + Copy,
 {
     let first_value = input_vector.first().cloned().unwrap();
     let length = input_vector.len();
@@ -116,7 +116,6 @@ where
         slice: &mut input_vector[1..],
         index: 0,
     };
-    let op_ref = &op;
 
     scope(|s| {
         input
@@ -127,7 +126,7 @@ where
                     prefix_slice.slice[1..(prefix_slice.index + limit)]
                         .iter_mut()
                         .fold(previous_value, |previous_value, e| {
-                            *e = op_ref(&previous_value, e);
+                            *e = op(&previous_value, e);
                             *e
                         });
                 } else {
@@ -139,7 +138,7 @@ where
                     prefix_slice.slice[prefix_slice.index..(prefix_slice.index + limit)]
                         .iter_mut()
                         .fold(previous_value, |previous_value, e| {
-                            *e = op_ref(&previous_value, e);
+                            *e = op(&previous_value, e);
                             *e
                         });
                 }
@@ -154,18 +153,16 @@ where
                         .slice
                         .iter_mut()
                         .fold(last_elem_prev_slice, |c, e| {
-                            *e = op_ref(&c, e);
+                            *e = op(&c, e);
                             *e
                         })
                 },
                 |last_num, slice| {
                     if let Some(last_slice_num) = slice.last().cloned() {
                         s.spawn(move |_| {
-                            slice
-                                .into_adapt_iter()
-                                .for_each(|e| *e = op_ref(&last_num, e))
+                            slice.into_adapt_iter().for_each(|e| *e = op(&last_num, e))
                         });
-                        op_ref(&last_num, &last_slice_num)
+                        op(&last_num, &last_slice_num)
                     } else {
                         last_num
                     }
