@@ -1,10 +1,26 @@
 use rayon_adaptive::*;
+use time::precise_time_ns;
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 
 use rayon::ThreadPoolBuilder;
+use std::iter::repeat_with;
 const NUM_THREADS: usize = 2;
-const SIZE: u64 = 10_000_000;
+const SIZE: u64 = 1_000_000;
+
+fn print_timing<U, I: Send + Sized, G: Fn() -> I, F: Fn(I) -> U>(label: &str, setup: G, f: F) {
+    let time: u64 = repeat_with(setup)
+        .take(100)
+        .map(|v| {
+            let start = precise_time_ns();
+            f(v);
+            let end = precise_time_ns();
+            end - start
+        })
+        .sum();
+    println!("{} : {}", label, time / 100);
+}
+
 fn main() {
     #[cfg(feature = "logs")]
     {
@@ -63,5 +79,18 @@ fn main() {
         assert_eq!(answer, parsplit_ans);
         assert_eq!(answer, parfold_ans);
         assert_eq!(answer, adaptfold_ans);
+        print_timing("sequential", || vec_gen(SIZE), |v| solver_seq(&v));
+        print_timing("par split", || vec_gen(SIZE), |v| solver_par_split(&v));
+        print_timing("par fold", || vec_gen(SIZE), |v| solver_par_fold(&v));
+        print_timing(
+            "adapt",
+            || vec_gen(SIZE),
+            |v| solver_adaptive(&v, Default::default()),
+        );
+        print_timing(
+            "fully_adapt",
+            || vec_gen(SIZE),
+            |v| solver_fully_adaptive(&v),
+        );
     }
 }
