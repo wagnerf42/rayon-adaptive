@@ -143,3 +143,34 @@ pub fn solver_adaptive(inp: &[Token], policy: Policy) -> u64 {
         .reduce(|left, right| left.fuse(&right))
         .evaluate()
 }
+
+pub fn solver_fully_adaptive(inp: &[Token]) -> u64 {
+    let (s, p) = inp
+        .into_adapt_iter()
+        .fold(PartialProducts::new, |mut p, token| {
+            match token {
+                Token::Num(i) => p.update_product(*i),
+                Token::Add => p.append_product(),
+                Token::Mult => {}
+            }
+            p
+        })
+        .helping_fold(
+            (0, 1),
+            |(s, p), token| match token {
+                Token::Num(i) => (s, p * i),
+                Token::Add => (s + p, 1),
+                Token::Mult => (s, p),
+            },
+            |(s, p), pprod| match pprod.products.len() {
+                1 => (s, p * pprod.products[0]),
+                2 => (s + p * pprod.products[0], pprod.products[1]),
+                3 => (
+                    s + p * pprod.products[0] + pprod.products[1],
+                    pprod.products[2],
+                ),
+                _ => panic!("no way"),
+            },
+        );
+    s + p
+}

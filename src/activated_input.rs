@@ -259,3 +259,30 @@ impl<I: DivisibleIntoBlocks, F: Folder<Input = I> + Send, S: Iterator<Item = usi
         fold_with_help(input, init, cutting_fold, &folder, retrieve, sizes, policy)
     }
 }
+
+impl<I: AdaptiveIterator, F: Folder<Input = I> + Send, S: Iterator<Item = usize> + Send>
+    ActivatedInput<F, S, BlockedOrMore>
+{
+    pub fn helping_fold<B, FOLD, RET>(self, init: B, f: FOLD, retrieve: RET) -> B
+    where
+        B: Send,
+        FOLD: Fn(B, I::Item) -> B + Sync,
+        RET: Fn(B, F::Output) -> B + Sync,
+    {
+        let (input, folder, sizes, policy) = (self.input, self.folder, self.sizes, self.policy);
+        let f_ref = &f;
+        let sequential_fold = |io, i: I, limit| {
+            let (todo, remaining) = i.divide_at(limit);
+            (todo.into_iter().fold(io, f_ref), remaining)
+        };
+        fold_with_help(
+            input,
+            init,
+            sequential_fold,
+            &folder,
+            retrieve,
+            sizes,
+            policy,
+        )
+    }
+}

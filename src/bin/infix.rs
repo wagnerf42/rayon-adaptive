@@ -3,8 +3,8 @@ use rayon_adaptive::*;
 extern crate rayon_logs as rayon;
 
 use rayon::ThreadPoolBuilder;
-const NUM_THREADS: usize = 1;
-const SIZE: u64 = 1_000_000;
+const NUM_THREADS: usize = 2;
+const SIZE: u64 = 10_000_000;
 fn main() {
     #[cfg(feature = "logs")]
     {
@@ -14,12 +14,20 @@ fn main() {
             .expect("Pool creation failed");
 
         pool.compare()
-            .runs_number(500)
-            .attach_algorithm_with_setup(
+            .runs_number(100)
+            .attach_algorithm_nodisplay_with_setup(
                 "sequential",
                 || vec_gen(SIZE),
                 |vec| {
                     solver_seq(&vec);
+                    vec
+                },
+            )
+            .attach_algorithm_with_setup(
+                "fully adaptive",
+                || vec_gen(SIZE),
+                |vec| {
+                    solver_fully_adaptive(&vec);
                     vec
                 },
             )
@@ -50,8 +58,10 @@ fn main() {
         let adapt_ans = solver_adaptive(&random_expression, Default::default());
         let parsplit_ans = solver_par_split(&random_expression);
         let parfold_ans = solver_par_fold(&random_expression);
+        let adaptfold_ans = solver_fully_adaptive(&random_expression);
         assert_eq!(answer, adapt_ans);
         assert_eq!(answer, parsplit_ans);
         assert_eq!(answer, parfold_ans);
+        assert_eq!(answer, adaptfold_ans);
     }
 }
