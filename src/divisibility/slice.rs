@@ -1,6 +1,6 @@
 //! Implement divisibility for slices.
 
-use super::DivisibleIntoBlocks;
+use super::{DivisibleAtIndex, DivisibleIntoBlocks};
 use std::cmp::min;
 
 // read only slice
@@ -13,6 +13,8 @@ impl<'a, T: 'a> DivisibleIntoBlocks for &'a [T] {
     }
 }
 
+impl<'a, T: 'a> DivisibleAtIndex for &'a [T] {}
+
 // mutable slice
 impl<'a, T: 'a> DivisibleIntoBlocks for &'a mut [T] {
     fn base_length(&self) -> Option<usize> {
@@ -22,3 +24,5 @@ impl<'a, T: 'a> DivisibleIntoBlocks for &'a mut [T] {
         self.split_at_mut(min(index, self.len()))
     }
 }
+
+impl<'a, T: 'a> DivisibleAtIndex for &'a mut [T] {}

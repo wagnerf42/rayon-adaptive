@@ -1,5 +1,5 @@
 //! Implement divisibility traits for options.
-use super::DivisibleIntoBlocks;
+use super::{DivisibleAtIndex, DivisibleIntoBlocks};
 
 impl<T> DivisibleIntoBlocks for Option<T> {
     fn base_length(&self) -> Option<usize> {
@@ -13,3 +13,5 @@ impl<T> DivisibleIntoBlocks for Option<T> {
         (self, None)
     }
 }
+
+impl<T> DivisibleAtIndex for Option<T> {}
