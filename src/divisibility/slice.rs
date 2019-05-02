@@ -3,8 +3,8 @@
 use super::Divisible;
 
 impl<'a, T: 'a> Divisible for &'a [T] {
-    fn base_length(&self) -> Option<usize> {
-        Some(self.len())
+    fn base_length(&self) -> usize {
+        self.len()
     }
     fn divide(self) -> (Self, Self) {
         let mid = self.len() / 2;
@@ -13,8 +13,8 @@ impl<'a, T: 'a> Divisible for &'a [T] {
 }
 
 impl<'a, T: 'a> Divisible for &'a mut [T] {
-    fn base_length(&self) -> Option<usize> {
-        Some(self.len())
+    fn base_length(&self) -> usize {
+        self.len()
     }
     fn divide(self) -> (Self, Self) {
         let mid = self.len() / 2;
