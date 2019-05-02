@@ -1,23 +1,24 @@
 //! Implement divisibility for slices.
 
-use super::Divisible;
+use super::DivisibleIntoBlocks;
+use std::cmp::min;
 
-impl<'a, T: 'a> Divisible for &'a [T] {
-    fn base_length(&self) -> usize {
-        self.len()
+// read only slice
+impl<'a, T: 'a> DivisibleIntoBlocks for &'a [T] {
+    fn base_length(&self) -> Option<usize> {
+        Some(self.len())
     }
-    fn divide(self) -> (Self, Self) {
-        let mid = self.len() / 2;
-        self.split_at(mid)
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        self.split_at(min(index, self.len()))
     }
 }
 
-impl<'a, T: 'a> Divisible for &'a mut [T] {
-    fn base_length(&self) -> usize {
-        self.len()
+// mutable slice
+impl<'a, T: 'a> DivisibleIntoBlocks for &'a mut [T] {
+    fn base_length(&self) -> Option<usize> {
+        Some(self.len())
     }
-    fn divide(self) -> (Self, Self) {
-        let mid = self.len() / 2;
-        self.split_at_mut(mid)
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        self.split_at_mut(min(index, self.len()))
     }
 }

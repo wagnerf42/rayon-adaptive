@@ -1,15 +1,15 @@
 //! Implement divisibility traits for options.
-use super::Divisible;
+use super::DivisibleIntoBlocks;
 
-impl<T> Divisible for Option<T> {
-    fn base_length(&self) -> usize {
+impl<T> DivisibleIntoBlocks for Option<T> {
+    fn base_length(&self) -> Option<usize> {
         if self.is_some() {
-            1
+            Some(1)
         } else {
-            0
+            Some(0)
         }
     }
-    fn divide(self) -> (Self, Self) {
+    fn divide_at(self, index: usize) -> (Self, Self) {
         (self, None)
     }
 }
