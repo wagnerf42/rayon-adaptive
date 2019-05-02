@@ -83,6 +83,10 @@ fn main() {
             //         target
             //     )
             // })
+            .runs_number(200)
+            .attach_algorithm("sequential", || {
+                assert_eq!(v.iter().find(|&e| *e == target).cloned(), Some(target))
+            })
             .attach_algorithm("fold_reduce", fold_reduce)
             .attach_algorithm("slice_reduce", slice_reduce)
             .attach_algorithm("blocked_reduce", blocked_reduce)
