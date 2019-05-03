@@ -9,7 +9,7 @@ impl<T> DivisibleIntoBlocks for Option<T> {
             Some(0)
         }
     }
-    fn divide_at(self, index: usize) -> (Self, Self) {
+    fn divide_at(self, _index: usize) -> (Self, Self) {
         (self, None)
     }
 }

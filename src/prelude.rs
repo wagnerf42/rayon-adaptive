@@ -1,1 +1,2 @@
-pub use crate::divisibility::Divisible;
+pub use crate::divisibility::{Divisible, DivisibleAtIndex, DivisibleIntoBlocks};
+pub use crate::iter::Edible;
