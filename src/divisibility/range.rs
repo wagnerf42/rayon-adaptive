@@ -1,5 +1,5 @@
 //! ranges are divisible too
-use super::{DivisibleAtIndex, DivisibleIntoBlocks};
+use crate::prelude::*;
 use std::ops::{Range, Sub};
 
 impl<SubOutput, Idx> DivisibleIntoBlocks for Range<Idx>
@@ -20,4 +20,23 @@ where
     Idx: Sub<Output = SubOutput> + From<usize> + Copy,
     SubOutput: Into<usize>,
 {
+}
+
+impl Edible for Range<usize> {
+    type Item = usize;
+    type SequentialIterator = Range<usize>;
+    fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
+        (self.start + size..self.end, self.start..self.start + size)
+    }
+}
+
+impl Edible for Range<u64> {
+    type Item = u64;
+    type SequentialIterator = Range<u64>;
+    fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
+        (
+            self.start + size as u64..self.end,
+            self.start..self.start + size as u64,
+        )
+    }
 }

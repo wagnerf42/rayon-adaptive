@@ -8,7 +8,7 @@ use std::iter::Map;
 
 /// BlockedIterator is a struct here, not a trait.
 /// Doing that enables us an easy specialisation code.
-pub struct BlockedIterator<Input: DivisibleIntoBlocks + Edible>(Input);
+pub struct BlockedIterator<Input: DivisibleIntoBlocks + Edible>(pub Input);
 
 impl<Input: DivisibleIntoBlocks + Edible> Divisible for BlockedIterator<Input> {
     fn base_length(&self) -> usize {
@@ -22,6 +22,7 @@ impl<Input: DivisibleIntoBlocks + Edible> Divisible for BlockedIterator<Input> {
 }
 
 impl<Input: DivisibleIntoBlocks + Edible> Edible for BlockedIterator<Input> {
+    type Item = <Input::SequentialIterator as Iterator>::Item;
     type SequentialIterator = Input::SequentialIterator;
     fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
         let (remaining_input, iterator) = self.0.iter(size);
@@ -38,8 +39,9 @@ impl<Input: DivisibleIntoBlocks + Edible> BaseIterator for BlockedIterator<Input
 
 impl<InItem, InIterator, Input> BlockedIterator<Input>
 where
+    InItem: Send,
     InIterator: Iterator<Item = InItem>,
-    Input: DivisibleIntoBlocks + Edible<SequentialIterator = InIterator>,
+    Input: DivisibleIntoBlocks + Edible<Item = InItem, SequentialIterator = InIterator>,
 {
     fn find_first(self) -> Option<InItem> {
         unimplemented!()

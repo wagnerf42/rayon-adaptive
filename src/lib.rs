@@ -5,7 +5,7 @@
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
 /// Adaptive iterators
-pub(crate) mod iter;
+pub mod iter;
 /// Import all traits in prelude to enable adaptive iterators.
 pub mod prelude;
 /// Different available scheduling policies.
@@ -13,3 +13,5 @@ pub enum Policy {
     /// Use rayon's scheduling algorithm.
     Rayon,
 }
+/// All scheduling algorithms.
+pub(crate) mod schedulers;
