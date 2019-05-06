@@ -1,28 +1,33 @@
 //! Implement divisibility for slices.
 
-use super::{DivisibleAtIndex, DivisibleIntoBlocks};
+use super::IndexedPower;
+use crate::prelude::*;
 use std::cmp::min;
 
 // read only slice
-impl<'a, T: 'a> DivisibleIntoBlocks for &'a [T] {
+impl<'a, T: 'a> Divisible<IndexedPower> for &'a [T] {
     fn base_length(&self) -> Option<usize> {
         Some(self.len())
+    }
+    fn divide(self) -> (Self, Self) {
+        let index = self.len() / 2;
+        self.split_at(min(index, self.len()))
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         self.split_at(min(index, self.len()))
     }
 }
 
-impl<'a, T: 'a> DivisibleAtIndex for &'a [T] {}
-
 // mutable slice
-impl<'a, T: 'a> DivisibleIntoBlocks for &'a mut [T] {
+impl<'a, T: 'a> Divisible<IndexedPower> for &'a mut [T] {
     fn base_length(&self) -> Option<usize> {
         Some(self.len())
+    }
+    fn divide(self) -> (Self, Self) {
+        let index = self.len() / 2;
+        self.split_at_mut(min(index, self.len()))
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         self.split_at_mut(min(index, self.len()))
     }
 }
-
-impl<'a, T: 'a> DivisibleAtIndex for &'a mut [T] {}

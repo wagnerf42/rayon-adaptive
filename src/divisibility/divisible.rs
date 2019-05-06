@@ -1,32 +1,69 @@
 use crate::Policy;
+use std::iter::empty;
+use std::marker::PhantomData;
 use std::mem;
+
+/// This is a marker type for specialization
+pub struct BasicPower();
+/// This is a marker type for specialization
+pub struct BlockedPower();
+/// This is a marker type for specialization
+pub struct IndexedPower();
+
+/// To constrain types a little bit all markers need to implement this.
+pub trait Power {}
+impl Power for BasicPower {}
+impl Power for BlockedPower {}
+impl Power for IndexedPower {}
 
 /// This is the first level of the divisibility traits hierarchy.
 /// All parallel objects must at least implement this trait.
 /// Note that this abstraction is stronger than parallel iterators and
 /// will allow parallel operations on non-iterator objects.
-pub trait Divisible: Sized {
+pub trait Divisible<P: Power>: Sized {
     /// Return our size. This corresponds to the number of operations to be issued.
     /// For example *i.filter(f)* should have as size the number of elements in i before
     /// filtering. At size 0 nothing is left to do.
-    fn base_length(&self) -> usize;
+    /// Return None if size is infinite.
+    fn base_length(&self) -> Option<usize>;
     /// Cut the `Divisible` into two parts.
     fn divide(self) -> (Self, Self);
+    /// Cut the `Divisible` into two parts, if possible at given index.
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        self.divide() // TODO: should divide be the default or divide at ?
+    }
     /// Return current scheduling `Policy`.
     fn policy(&self) -> Policy {
         Policy::Rayon
     }
+    /// Get a sequential iterator on all our macro blocks.
+    fn blocks(self) -> BlocksIterator<P, Self> {
+        let sizes = Box::new(empty());
+        BlocksIterator {
+            remaining: Some(self),
+            sizes,
+            phantom: PhantomData,
+        }
+    }
 }
 
 /// Iterator on some `Divisible` input by blocks.
-pub struct BlocksIterator<I: DivisibleIntoBlocks> {
+pub struct BlocksIterator<P: Power, I: Divisible<P>> {
     /// sizes of all the remaining blocks
     sizes: Box<Iterator<Item = usize>>,
     /// remaining input
     remaining: Option<I>,
+    phantom: PhantomData<P>,
 }
 
-impl<I: DivisibleIntoBlocks> Iterator for BlocksIterator<I> {
+impl<I: Divisible<BasicPower>> Iterator for BlocksIterator<BasicPower, I> {
+    type Item = I;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.remaining.take()
+    }
+}
+
+impl<I: Divisible<BlockedPower>> Iterator for BlocksIterator<BlockedPower, I> {
     type Item = I;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining.is_none() {
@@ -54,31 +91,3 @@ impl<I: DivisibleIntoBlocks> Iterator for BlocksIterator<I> {
         }
     }
 }
-
-/// This is the second level of the divisibility traits hierarchy.
-/// Most objects can be divided at specified indices.
-/// We also allow infinite sizes like infinite ranges or repeat_with.
-pub trait DivisibleIntoBlocks: Sized {
-    /// Return our size. This corresponds to the number of operations to be issued.
-    /// For example *i.filter(f)* should have as size the number of elements in i before
-    /// filtering. At size 0 nothing is left to do.
-    /// Infinite sizes should return *None*.
-    fn base_length(&self) -> Option<usize>;
-    /// Cut the `Divisible` into two parts at specified index.
-    fn divide_at(self, index: usize) -> (Self, Self);
-    /// Return current scheduling `Policy`.
-    fn policy(&self) -> Policy {
-        Policy::Rayon
-    }
-    /// Iterate on all blocks.
-    fn blocks(self) -> BlocksIterator<Self> {
-        let sizes = Box::new(self.base_length().into_iter());
-        BlocksIterator {
-            remaining: Some(self),
-            sizes,
-        }
-    }
-}
-
-/// Implement for zippable stuff.
-pub trait DivisibleAtIndex: DivisibleIntoBlocks {}

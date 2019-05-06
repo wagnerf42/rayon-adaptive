@@ -1,7 +1,8 @@
 //! Implement divisibility traits for options.
-use super::{DivisibleAtIndex, DivisibleIntoBlocks};
+use super::IndexedPower;
+use crate::prelude::*;
 
-impl<T> DivisibleIntoBlocks for Option<T> {
+impl<T> Divisible<IndexedPower> for Option<T> {
     fn base_length(&self) -> Option<usize> {
         if self.is_some() {
             Some(1)
@@ -9,9 +10,7 @@ impl<T> DivisibleIntoBlocks for Option<T> {
             Some(0)
         }
     }
-    fn divide_at(self, _index: usize) -> (Self, Self) {
+    fn divide(self) -> (Self, Self) {
         (self, None)
     }
 }
-
-impl<T> DivisibleAtIndex for Option<T> {}

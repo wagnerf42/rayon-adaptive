@@ -12,6 +12,8 @@ pub mod prelude;
 pub enum Policy {
     /// Use rayon's scheduling algorithm.
     Rayon,
+    /// Split recursively until given size is reached.
+    Join(usize),
 }
 /// All scheduling algorithms.
 pub(crate) mod schedulers;

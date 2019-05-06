@@ -1,4 +1,3 @@
-use rayon_adaptive::iter::BlockedIterator;
 use rayon_adaptive::prelude::*;
 // use std::cmp::min;
 // use std::ops::Mul;
@@ -139,8 +138,7 @@ use rayon_adaptive::prelude::*;
 //     }
 // }
 fn main() {
-    let r = 0..10;
-    let i = BlockedIterator(r);
-    let s = i.reduce(|| 0, |a, b| a + b);
+    let r = 0..10u64;
+    let s = r.reduce(|| 0, |a, b| a + b);
     assert_eq!(s, 45);
 }
