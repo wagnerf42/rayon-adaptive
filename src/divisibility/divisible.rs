@@ -11,7 +11,7 @@ pub struct BlockedPower();
 pub struct IndexedPower();
 
 /// To constrain types a little bit all markers need to implement this.
-pub trait Power {}
+pub trait Power: Send {} // TODO: why on earth is the compiler requesting that ?
 impl Power for BasicPower {}
 impl Power for BlockedPower {}
 impl Power for IndexedPower {}

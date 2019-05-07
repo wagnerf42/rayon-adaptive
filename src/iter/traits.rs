@@ -1,8 +1,10 @@
 //! Iterator governing traits.
 //! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
+use super::IteratorFold;
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
+use std::marker::PhantomData;
 
 /// We can produce sequential iterators to be eaten slowly.
 pub trait Edible: Sized + Send {
@@ -16,9 +18,19 @@ pub trait Edible: Sized + Send {
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
-    //fn iterator_map<F>(self, F: map_op) -> ParallelIterator<IteratorMap<Self>> {
-    //    unimplemented!()
-    //}
+    /// Fold each sequential iterator into a single value.
+    /// See the max method below as a use case.
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<R, P, Self, F>
+    where
+        R: Sized + Send,
+        F: Fn(Self::SequentialIterator) -> R + Send + Clone,
+    {
+        IteratorFold {
+            iterator: self,
+            fold: fold_op,
+            phantom: PhantomData,
+        }
+    }
     /// Reduce with call to scheduler.
     fn reduce<OP, ID>(self, identity: ID, op: OP) -> Self::Item
     where
@@ -27,8 +39,8 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     {
         schedule(self, &identity, &op)
     }
-    // fn max(self) -> <<Self as Edible>::SequentialIterator as Iterator>::Item {
-    //     self.iterator_map(|i| i.max()).reduce(|| None, |a, b| max(a, b))
+    // fn max(self) -> Option<Self::Item> {
+    //     self.iterator_fold(|i| i.max()).reduce(|| None, |a, b| max(a, b))
     // }
 }
 
