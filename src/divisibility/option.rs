@@ -10,7 +10,7 @@ impl<T> Divisible<IndexedPower> for Option<T> {
             Some(0)
         }
     }
-    fn divide(self) -> (Self, Self) {
+    fn divide_at(self, _index: usize) -> (Self, Self) {
         (self, None)
     }
 }

@@ -4,6 +4,7 @@ use super::IteratorFold;
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
+use std::cmp::max;
 use std::marker::PhantomData;
 
 /// We can produce sequential iterators to be eaten slowly.
@@ -39,9 +40,20 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     {
         schedule(self, &identity, &op)
     }
-    // fn max(self) -> Option<Self::Item> {
-    //     self.iterator_fold(|i| i.max()).reduce(|| None, |a, b| max(a, b))
-    // }
+    /// Return the max of all elements.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0u32..100).max(), Some(99))
+    /// ```
+    fn max(self) -> Option<Self::Item>
+    where
+        Self::Item: Ord,
+    {
+        self.iterator_fold(Iterator::max).reduce(|| None, max)
+    }
 }
 
 /// Here go all methods for basic power only.

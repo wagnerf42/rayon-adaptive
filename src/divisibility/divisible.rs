@@ -27,11 +27,15 @@ pub trait Divisible<P: Power>: Sized {
     /// Return None if size is infinite.
     fn base_length(&self) -> Option<usize>;
     /// Cut the `Divisible` into two parts.
-    fn divide(self) -> (Self, Self);
-    /// Cut the `Divisible` into two parts, if possible at given index.
-    fn divide_at(self, index: usize) -> (Self, Self) {
-        self.divide() // TODO: should divide be the default or divide at ?
+    fn divide(self) -> (Self, Self) {
+        let mid = self
+            .base_length()
+            .expect("cannot divide by default with no size")
+            / 2;
+        self.divide_at(mid)
     }
+    /// Cut the `Divisible` into two parts, if possible at given index.
+    fn divide_at(self, index: usize) -> (Self, Self);
     /// Return current scheduling `Policy`.
     fn policy(&self) -> Policy {
         Policy::Rayon

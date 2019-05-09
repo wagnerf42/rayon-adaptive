@@ -39,3 +39,30 @@ where
         )
     }
 }
+
+impl<R, P, I, F> Divisible<P> for IteratorFold<R, P, I, F>
+where
+    R: Sized + Send,
+    P: Power,
+    I: ParallelIterator<P>,
+    F: Fn(I::SequentialIterator) -> R + Send + Clone,
+{
+    fn base_length(&self) -> Option<usize> {
+        self.iterator.base_length()
+    }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left_iterator, right_iterator) = self.iterator.divide_at(index);
+        (
+            IteratorFold {
+                iterator: left_iterator,
+                fold: self.fold.clone(),
+                phantom: PhantomData,
+            },
+            IteratorFold {
+                iterator: right_iterator,
+                fold: self.fold,
+                phantom: PhantomData,
+            },
+        )
+    }
+}
