@@ -1,3 +1,7 @@
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+
+use rayon::ThreadPoolBuilder;
 use rayon_adaptive::prelude::*;
 use rayon_adaptive::Policy;
 // use std::cmp::min;
@@ -139,8 +143,14 @@ use rayon_adaptive::Policy;
 //     }
 // }
 fn main() {
-    assert_eq!(
-        (0..100_000u64).with_policy(Policy::Join(10_000)).max(),
-        Some(99_999)
-    );
+    let v: Vec<u64> = (0..100_000u64).collect();
+    let pool = ThreadPoolBuilder::new()
+        .build()
+        .expect("failed building pool");
+    pool.install(|| {
+        assert_eq!(
+            (v.as_slice()).with_policy(Policy::Join(10_000)).max(),
+            Some(&99_999)
+        )
+    });
 }

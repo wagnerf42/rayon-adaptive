@@ -2,6 +2,10 @@
 #![type_length_limit = "2097152"]
 #![warn(clippy::all)]
 #![deny(missing_docs)]
+
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
+
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
 /// Adaptive iterators

@@ -1,5 +1,4 @@
 - add macro loop in schedulers
-- get back the logs
 - get the fold passing outputs around
 - get the work passing outputs around
 - get back all basic schedulers
