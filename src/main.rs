@@ -1,4 +1,5 @@
 use rayon_adaptive::prelude::*;
+use rayon_adaptive::Policy;
 // use std::cmp::min;
 // use std::ops::Mul;
 // use std::slice::{Iter, IterMut};
@@ -138,7 +139,8 @@ use rayon_adaptive::prelude::*;
 //     }
 // }
 fn main() {
-    let r = 0..10u64;
-    let s = r.reduce(|| 0, |a, b| a + b);
-    assert_eq!(s, 45);
+    assert_eq!(
+        (0..100_000u64).with_policy(Policy::Join(10_000)).max(),
+        Some(99_999)
+    );
 }

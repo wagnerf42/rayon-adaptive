@@ -8,7 +8,8 @@ impl Divisible<IndexedPower> for Range<u64> {
         Some((self.end - self.start) as usize)
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
-        ((self.start..index as u64), (index as u64..self.end))
+        let mid = self.start + index as u64;
+        ((self.start..mid), (mid..self.end))
     }
 }
 
@@ -17,6 +18,7 @@ impl Divisible<IndexedPower> for Range<usize> {
         Some(self.end - self.start)
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
-        ((self.start..index), (index..self.end))
+        let mid = self.start + index;
+        ((self.start..mid), (mid..self.end))
     }
 }

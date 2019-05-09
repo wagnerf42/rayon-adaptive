@@ -9,3 +9,5 @@ mod range;
 
 mod iterator_fold;
 pub use iterator_fold::IteratorFold;
+mod with_policy;
+pub use with_policy::WithPolicy;

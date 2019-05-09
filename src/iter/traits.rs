@@ -1,9 +1,11 @@
 //! Iterator governing traits.
 //! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
 use super::IteratorFold;
+use super::WithPolicy;
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
+use crate::Policy;
 use std::cmp::max;
 use std::marker::PhantomData;
 
@@ -14,7 +16,7 @@ pub trait Edible: Sized + Send {
     /// This registers the type of iterators produced.
     type SequentialIterator: Iterator<Item = Self::Item>;
     /// Give us a sequential iterator corresponding to `size` iterations.
-    fn iter(self, size: usize) -> (Self, Self::SequentialIterator);
+    fn iter(self, size: usize) -> (Self::SequentialIterator, Self);
 }
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -29,6 +31,14 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
         IteratorFold {
             iterator: self,
             fold: fold_op,
+            phantom: PhantomData,
+        }
+    }
+    /// Sets scheduling policy.
+    fn with_policy(self, policy: Policy) -> WithPolicy<P, Self> {
+        WithPolicy {
+            policy,
+            iterator: self,
             phantom: PhantomData,
         }
     }

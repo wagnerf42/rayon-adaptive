@@ -9,11 +9,14 @@ pub mod iter;
 /// Import all traits in prelude to enable adaptive iterators.
 pub mod prelude;
 /// Different available scheduling policies.
+#[derive(Debug, Clone, Copy)]
 pub enum Policy {
     /// Use rayon's scheduling algorithm.
     Rayon,
     /// Split recursively until given size is reached.
     Join(usize),
+    /// Just run sequentially
+    Sequential,
 }
 /// All scheduling algorithms.
 pub(crate) mod schedulers;

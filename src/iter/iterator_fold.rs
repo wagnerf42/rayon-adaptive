@@ -1,6 +1,7 @@
 //! Fold sequential iterators to get a value for each.
 //! This simplifies a lot of top-level fold ops (see the code for max as an example).
 use crate::prelude::*;
+use crate::Policy;
 use std::iter::{once, Once};
 use std::marker::PhantomData;
 
@@ -26,16 +27,16 @@ where
 {
     type Item = R;
     type SequentialIterator = Once<R>;
-    fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
-        let (inner_remains, inner_iterator) = self.iterator.iter(size);
+    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+        let (inner_iterator, inner_remains) = self.iterator.iter(size);
         let output = (self.fold)(inner_iterator);
         (
+            once(output),
             IteratorFold {
                 iterator: inner_remains,
                 fold: self.fold,
                 phantom: PhantomData,
             },
-            once(output),
         )
     }
 }
@@ -49,6 +50,9 @@ where
 {
     fn base_length(&self) -> Option<usize> {
         self.iterator.base_length()
+    }
+    fn policy(&self) -> Policy {
+        self.iterator.policy()
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left_iterator, right_iterator) = self.iterator.divide_at(index);

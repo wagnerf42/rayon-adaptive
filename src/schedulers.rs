@@ -1,5 +1,6 @@
 //! All schedulers are written here.
 use crate::prelude::*;
+use crate::Policy;
 
 /// reduce parallel iterator
 pub(crate) fn schedule<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
@@ -9,7 +10,12 @@ where
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
-    schedule_sequential(iterator, identity, op)
+    let scheduling_policy = iterator.policy();
+    match scheduling_policy {
+        Policy::Join(blocks_sizes) => schedule_join(iterator, identity, op, blocks_sizes),
+        Policy::Rayon => schedule_rayon(iterator, identity, op),
+        Policy::Sequential => schedule_sequential(iterator, identity, op),
+    }
 }
 
 pub(crate) fn schedule_sequential<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
@@ -22,7 +28,7 @@ where
     let full_length = iterator
         .base_length()
         .expect("running on infinite iterator");
-    let (_remaining, seq_iter) = iterator.iter(full_length);
+    let (seq_iter, _remaining) = iterator.iter(full_length);
     seq_iter.fold(identity(), op)
 }
 
@@ -51,4 +57,14 @@ where
         );
         op(left_result, right_result)
     }
+}
+
+pub(crate) fn schedule_rayon<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
+where
+    P: Power,
+    I: ParallelIterator<P>,
+    OP: Fn(I::Item, I::Item) -> I::Item + Sync,
+    ID: Fn() -> I::Item + Sync,
+{
+    unimplemented!()
 }
