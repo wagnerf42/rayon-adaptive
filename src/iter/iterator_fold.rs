@@ -27,6 +27,9 @@ where
 {
     type Item = R;
     type SequentialIterator = Once<R>;
+    fn policy(&self) -> Policy {
+        self.iterator.policy()
+    }
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (inner_iterator, inner_remains) = self.iterator.iter(size);
         let output = (self.fold)(inner_iterator);
@@ -51,9 +54,6 @@ where
     fn base_length(&self) -> Option<usize> {
         self.iterator.base_length()
     }
-    fn policy(&self) -> Policy {
-        self.iterator.policy()
-    }
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left_iterator, right_iterator) = self.iterator.divide_at(index);
         (
@@ -68,5 +68,17 @@ where
                 phantom: PhantomData,
             },
         )
+    }
+}
+
+impl<R, P, I, F> ParallelIterator<P> for IteratorFold<R, P, I, F>
+where
+    R: Sized + Send,
+    P: Power,
+    I: ParallelIterator<P>,
+    F: Fn(I::SequentialIterator) -> R + Send + Clone,
+{
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.iterator.blocks_sizes()
     }
 }

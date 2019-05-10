@@ -13,6 +13,9 @@ pub struct WithPolicy<P, I> {
 impl<P: Power, I: ParallelIterator<P>> Edible for WithPolicy<P, I> {
     type Item = I::Item;
     type SequentialIterator = I::SequentialIterator;
+    fn policy(&self) -> Policy {
+        self.policy
+    }
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (seq_iterator, remaining) = self.iterator.iter(size);
         (
@@ -45,7 +48,6 @@ impl<P: Power, I: ParallelIterator<P>> Divisible<P> for WithPolicy<P, I> {
             },
         )
     }
-    fn policy(&self) -> Policy {
-        self.policy
-    }
 }
+
+impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for WithPolicy<P, I> {}

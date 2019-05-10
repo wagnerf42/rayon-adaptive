@@ -1,4 +1,5 @@
 //! Range are parallel iterators.
+use crate::divisibility::IndexedPower;
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -17,3 +18,6 @@ impl Edible for Range<u64> {
         self.divide_at(size)
     }
 }
+
+impl ParallelIterator<IndexedPower> for Range<usize> {}
+impl ParallelIterator<IndexedPower> for Range<u64> {}

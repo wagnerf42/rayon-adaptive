@@ -14,3 +14,5 @@ mod iterator_fold;
 pub use iterator_fold::IteratorFold;
 mod with_policy;
 pub use with_policy::WithPolicy;
+mod by_blocks;
+pub use by_blocks::ByBlocks;

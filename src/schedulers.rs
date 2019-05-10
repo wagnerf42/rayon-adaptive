@@ -3,19 +3,26 @@ use crate::prelude::*;
 use crate::Policy;
 
 /// reduce parallel iterator
-pub(crate) fn schedule<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
+pub(crate) fn schedule<P, I, ID, OP, B>(
+    scheduling_policy: Policy,
+    blocks: &mut B,
+    identity: &ID,
+    op: &OP,
+) -> I::Item
 where
     P: Power,
     I: ParallelIterator<P>,
+    B: Iterator<Item = I>,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
-    let scheduling_policy = iterator.policy();
-    match scheduling_policy {
-        Policy::Join(blocks_sizes) => schedule_join(iterator, identity, op, blocks_sizes),
-        Policy::Rayon => schedule_rayon(iterator, identity, op),
-        Policy::Sequential => schedule_sequential(iterator, identity, op),
-    }
+    blocks
+        .map(|b| match scheduling_policy {
+            Policy::Join(blocks_sizes) => schedule_join(b, identity, op, blocks_sizes),
+            Policy::Rayon => schedule_rayon(b, identity, op),
+            Policy::Sequential => schedule_sequential(b, identity, op),
+        })
+        .fold(identity(), op)
 }
 
 pub(crate) fn schedule_sequential<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item

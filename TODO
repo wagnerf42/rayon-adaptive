@@ -1,4 +1,3 @@
-- add macro loop in schedulers
 - get the fold passing outputs around
 - get the work passing outputs around
 - get back all basic schedulers
@@ -7,3 +6,5 @@
 - derive Edible (oh yeah!)
 - all iterators adapters need to implement with_policy and blocks :-(
    -> derive it ?
+- choose if divide needs a checked argument or not (and fix either range or slice)
+- Edible's "iter" name is not well chosen

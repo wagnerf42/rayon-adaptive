@@ -1,5 +1,6 @@
 //! Iterator governing traits.
 //! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
+use super::ByBlocks;
 use super::IteratorFold;
 use super::WithPolicy;
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
@@ -7,6 +8,7 @@ use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
+use std::iter::{empty, once};
 use std::marker::PhantomData;
 
 /// We can produce sequential iterators to be eaten slowly.
@@ -17,10 +19,18 @@ pub trait Edible: Sized + Send {
     type SequentialIterator: Iterator<Item = Self::Item>;
     /// Give us a sequential iterator corresponding to `size` iterations.
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self);
+    /// Return current scheduling `Policy`.
+    fn policy(&self) -> Policy {
+        Policy::Rayon
+    }
 }
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
+    /// Return an iterator on sizes of all macro blocks.
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        Box::new(empty())
+    }
     /// Fold each sequential iterator into a single value.
     /// See the max method below as a use case.
     fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<R, P, Self, F>
@@ -42,13 +52,23 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
             phantom: PhantomData,
         }
     }
+    /// Sets the macro-blocks sizes.
+    fn by_blocks<I: Iterator<Item = usize> + Send + 'static>(self, sizes: I) -> ByBlocks<P, Self> {
+        ByBlocks {
+            sizes_iterator: Some(Box::new(sizes)),
+            iterator: self,
+            phantom: PhantomData,
+        }
+    }
     /// Reduce with call to scheduler.
-    fn reduce<OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    fn reduce<OP, ID>(mut self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
         ID: Fn() -> Self::Item + Sync,
     {
-        schedule(self, &identity, &op)
+        let policy = self.policy();
+        let sizes = self.blocks_sizes();
+        schedule(policy, &mut self.blocks(sizes), &identity, &op)
     }
     /// Return the max of all elements.
     ///
@@ -91,5 +111,3 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
         unimplemented!()
     }
 }
-
-impl<P: Power, I: Edible + Divisible<P>> ParallelIterator<P> for I {}

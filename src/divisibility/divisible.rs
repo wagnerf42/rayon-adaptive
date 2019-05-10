@@ -1,5 +1,3 @@
-use crate::Policy;
-use std::iter::empty;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -15,6 +13,9 @@ pub trait Power: Send {} // TODO: why on earth is the compiler requesting that ?
 impl Power for BasicPower {}
 impl Power for BlockedPower {}
 impl Power for IndexedPower {}
+pub trait BlockedPowerOrMore: Power {}
+impl BlockedPowerOrMore for BlockedPower {}
+impl BlockedPowerOrMore for IndexedPower {}
 
 /// This is the first level of the divisibility traits hierarchy.
 /// All parallel objects must at least implement this trait.
@@ -36,38 +37,26 @@ pub trait Divisible<P: Power>: Sized {
     }
     /// Cut the `Divisible` into two parts, if possible at given index.
     fn divide_at(self, index: usize) -> (Self, Self);
-    /// Return current scheduling `Policy`.
-    fn policy(&self) -> Policy {
-        Policy::Rayon
-    }
-    /// Get a sequential iterator on all our macro blocks.
-    fn blocks(self) -> BlocksIterator<P, Self> {
-        let sizes = Box::new(empty());
+    /// Return a sequential iterator on blocks of Self of given sizes.
+    fn blocks<S: Iterator<Item = usize>>(self, sizes: S) -> BlocksIterator<P, Self, S> {
         BlocksIterator {
-            remaining: Some(self),
             sizes,
+            remaining: Some(self),
             phantom: PhantomData,
         }
     }
 }
 
 /// Iterator on some `Divisible` input by blocks.
-pub struct BlocksIterator<P: Power, I: Divisible<P>> {
+pub struct BlocksIterator<P: Power, I: Divisible<P>, S: Iterator<Item = usize>> {
     /// sizes of all the remaining blocks
-    sizes: Box<Iterator<Item = usize>>,
+    pub(crate) sizes: S,
     /// remaining input
-    remaining: Option<I>,
-    phantom: PhantomData<P>,
+    pub(crate) remaining: Option<I>,
+    pub(crate) phantom: PhantomData<P>,
 }
 
-impl<I: Divisible<BasicPower>> Iterator for BlocksIterator<BasicPower, I> {
-    type Item = I;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.remaining.take()
-    }
-}
-
-impl<I: Divisible<BlockedPower>> Iterator for BlocksIterator<BlockedPower, I> {
+impl<P: Power, I: Divisible<P>, S: Iterator<Item = usize>> Iterator for BlocksIterator<P, I, S> {
     type Item = I;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining.is_none() {
@@ -75,7 +64,7 @@ impl<I: Divisible<BlockedPower>> Iterator for BlocksIterator<BlockedPower, I> {
             return None;
         }
 
-        let remaining_length = self.remaining.as_ref().base_length();
+        let remaining_length = self.remaining.as_ref().and_then(I::base_length);
         if let Some(length) = remaining_length {
             if length == 0 {
                 // no input left
