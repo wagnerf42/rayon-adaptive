@@ -8,6 +8,7 @@ extern crate rayon_logs as rayon;
 
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
+pub use divisibility::{BasicPower, BlockedPower, IndexedPower};
 /// Adaptive iterators
 pub mod iter;
 /// Import all traits in prelude to enable adaptive iterators.

@@ -20,3 +20,5 @@ mod fold;
 pub use fold::Fold;
 mod work;
 pub use work::Work;
+mod map;
+pub use map::Map;

@@ -1,12 +1,13 @@
 //! Iterator governing traits.
 //! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
-use super::{ByBlocks, Fold, IteratorFold, WithPolicy};
-use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
+use super::{ByBlocks, Fold, IteratorFold, Map, WithPolicy};
+use crate::divisibility::{BasicPower, BlockedPower, BlocksIterator, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
-use std::iter::empty;
+use std::collections::LinkedList;
+use std::iter::{empty, once, FlatMap};
 use std::marker::PhantomData;
 
 /// We can produce sequential iterators to be eaten slowly.
@@ -118,6 +119,28 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
             phantom: PhantomData,
         }
     }
+    /// Map each element of the `ParallelIterator`.
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// use rayon_adaptive::Policy;
+    /// assert_eq!(
+    ///     (0u64..100).with_policy(Policy::Join(10)).map(|i| i*2).max(),
+    ///     Some(198)
+    /// )
+    /// ```
+    fn map<F, R>(self, map_op: F) -> Map<P, Self, F>
+    where
+        F: Fn(Self::Item) -> R + Sync + Send,
+        R: Send,
+    {
+        Map {
+            iter: self,
+            f: map_op,
+            phantom: PhantomData,
+        }
+    }
 }
 
 /// Here go all methods for basic power only.
@@ -145,3 +168,27 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
         unimplemented!()
     }
 }
+
+// TODO: we cannot do that. maybe derive it for every parallel iterator ?
+// impl<I: ParallelIterator<IndexedPower>> IntoIterator for I {
+//     type Item = I::Item;
+//     type IntoIter = FlatMap<
+//         BlocksIterator<IndexedPower, I, Box<Iterator<Item = usize>>>,
+//         LinkedList<Vec<I::Item>>,
+//         fn(I) -> LinkedList<Vec<I::Item>>,
+//     >;
+//     fn into_iter(self) -> Self::IntoIter {
+//         let sizes = self.blocks_sizes();
+//         self.blocks(sizes).flat_map(|b| {
+//             b.fold(Vec::new, |mut v, e| {
+//                 v.append(e);
+//                 v
+//             })
+//             .map(|v| once(v).collect::<LinkedList<Vec<I::Item>>>())
+//             .reduce(|mut l1, l2| {
+//                 l1.append(&mut l2);
+//                 l1
+//             })
+//         })
+//     }
+// }
