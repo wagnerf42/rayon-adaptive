@@ -19,8 +19,14 @@ pub enum Policy {
     Rayon(usize),
     /// Split recursively until given size is reached.
     Join(usize),
+    /// Split adaptively according to steal requests.
+    /// Local iterator sizes are between given sizes.
+    Adaptive(usize, usize),
     /// Just run sequentially
     Sequential,
 }
 /// All scheduling algorithms.
 pub(crate) mod schedulers;
+
+pub(crate) mod smallchannel;
+pub(crate) mod utils;
