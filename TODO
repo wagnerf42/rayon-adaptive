@@ -1,4 +1,3 @@
-- get the work passing outputs around
 - get back all basic schedulers
 - get back sequential iterator on outputs
 - derive for new Divisibility trait

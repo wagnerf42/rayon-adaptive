@@ -18,3 +18,5 @@ mod by_blocks;
 pub use by_blocks::ByBlocks;
 mod fold;
 pub use fold::Fold;
+mod work;
+pub use work::Work;

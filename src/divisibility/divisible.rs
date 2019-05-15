@@ -1,3 +1,4 @@
+use crate::iter::Work;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -42,6 +43,14 @@ pub trait Divisible<P: Power>: Sized {
         BlocksIterator {
             sizes,
             remaining: Some(self),
+            phantom: PhantomData,
+        }
+    }
+    /// Work on ourselves piece by piece until length reaches 0.
+    fn work<W: Fn(Self, usize) -> Self + Send + Clone>(self, work_op: W) -> Work<P, Self, W> {
+        Work {
+            remaining_input: Some(self),
+            work_op,
             phantom: PhantomData,
         }
     }
