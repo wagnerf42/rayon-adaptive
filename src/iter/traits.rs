@@ -1,14 +1,12 @@
 //! Iterator governing traits.
 //! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
-use super::ByBlocks;
-use super::IteratorFold;
-use super::WithPolicy;
+use super::{ByBlocks, Fold, IteratorFold, WithPolicy};
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
-use std::iter::{empty, once};
+use std::iter::empty;
 use std::marker::PhantomData;
 
 /// We can produce sequential iterators to be eaten slowly.
@@ -76,13 +74,49 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     ///
     /// ```
     /// use rayon_adaptive::prelude::*;
-    /// assert_eq!((0u32..100).max(), Some(99))
+    /// use rayon_adaptive::Policy;
+    /// assert_eq!((0u64..100).with_policy(Policy::Join(10)).max(), Some(99))
     /// ```
     fn max(self) -> Option<Self::Item>
     where
         Self::Item: Ord,
     {
         self.iterator_fold(Iterator::max).reduce(|| None, max)
+    }
+    /// Fold parallel iterator. Self will be split dynamically. Each part gets folded
+    /// independantly. We get back a `ParallelIterator` on all results of all sequential folds.
+    ///
+    /// Let's see for example a manual vector creation (not optimized, don't do that).
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// use rayon_adaptive::Policy;
+    /// assert_eq!(
+    ///     (0u64..100).with_policy(Policy::Join(10)).fold(Vec::new, |mut v, i| {
+    ///         v.push(i);
+    ///         v
+    ///     })
+    ///         .reduce(Vec::new, |mut v1, v2| {
+    ///             v1.extend(v2);
+    ///             v1
+    ///         }),
+    ///     (0u64..100).collect::<Vec<u64>>()
+    /// )
+    /// ```
+    fn fold<T, ID, F>(self, identity: ID, fold_op: F) -> Fold<P, Self, T, ID, F>
+    where
+        F: Fn(T, Self::Item) -> T + Sync + Send,
+        ID: Fn() -> T + Sync + Send,
+        T: Send,
+    {
+        Fold {
+            remaining_input: self,
+            current_output: Some(identity()),
+            identity,
+            fold_op,
+            phantom: PhantomData,
+        }
     }
 }
 

@@ -16,3 +16,5 @@ mod with_policy;
 pub use with_policy::WithPolicy;
 mod by_blocks;
 pub use by_blocks::ByBlocks;
+mod fold;
+pub use fold::Fold;
