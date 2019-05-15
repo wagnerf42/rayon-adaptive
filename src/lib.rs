@@ -16,7 +16,7 @@ pub mod prelude;
 #[derive(Debug, Clone, Copy)]
 pub enum Policy {
     /// Use rayon's scheduling algorithm.
-    Rayon,
+    Rayon(usize),
     /// Split recursively until given size is reached.
     Join(usize),
     /// Just run sequentially

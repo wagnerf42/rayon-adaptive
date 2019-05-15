@@ -151,7 +151,7 @@ fn main() {
     pool.install(|| {
         assert_eq!(
             (v.as_slice())
-                .with_policy(Policy::Join(5_000))
+                .with_policy(Policy::Rayon(1))
                 .by_blocks(repeat(50_000))
                 .max(),
             Some(&99_999)

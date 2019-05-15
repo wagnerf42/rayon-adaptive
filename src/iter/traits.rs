@@ -19,7 +19,7 @@ pub trait Edible: Sized + Send {
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self);
     /// Return current scheduling `Policy`.
     fn policy(&self) -> Policy {
-        Policy::Rayon
+        Policy::Rayon(1)
     }
 }
 
