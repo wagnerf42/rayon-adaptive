@@ -3,7 +3,7 @@ use crate::divisibility::IndexedPower;
 use crate::prelude::*;
 use std::ops::Range;
 
-impl Edible for Range<usize> {
+impl ParallelIterator<IndexedPower> for Range<usize> {
     type Item = usize;
     type SequentialIterator = Range<usize>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -11,13 +11,10 @@ impl Edible for Range<usize> {
     }
 }
 
-impl Edible for Range<u64> {
+impl ParallelIterator<IndexedPower> for Range<u64> {
     type Item = u64;
     type SequentialIterator = Range<u64>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         self.divide_at(size)
     }
 }
-
-impl ParallelIterator<IndexedPower> for Range<usize> {}
-impl ParallelIterator<IndexedPower> for Range<u64> {}

@@ -1,5 +1,4 @@
 //! Iterator governing traits.
-//! `Edible` allows for a step by step extraction of sequential work from parallel iterator.
 use super::{ByBlocks, Fold, IteratorFold, Map, WithPolicy};
 use crate::divisibility::{BasicPower, BlockedPower, BlocksIterator, IndexedPower};
 use crate::prelude::*;
@@ -10,8 +9,8 @@ use std::collections::LinkedList;
 use std::iter::{empty, once, FlatMap};
 use std::marker::PhantomData;
 
-/// We can produce sequential iterators to be eaten slowly.
-pub trait Edible: Sized + Send {
+/// This traits enables to implement all basic methods for all type of iterators.
+pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     /// This registers the type of output produced (it IS the item of the SequentialIterator).
     type Item: Send; // TODO: can we get rid of that and keep a short name ?
     /// This registers the type of iterators produced.
@@ -22,10 +21,7 @@ pub trait Edible: Sized + Send {
     fn policy(&self) -> Policy {
         Policy::Rayon(1)
     }
-}
 
-/// This traits enables to implement all basic methods for all type of iterators.
-pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     /// Return an iterator on sizes of all macro blocks.
     fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
         Box::new(empty())
@@ -130,7 +126,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     ///     Some(198)
     /// )
     /// ```
-    fn map<F, R>(self, map_op: F) -> Map<P, Self, F>
+    fn map<F, R>(self, map_op: F) -> Map<R, P, Self, F>
     where
         F: Fn(Self::Item) -> R + Sync + Send + Clone,
         R: Send,

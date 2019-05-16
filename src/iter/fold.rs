@@ -29,7 +29,7 @@ impl<
         O: Send,
         ID: Fn() -> O + Clone + Send,
         F: Fn(O, I::Item) -> O + Clone + Send,
-    > Edible for Fold<P, I, O, ID, F>
+    > ParallelIterator<P> for Fold<P, I, O, ID, F>
 {
     type Item = O;
     type SequentialIterator = IntoIter<O>;
@@ -53,14 +53,4 @@ impl<
     fn policy(&self) -> Policy {
         self.remaining_input.policy()
     }
-}
-
-impl<
-        P: Power,
-        I: ParallelIterator<P>,
-        O: Send,
-        ID: Fn() -> O + Clone + Send,
-        F: Fn(O, I::Item) -> O + Clone + Send,
-    > ParallelIterator<P> for Fold<P, I, O, ID, F>
-{
 }

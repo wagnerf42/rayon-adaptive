@@ -4,7 +4,7 @@ use crate::divisibility::IndexedPower;
 use crate::prelude::*;
 use std::slice::{Iter, IterMut};
 
-impl<'a, T: 'a + Sync> Edible for &'a [T] {
+impl<'a, T: 'a + Sync> ParallelIterator<IndexedPower> for &'a [T] {
     type Item = &'a T;
     type SequentialIterator = Iter<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -13,7 +13,7 @@ impl<'a, T: 'a + Sync> Edible for &'a [T] {
     }
 }
 
-impl<'a, T: 'a + Sync + Send> Edible for &'a mut [T] {
+impl<'a, T: 'a + Sync + Send> ParallelIterator<IndexedPower> for &'a mut [T] {
     type Item = &'a mut T;
     type SequentialIterator = IterMut<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -21,5 +21,3 @@ impl<'a, T: 'a + Sync + Send> Edible for &'a mut [T] {
         (beginning.iter_mut(), remaining)
     }
 }
-
-impl<'a, T: 'a + Sync> ParallelIterator<IndexedPower> for &'a [T] {}

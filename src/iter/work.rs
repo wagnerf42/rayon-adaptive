@@ -16,7 +16,7 @@ pub struct Work<P: Power, I: Divisible<P>, W: Clone> {
     pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone> Edible
+impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone> ParallelIterator<P>
     for Work<P, I, W>
 {
     type Item = I;
@@ -35,9 +35,4 @@ impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone> Edib
             self,
         )
     }
-}
-
-impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone> ParallelIterator<P>
-    for Work<P, I, W>
-{
 }

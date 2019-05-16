@@ -15,7 +15,7 @@ pub struct WithPolicy<P: Power, I: Divisible<P>> {
     pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: ParallelIterator<P>> Edible for WithPolicy<P, I> {
+impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for WithPolicy<P, I> {
     type Item = I::Item;
     type SequentialIterator = I::SequentialIterator;
     fn policy(&self) -> Policy {
@@ -33,5 +33,3 @@ impl<P: Power, I: ParallelIterator<P>> Edible for WithPolicy<P, I> {
         )
     }
 }
-
-impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for WithPolicy<P, I> {}
