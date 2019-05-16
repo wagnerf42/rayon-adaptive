@@ -1,13 +1,18 @@
 //! Map iterator.
 use crate::prelude::*;
 use crate::Policy;
+use derive_divisible::Divisible;
 use std::iter;
 use std::marker::PhantomData;
 
 /// Map iterator adapter, returning by `map` function on `ParallelIterator`.
-pub struct Map<P, I, F> {
+#[derive(Divisible)]
+#[power(P)]
+pub struct Map<P: Power, I: Divisible<P>, F: Clone> {
     pub(crate) iter: I,
+    #[divide_by(clone)]
     pub(crate) f: F,
+    #[divide_by(default)]
     pub(crate) phantom: PhantomData<P>,
 }
 
@@ -23,24 +28,6 @@ impl<P: Power, I: ParallelIterator<P>, R: Send, F: Fn(I::Item) -> R + Send + Clo
     }
     fn policy(&self) -> Policy {
         self.iter.policy()
-    }
-}
-
-impl<P: Power, I: ParallelIterator<P>, R: Send, F: Fn(I::Item) -> R + Send + Clone> Divisible<P>
-    for Map<P, I, F>
-{
-    fn base_length(&self) -> Option<usize> {
-        self.iter.base_length()
-    }
-    fn divide_at(mut self, index: usize) -> (Self, Self) {
-        let (left, right) = self.iter.divide_at(index);
-        self.iter = left;
-        let right_part = Map {
-            iter: right,
-            f: self.f.clone(),
-            phantom: PhantomData,
-        };
-        (self, right_part)
     }
 }
 

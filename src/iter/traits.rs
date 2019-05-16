@@ -107,8 +107,8 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     /// ```
     fn fold<T, ID, F>(self, identity: ID, fold_op: F) -> Fold<P, Self, T, ID, F>
     where
-        F: Fn(T, Self::Item) -> T + Sync + Send,
-        ID: Fn() -> T + Sync + Send,
+        F: Fn(T, Self::Item) -> T + Sync + Send + Clone,
+        ID: Fn() -> T + Sync + Send + Clone,
         T: Send,
     {
         Fold {
@@ -132,7 +132,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Edible {
     /// ```
     fn map<F, R>(self, map_op: F) -> Map<P, Self, F>
     where
-        F: Fn(Self::Item) -> R + Sync + Send,
+        F: Fn(Self::Item) -> R + Sync + Send + Clone,
         R: Send,
     {
         Map {

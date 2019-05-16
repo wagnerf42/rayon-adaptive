@@ -1,6 +1,5 @@
 - get back all basic schedulers
 - get back sequential iterator on outputs
-- derive for new Divisibility trait
 - derive Edible (oh yeah!)
 - all iterators adapters need to implement with_policy and blocks :-(
    -> derive it ?

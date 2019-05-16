@@ -1,35 +1,18 @@
 //! `ByBlocks` structure for `ParallelIterator::by_blocks`.
 use crate::prelude::*;
 use crate::Policy;
+use derive_divisible::Divisible;
 use std::marker::PhantomData;
 
 /// Iterator which configured to run on macro blocks. See `ParallelIterator::by_blocks`.
-pub struct ByBlocks<P, I> {
+#[derive(Divisible)]
+#[power(P)]
+pub struct ByBlocks<P: Power, I: Divisible<P>> {
+    #[divide_by(default)]
     pub(crate) sizes_iterator: Option<Box<Iterator<Item = usize> + Send>>,
     pub(crate) iterator: I,
+    #[divide_by(default)]
     pub(crate) phantom: PhantomData<P>,
-}
-
-impl<P: Power, I: ParallelIterator<P>> Divisible<P> for ByBlocks<P, I> {
-    fn base_length(&self) -> Option<usize> {
-        self.iterator.base_length()
-    }
-    // note: discard sizes iterator if splitting
-    fn divide_at(self, index: usize) -> (Self, Self) {
-        let (left, right) = self.iterator.divide_at(index);
-        (
-            ByBlocks {
-                sizes_iterator: None,
-                iterator: left,
-                phantom: PhantomData,
-            },
-            ByBlocks {
-                sizes_iterator: None,
-                iterator: right,
-                phantom: PhantomData,
-            },
-        )
-    }
 }
 
 impl<P: Power, I: ParallelIterator<P>> Edible for ByBlocks<P, I> {

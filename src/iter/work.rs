@@ -1,32 +1,19 @@
 //! Work locally.
 use crate::prelude::*;
+use derive_divisible::Divisible;
 use std::marker::PhantomData;
 use std::option::IntoIter;
 
 /// The `Work` struct is returned by the `work` method on any `Divisible`.
 /// It slowly consumes the input piece by piece.
-pub struct Work<P, I, W> {
+#[derive(Divisible)]
+#[power(P)]
+pub struct Work<P: Power, I: Divisible<P>, W: Clone> {
     pub(crate) remaining_input: Option<I>,
+    #[divide_by(clone)]
     pub(crate) work_op: W,
+    #[divide_by(default)]
     pub(crate) phantom: PhantomData<P>,
-}
-
-impl<P: Power, I: Divisible<P>, W: Fn(I, usize) -> I + Send + Clone> Divisible<P>
-    for Work<P, I, W>
-{
-    fn base_length(&self) -> Option<usize> {
-        self.remaining_input.as_ref().unwrap().base_length()
-    }
-    fn divide_at(mut self, index: usize) -> (Self, Self) {
-        let (left, right) = self.remaining_input.unwrap().divide_at(index);
-        self.remaining_input = Some(left);
-        let right_work = Work {
-            remaining_input: Some(right),
-            work_op: self.work_op.clone(),
-            phantom: PhantomData,
-        };
-        (self, right_work)
-    }
 }
 
 impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone> Edible

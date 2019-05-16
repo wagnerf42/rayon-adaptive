@@ -1,6 +1,7 @@
 //! Fold and avoid local reductions.
 use crate::prelude::*;
 use crate::Policy;
+use derive_divisible::Divisible;
 use std::marker::PhantomData;
 use std::option::IntoIter;
 
@@ -8,37 +9,18 @@ use std::option::IntoIter;
 /// It is for use when the reduction operation comes with overhead.
 /// So instead of reducing all tiny pieces created by local iterators we just
 /// reduce for the real divisions.
-pub struct Fold<P, I, O, ID, F> {
+#[derive(Divisible)]
+#[power(P)]
+pub struct Fold<P: Power, I: Divisible<P>, O, ID: Clone, F: Clone> {
     pub(crate) remaining_input: I,
+    #[divide_by(default)]
     pub(crate) current_output: Option<O>,
+    #[divide_by(clone)]
     pub(crate) identity: ID,
+    #[divide_by(clone)]
     pub(crate) fold_op: F,
+    #[divide_by(default)]
     pub(crate) phantom: PhantomData<P>,
-}
-
-impl<
-        P: Power,
-        I: ParallelIterator<P>,
-        O: Send,
-        ID: Fn() -> O + Clone + Send,
-        F: Fn(O, I::Item) -> O + Clone + Send,
-    > Divisible<P> for Fold<P, I, O, ID, F>
-{
-    fn base_length(&self) -> Option<usize> {
-        self.remaining_input.base_length()
-    }
-    fn divide_at(mut self, index: usize) -> (Self, Self) {
-        let (left, right) = self.remaining_input.divide_at(index);
-        self.remaining_input = left;
-        let right_folder = Fold {
-            remaining_input: right,
-            current_output: Some((self.identity)()),
-            identity: self.identity.clone(),
-            fold_op: self.fold_op.clone(),
-            phantom: PhantomData,
-        };
-        (self, right_folder)
-    }
 }
 
 impl<
@@ -54,7 +36,7 @@ impl<
     fn iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
         let final_call = self.base_length().expect("cannot fold infinite sizes") == size;
         let (sequential_iterator, new_remaining_input) = self.remaining_input.iter(size);
-        let current_output = self.current_output.take().unwrap();
+        let current_output = self.current_output.take().unwrap_or_else(&self.identity);
         let new_output = sequential_iterator.fold(current_output, &self.fold_op);
         self.remaining_input = new_remaining_input;
         (
