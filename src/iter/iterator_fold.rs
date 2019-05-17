@@ -1,7 +1,6 @@
 //! Fold sequential iterators to get a value for each.
 //! This simplifies a lot of top-level fold ops (see the code for max as an example).
 use crate::prelude::*;
-use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
 use std::iter::{once, Once};
 use std::marker::PhantomData;

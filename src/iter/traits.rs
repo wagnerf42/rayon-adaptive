@@ -1,5 +1,5 @@
 //! Iterator governing traits.
-use super::{ByBlocks, Fold, IteratorFold, Map, WithPolicy};
+use super::{ByBlocks, FlatMap, Fold, IteratorFold, Map, WithPolicy};
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -25,6 +25,21 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
         Box::new(empty())
     }
+
+    /// Parallel flat_map.
+    fn flat_map<F: Clone, PI>(self, map_op: F) -> FlatMap<P, Self, PI::Item, PI, F>
+    where
+        F: Fn(Self::Item) -> PI + Sync + Send,
+        PI: IntoIterator,
+        PI::Item: Send,
+    {
+        FlatMap {
+            base: self,
+            map_op,
+            phantom: PhantomData,
+        }
+    }
+
     /// Fold each sequential iterator into a single value.
     /// See the max method below as a use case.
     fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<R, P, Self, F>

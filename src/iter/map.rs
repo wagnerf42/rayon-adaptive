@@ -1,6 +1,5 @@
 //! Map iterator.
 use crate::prelude::*;
-use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
 use std::iter;
 use std::marker::PhantomData;

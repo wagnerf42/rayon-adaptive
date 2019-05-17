@@ -21,3 +21,5 @@ mod work;
 pub use work::Work;
 mod map;
 pub use map::Map;
+mod flatmap;
+pub use flatmap::FlatMap;

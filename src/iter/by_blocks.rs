@@ -1,6 +1,5 @@
 //! `ByBlocks` structure for `ParallelIterator::by_blocks`.
 use crate::prelude::*;
-use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
 use std::marker::PhantomData;
 
