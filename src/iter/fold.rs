@@ -1,7 +1,7 @@
 //! Fold and avoid local reductions.
 use crate::prelude::*;
 use crate::Policy;
-use derive_divisible::Divisible;
+use derive_divisible::{Divisible, IntoIterator};
 use std::marker::PhantomData;
 use std::option::IntoIter;
 
@@ -9,9 +9,16 @@ use std::option::IntoIter;
 /// It is for use when the reduction operation comes with overhead.
 /// So instead of reducing all tiny pieces created by local iterators we just
 /// reduce for the real divisions.
-#[derive(Divisible)]
+#[derive(Divisible, IntoIterator)]
 #[power(P)]
-pub struct Fold<P: Power, I: Divisible<P>, O, ID: Clone, F: Clone> {
+#[item(O)]
+pub struct Fold<
+    P: Power,
+    I: ParallelIterator<P>,
+    O: Send,
+    ID: Fn() -> O + Clone + Send,
+    F: Fn(O, I::Item) -> O + Clone + Send,
+> {
     pub(crate) remaining_input: I,
     #[divide_by(default)]
     pub(crate) current_output: Option<O>,
@@ -52,5 +59,8 @@ impl<
     }
     fn policy(&self) -> Policy {
         self.remaining_input.policy()
+    }
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.remaining_input.blocks_sizes()
     }
 }

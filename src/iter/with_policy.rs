@@ -1,13 +1,14 @@
 //! `WithPolicy` structure for `ParallelIterator::with_policy`.
 use crate::prelude::*;
 use crate::Policy;
-use derive_divisible::Divisible;
+use derive_divisible::{Divisible, IntoIterator};
 use std::marker::PhantomData;
 
 /// Iterator remembering which scheduling policy has been set by the user.
-#[derive(Divisible)]
+#[derive(Divisible, IntoIterator)]
 #[power(P)]
-pub struct WithPolicy<P: Power, I: Divisible<P>> {
+#[item(I::Item)]
+pub struct WithPolicy<P: Power, I: ParallelIterator<P>> {
     #[divide_by(clone)]
     pub(crate) policy: Policy,
     pub(crate) iterator: I,

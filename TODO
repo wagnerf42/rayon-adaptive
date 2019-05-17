@@ -1,6 +1,4 @@
 - get back all basic schedulers
-- get back sequential iterator on outputs
-- implement with_policy and blocks for fold and work
 - choose if divide needs a checked argument or not (and fix either range or slice)
 - Edible's "iter" name is not well chosen
 - into_par_iter and then rewrite doctests

@@ -1,11 +1,11 @@
 //! `ByBlocks` structure for `ParallelIterator::by_blocks`.
 use crate::prelude::*;
 use crate::Policy;
-use derive_divisible::{Divisible, ParallelIterator};
+use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
 use std::marker::PhantomData;
 
 /// Iterator which configured to run on macro blocks. See `ParallelIterator::by_blocks`.
-#[derive(Divisible, ParallelIterator)]
+#[derive(Divisible, ParallelIterator, IntoIterator)]
 #[power(P)]
 #[item(I::Item)]
 #[sequential_iterator(I::SequentialIterator)]

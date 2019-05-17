@@ -1,12 +1,11 @@
 //! Iterator governing traits.
 use super::{ByBlocks, Fold, IteratorFold, Map, WithPolicy};
-use crate::divisibility::{BasicPower, BlockedPower, BlocksIterator, IndexedPower};
+use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
-use std::collections::LinkedList;
-use std::iter::{empty, once, FlatMap};
+use std::iter::empty;
 use std::marker::PhantomData;
 
 /// This traits enables to implement all basic methods for all type of iterators.
