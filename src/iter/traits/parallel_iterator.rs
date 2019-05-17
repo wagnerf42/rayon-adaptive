@@ -1,6 +1,6 @@
 //! Iterator governing traits.
-use super::{ByBlocks, FlatMap, Fold, IteratorFold, Map, WithPolicy};
 use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
+use crate::iter::{ByBlocks, FlatMap, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
@@ -85,8 +85,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///
     /// ```
     /// use rayon_adaptive::prelude::*;
-    /// use rayon_adaptive::Policy;
-    /// assert_eq!((0u64..100).with_policy(Policy::Join(10)).max(), Some(99))
+    /// assert_eq!((0u64..100).into_par_iter().max(), Some(99))
     /// ```
     fn max(self) -> Option<Self::Item>
     where
@@ -102,9 +101,8 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///
     /// ```
     /// use rayon_adaptive::prelude::*;
-    /// use rayon_adaptive::Policy;
     /// assert_eq!(
-    ///     (0u64..100).with_policy(Policy::Join(10)).fold(Vec::new, |mut v, i| {
+    ///     (0u64..100).into_par_iter().fold(Vec::new, |mut v, i| {
     ///         v.push(i);
     ///         v
     ///     })
@@ -134,9 +132,8 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///
     /// ```
     /// use rayon_adaptive::prelude::*;
-    /// use rayon_adaptive::Policy;
     /// assert_eq!(
-    ///     (0u64..100).with_policy(Policy::Join(10)).map(|i| i*2).max(),
+    ///     (0u64..100).into_par_iter().map(|i| i*2).max(),
     ///     Some(198)
     /// )
     /// ```

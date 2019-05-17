@@ -1,10 +1,12 @@
 //! Adaptive iterators
 
 mod traits;
-pub use traits::{
+pub use traits::into_parallel_iterator::IntoParallelIterator;
+pub use traits::parallel_iterator::{
     BasicParallelIterator, BlockedParallelIterator, IndexedParallelIterator, ParallelIterator,
 };
-// basic types are edible
+
+// basic types are
 mod range;
 mod slice;
 

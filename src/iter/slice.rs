@@ -2,22 +2,52 @@
 
 use crate::divisibility::IndexedPower;
 use crate::prelude::*;
-use std::slice::{Iter, IterMut};
+use derive_divisible::Divisible;
+use std::slice;
 
-impl<'a, T: 'a + Sync> ParallelIterator<IndexedPower> for &'a [T] {
+//TODO: deriving divisible does not work with a tuple struct
+#[derive(Divisible)]
+#[power(IndexedPower)]
+pub struct Iter<'a, T: 'a + Sync> {
+    slice: &'a [T],
+}
+
+impl<'a, T: 'a + Sync> ParallelIterator<IndexedPower> for Iter<'a, T> {
     type Item = &'a T;
-    type SequentialIterator = Iter<'a, T>;
+    type SequentialIterator = slice::Iter<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (beginning, remaining) = self.divide_at(size);
-        (beginning.iter(), remaining)
+        (beginning.slice.iter(), remaining)
     }
 }
 
-impl<'a, T: 'a + Sync + Send> ParallelIterator<IndexedPower> for &'a mut [T] {
+#[derive(Divisible)]
+#[power(IndexedPower)]
+pub struct IterMut<'a, T: 'a + Sync + Send> {
+    slice: &'a mut [T],
+}
+
+impl<'a, T: 'a + Sync + Send> ParallelIterator<IndexedPower> for IterMut<'a, T> {
     type Item = &'a mut T;
-    type SequentialIterator = IterMut<'a, T>;
+    type SequentialIterator = slice::IterMut<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (beginning, remaining) = self.divide_at(size);
-        (beginning.iter_mut(), remaining)
+        (beginning.slice.iter_mut(), remaining)
+    }
+}
+
+impl<'a, T: 'a + Sync> IntoParallelIterator<IndexedPower> for &'a [T] {
+    type Iter = Iter<'a, T>;
+    type Item = &'a T;
+    fn into_par_iter(self) -> Self::Iter {
+        Iter { slice: self }
+    }
+}
+
+impl<'a, T: 'a + Sync + Send> IntoParallelIterator<IndexedPower> for &'a mut [T] {
+    type Iter = IterMut<'a, T>;
+    type Item = &'a mut T;
+    fn into_par_iter(self) -> Self::Iter {
+        IterMut { slice: self }
     }
 }

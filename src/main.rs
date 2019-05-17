@@ -3,7 +3,6 @@ extern crate rayon_logs as rayon;
 
 use rayon::ThreadPoolBuilder;
 use rayon_adaptive::prelude::*;
-use rayon_adaptive::Policy;
 use std::iter::repeat;
 // use std::cmp::min;
 // use std::ops::Mul;
@@ -150,10 +149,7 @@ fn main() {
         .expect("failed building pool");
     pool.install(|| {
         assert_eq!(
-            (v.as_slice())
-                .with_policy(Policy::Adaptive(2_000, 20_000))
-                .by_blocks(repeat(50_000))
-                .max(),
+            v.as_slice().into_par_iter().by_blocks(repeat(50_000)).max(),
             Some(&99_999)
         )
     });
