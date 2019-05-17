@@ -198,10 +198,12 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
     where
         P: Fn(&Self::Item) -> bool + Sync + Send + Clone,
     {
-        self.iterator_fold(|mut i| i.find(predicate.clone()))
+        self.blocks(successors(Some(1), |p| Some(2 * p)))
+            .map(|b| {
+                b.iterator_fold(|mut i| i.find(&predicate))
+                    .reduce(|| None, Option::or)
+            })
             .filter_map(|o| o)
-            .by_blocks(successors(Some(1), |p| Some(2 * p)))
-            .into_iter()
             .next()
     }
 }
