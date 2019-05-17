@@ -1,3 +1,8 @@
-- get back all basic schedulers
+- get back helper scheme
 - choose if divide needs a checked argument or not (and fix either range or slice)
-- Edible's "iter" name is not well chosen
+- local iterator extraction "iter" name is not well chosen
+- collect trait
+- iterator trait for blockedormore is not working
+- if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
+   is it a big deal ?
+- switch to macros instead of deriving for IntoIter and ParallelIterator to avoid leaks ???

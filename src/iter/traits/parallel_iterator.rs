@@ -1,11 +1,11 @@
 //! Iterator governing traits.
-use crate::divisibility::{BasicPower, BlockedPower, IndexedPower};
-use crate::iter::{ByBlocks, FlatMap, Fold, IteratorFold, Map, WithPolicy};
+use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
+use crate::iter::{ByBlocks, FilterMap, FlatMap, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
-use std::iter::empty;
+use std::iter::{empty, successors};
 use std::marker::PhantomData;
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -127,6 +127,18 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
             phantom: PhantomData,
         }
     }
+    /// filter map
+    fn filter_map<Predicate, R>(self, filter_op: Predicate) -> FilterMap<P, R, Self, Predicate>
+    where
+        Predicate: Fn(Self::Item) -> Option<R> + Sync + Send + Clone,
+        R: Send,
+    {
+        FilterMap {
+            base: self,
+            filter_op,
+            phantom: PhantomData,
+        }
+    }
     /// Map each element of the `ParallelIterator`.
     /// Example:
     ///
@@ -158,15 +170,15 @@ pub trait BasicParallelIterator: ParallelIterator<BasicPower> {
     }
 }
 
-//TODO: WE NEED A METHOD FOR COLLECT UP TO BLOCKED
-
-/// Here go all methods for blocked or more.
+/// Here go all methods for blocked power only.
 pub trait BlockedParallelIterator: ParallelIterator<BlockedPower> {
-    /// fast find
+    /// slow find
     fn find(self) {
         unimplemented!()
     }
 }
+
+//TODO: WE NEED A METHOD FOR COLLECT UP TO BLOCKED
 
 /// Here go all methods for indexed.
 pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
@@ -174,28 +186,24 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
     fn zip() {
         unimplemented!()
     }
+    /// fast find, by blocks
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((1..).into_par_iter().find_first(|&x| x%10 == 0), Some(10));
+    /// ```
+    fn find_first<P>(self, predicate: P) -> Option<Self::Item>
+    where
+        P: Fn(&Self::Item) -> bool + Sync + Send + Clone,
+    {
+        self.iterator_fold(|mut i| i.find(predicate.clone()))
+            .filter_map(|o| o)
+            .by_blocks(successors(Some(1), |p| Some(2 * p)))
+            .into_iter()
+            .next()
+    }
 }
 
-// TODO: we cannot do that. maybe derive it for every parallel iterator ?
-// impl<I: ParallelIterator<IndexedPower>> IntoIterator for I {
-//     type Item = I::Item;
-//     type IntoIter = FlatMap<
-//         BlocksIterator<IndexedPower, I, Box<Iterator<Item = usize>>>,
-//         LinkedList<Vec<I::Item>>,
-//         fn(I) -> LinkedList<Vec<I::Item>>,
-//     >;
-//     fn into_iter(self) -> Self::IntoIter {
-//         let sizes = self.blocks_sizes();
-//         self.blocks(sizes).flat_map(|b| {
-//             b.fold(Vec::new, |mut v, e| {
-//                 v.append(e);
-//                 v
-//             })
-//             .map(|v| once(v).collect::<LinkedList<Vec<I::Item>>>())
-//             .reduce(|mut l1, l2| {
-//                 l1.append(&mut l2);
-//                 l1
-//             })
-//         })
-//     }
-// }
+impl<I: ParallelIterator<IndexedPower>> IndexedParallelIterator for I {}

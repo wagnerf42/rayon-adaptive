@@ -8,6 +8,7 @@ pub use traits::parallel_iterator::{
 
 // basic types are
 mod range;
+mod rangefrom;
 mod slice;
 
 // adaptors
@@ -25,3 +26,5 @@ mod map;
 pub use map::Map;
 mod flatmap;
 pub use flatmap::FlatMap;
+mod filter_map;
+pub use filter_map::FilterMap;
