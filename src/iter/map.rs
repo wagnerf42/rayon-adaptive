@@ -10,7 +10,8 @@ use std::marker::PhantomData;
 #[item(R)]
 #[sequential_iterator(iter::Map<I::SequentialIterator, F>)]
 #[iterator_extraction(i.map(self.f.clone()))]
-pub struct Map<R: Send, P: Power, I: ParallelIterator<P>, F: Fn(I::Item) -> R + Clone + Send> {
+#[trait_bounds(R: Send, P: Power, I: ParallelIterator<P>, F: Fn(I::Item) -> R + Clone + Send)]
+pub struct Map<P, I, F> {
     pub(crate) iter: I,
     #[divide_by(clone)]
     pub(crate) f: F,

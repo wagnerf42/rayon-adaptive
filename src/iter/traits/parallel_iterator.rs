@@ -27,7 +27,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     }
 
     /// Parallel flat_map.
-    fn flat_map<F: Clone, PI>(self, map_op: F) -> FlatMap<P, Self, PI::Item, PI, F>
+    fn flat_map<F: Clone, PI>(self, map_op: F) -> FlatMap<P, Self, F>
     where
         F: Fn(Self::Item) -> PI + Sync + Send,
         PI: IntoIterator,
@@ -42,7 +42,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
 
     /// Fold each sequential iterator into a single value.
     /// See the max method below as a use case.
-    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<R, P, Self, F>
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<P, Self, F>
     where
         R: Sized + Send,
         F: Fn(Self::SequentialIterator) -> R + Send + Clone,
@@ -128,7 +128,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
         }
     }
     /// filter map
-    fn filter_map<Predicate, R>(self, filter_op: Predicate) -> FilterMap<P, R, Self, Predicate>
+    fn filter_map<Predicate, R>(self, filter_op: Predicate) -> FilterMap<P, Self, Predicate>
     where
         Predicate: Fn(Self::Item) -> Option<R> + Sync + Send + Clone,
         R: Send,
@@ -149,7 +149,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///     Some(198)
     /// )
     /// ```
-    fn map<F, R>(self, map_op: F) -> Map<R, P, Self, F>
+    fn map<F, R>(self, map_op: F) -> Map<P, Self, F>
     where
         F: Fn(Self::Item) -> R + Sync + Send + Clone,
         R: Send,
@@ -196,7 +196,7 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
     /// ```
     fn find_first<P>(self, predicate: P) -> Option<Self::Item>
     where
-        P: Fn(&Self::Item) -> bool + Sync + Send + Clone,
+        P: Fn(&Self::Item) -> bool + Sync,
     {
         self.blocks(successors(Some(1), |p| Some(2 * p)))
             .map(|b| {

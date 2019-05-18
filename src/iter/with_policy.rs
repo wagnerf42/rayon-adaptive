@@ -8,7 +8,9 @@ use std::marker::PhantomData;
 #[derive(Divisible, IntoIterator)]
 #[power(P)]
 #[item(I::Item)]
-pub struct WithPolicy<P: Power, I: ParallelIterator<P>> {
+#[trait_bounds(P: Power, I: ParallelIterator<P>)]
+
+pub struct WithPolicy<P, I> {
     #[divide_by(clone)]
     pub(crate) policy: Policy,
     pub(crate) iterator: I,

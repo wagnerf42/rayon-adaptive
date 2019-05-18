@@ -12,12 +12,13 @@ use std::marker::PhantomData;
 #[item(R)]
 #[sequential_iterator(Once<R>)]
 #[iterator_extraction(once((self.fold)(i)))]
-pub struct IteratorFold<
+#[trait_bounds(
     R: Sized + Send,
     P: Power,
     I: ParallelIterator<P>,
     F: Fn(I::SequentialIterator) -> R + Send + Clone,
-> {
+)]
+pub struct IteratorFold<P, I, F> {
     pub(crate) iterator: I,
     #[divide_by(clone)]
     pub(crate) fold: F,

@@ -12,13 +12,14 @@ use std::option::IntoIter;
 #[derive(Divisible, IntoIterator)]
 #[power(P)]
 #[item(O)]
-pub struct Fold<
+#[trait_bounds(
     P: Power,
     I: ParallelIterator<P>,
     O: Send,
     ID: Fn() -> O + Clone + Send,
     F: Fn(O, I::Item) -> O + Clone + Send,
-> {
+)]
+pub struct Fold<P, I, O, ID, F> {
     pub(crate) remaining_input: I,
     #[divide_by(default)]
     pub(crate) current_output: Option<O>,

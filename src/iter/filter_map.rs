@@ -10,12 +10,13 @@ use std::marker::PhantomData;
 #[item(R)]
 #[iterator_extraction(i.filter_map(self.filter_op.clone()))]
 #[sequential_iterator(iter::FilterMap<I::SequentialIterator, Predicate>)]
-pub struct FilterMap<
+#[trait_bounds(
     P: Power,
     R: Send,
     I: ParallelIterator<P>,
     Predicate: Fn(I::Item) -> Option<R> + Clone + Send,
-> {
+)]
+pub struct FilterMap<P, I, Predicate> {
     pub(crate) base: I,
     #[divide_by(clone)]
     pub(crate) filter_op: Predicate,
