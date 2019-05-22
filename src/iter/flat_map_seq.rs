@@ -16,8 +16,8 @@ use std::marker::PhantomData;
     PI: IntoIterator<Item = PiItem>,
     F: Fn(I::Item) -> PI + Sync + Send + Clone,
 )]
-/// `FlatMap` is returned by the `flat_map` method on parallel iterators.
-pub struct FlatMap<P, I, F> {
+/// `FlatMapSeq` is returned by the `flat_map_seq` method on parallel iterators.
+pub struct FlatMapSeq<P, I, F> {
     pub(crate) base: I,
     #[divide_by(clone)]
     pub(crate) map_op: F,

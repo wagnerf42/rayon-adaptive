@@ -1,6 +1,6 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
-use crate::iter::{ByBlocks, FilterMap, FlatMap, Fold, IteratorFold, Map, WithPolicy};
+use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
@@ -27,13 +27,13 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     }
 
     /// Parallel flat_map.
-    fn flat_map<F: Clone, PI>(self, map_op: F) -> FlatMap<P, Self, F>
+    fn flat_map_seq<F: Clone, PI>(self, map_op: F) -> FlatMapSeq<P, Self, F>
     where
         F: Fn(Self::Item) -> PI + Sync + Send,
         PI: IntoIterator,
         PI::Item: Send,
     {
-        FlatMap {
+        FlatMapSeq {
             base: self,
             map_op,
             phantom: PhantomData,
