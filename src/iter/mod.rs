@@ -23,6 +23,8 @@ mod fold;
 pub use fold::Fold;
 mod work;
 pub use work::Work;
+mod cut;
+pub use cut::Cut;
 mod map;
 pub use map::Map;
 mod flat_map_seq;

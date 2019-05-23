@@ -190,6 +190,25 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     fn collect<C: FromParallelIterator<Self::Item>>(self) -> C {
         C::from_par_iter(self)
     }
+
+    /// Apply closure to each element.
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let mut v = vec![0, 1, 1, 0, 0];
+    /// v.as_mut_slice().into_par_iter().for_each(|e| *e = 1 - *e);
+    /// assert_eq!(v, vec![1, 0, 0, 1, 1])
+    /// ```
+    fn for_each<OP>(self, op: OP)
+    where
+        OP: Fn(Self::Item) + Sync,
+    {
+        self.map(|e| {
+            op(e);
+        })
+        .reduce(|| (), |_, _| ())
+    }
 }
 
 /// Here go all methods for basic power only.
@@ -239,3 +258,4 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
 }
 
 impl<I: ParallelIterator<IndexedPower>> IndexedParallelIterator for I {}
+impl<I: ParallelIterator<BlockedPower>> BlockedParallelIterator for I {}

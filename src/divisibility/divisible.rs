@@ -1,4 +1,4 @@
-use crate::iter::Work;
+use crate::iter::{Cut, Work};
 use std::marker::PhantomData;
 use std::mem;
 
@@ -60,6 +60,13 @@ pub trait Divisible<P: Power>: Sized {
         Work {
             remaining_input: Some(self),
             work_op,
+            phantom: PhantomData,
+        }
+    }
+    /// Get a parallel iterator on parts of self.
+    fn cut(self) -> Cut<P, Self> {
+        Cut {
+            input: self,
             phantom: PhantomData,
         }
     }
