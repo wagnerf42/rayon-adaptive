@@ -1,5 +1,5 @@
 pub use crate::divisibility::{Divisible, Power};
 pub use crate::iter::{
-    BasicParallelIterator, BlockedParallelIterator, IndexedParallelIterator, IntoParallelIterator,
-    ParallelIterator,
+    BasicParallelIterator, BlockedParallelIterator, FromParallelIterator, IndexedParallelIterator,
+    IntoParallelIterator, ParallelIterator,
 };

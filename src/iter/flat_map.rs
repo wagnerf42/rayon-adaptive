@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<P, PIN, OUT, IN, F, INTO> Divisible<P> for FlatMap<P, PIN, OUT, IN, F>
+impl<P, PIN, OUT, IN, F, INTO> Divisible<P::NotIndexed> for FlatMap<P, PIN, OUT, IN, F>
 where
     P: Power,
     PIN: Power,
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<P, PIN, OUT, IN, F, INTO> ParallelIterator<P> for FlatMap<P, PIN, OUT, IN, F>
+impl<P, PIN, OUT, IN, F, INTO> ParallelIterator<P::NotIndexed> for FlatMap<P, PIN, OUT, IN, F>
 where
     P: Power,
     PIN: Power,
@@ -100,6 +100,10 @@ where
                 let (outer_sequential_iterator, remaining_outer_iterator) = i.iter(size);
                 (
                     Either::Left(
+                        // we need to zip with the repeated f in order to pass a function and not a
+                        // closure to flat_map.
+                        // however I don't get why I need to cast manually.
+                        // if I don't it complains about receiving a fn item.
                         outer_sequential_iterator.zip(repeat(f.clone())).flat_map(
                             map_par_to_seq as fn((OUT::Item, F)) -> IN::SequentialIterator,
                         ),
@@ -133,6 +137,7 @@ where
         .base_length()
         .expect("cannot flat_map into infinite iterators");
     //TODO: technically we could but we need a method to extract the full iterator
+    //it would be bad performance wise though
     let (seq_iter, _) = par_iter.iter(size);
     seq_iter
 }

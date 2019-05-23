@@ -10,3 +10,12 @@ pub trait IntoParallelIterator<P: Power> {
     /// Change into a parallel iterator.
     fn into_par_iter(self) -> Self::Iter;
 }
+
+// all parallel iterators can be converted to themselves
+impl<P: Power, I: ParallelIterator<P>> IntoParallelIterator<P> for I {
+    type Item = I::Item;
+    type Iter = I;
+    fn into_par_iter(self) -> Self::Iter {
+        self
+    }
+}

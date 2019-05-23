@@ -1,6 +1,7 @@
 //! Adaptive iterators
 
 mod traits;
+pub use traits::from_parallel_iterator::FromParallelIterator;
 pub use traits::into_parallel_iterator::IntoParallelIterator;
 pub use traits::parallel_iterator::{
     BasicParallelIterator, BlockedParallelIterator, IndexedParallelIterator, ParallelIterator,

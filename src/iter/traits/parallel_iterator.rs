@@ -26,7 +26,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
         Box::new(empty())
     }
 
-    /// Parallel flat_map.
+    /// Parallel flat_map with a map to sequential iterators.
     fn flat_map_seq<F: Clone, PI>(self, map_op: F) -> FlatMapSeq<P, Self, F>
     where
         F: Fn(Self::Item) -> PI + Sync + Send,
@@ -38,6 +38,24 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
             map_op,
             phantom: PhantomData,
         }
+    }
+
+    /// Parallel flat_map with a map to parallel iterators.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((2u64..5).into_par_iter().flat_map(|i| (1..i)).collect::<Vec<_>>(), vec![1, 1, 2, 1, 2, 3])
+    /// ```
+    fn flat_map<F: Clone, INTO, PIN>(self, map_op: F) -> FlatMap<P, PIN, Self, INTO::Iter, F>
+    where
+        PIN: Power,
+        F: Fn(Self::Item) -> INTO + Sync + Send,
+        INTO: IntoParallelIterator<PIN>,
+        INTO::Item: Send,
+    {
+        FlatMap::OuterIterator(self, map_op, Default::default())
     }
 
     /// Fold each sequential iterator into a single value.
@@ -159,6 +177,18 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
             f: map_op,
             phantom: PhantomData,
         }
+    }
+
+    /// Turn a parallel iterator into a collection.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((1u64..4).into_par_iter().collect::<Vec<_>>(), vec![1,2,3])
+    /// ```
+    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C {
+        C::from_par_iter(self)
     }
 }
 
