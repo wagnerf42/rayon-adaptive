@@ -1,5 +1,6 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
+use crate::help::Taker;
 use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -254,6 +255,20 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
             })
             .filter_map(|o| o)
             .next()
+    }
+    /// Let's have a sequential thread and helper threads.
+    fn with_help<SR, HR, B, R, BH>(
+        self,
+        sequential_reducer: SR,
+        helper_threads_reducer: HR,
+        retrieve_op: R,
+    ) -> B
+    where
+        SR: Fn(std::iter::Flatten<Taker<Self, IndexedPower>>) -> B,
+        HR: Fn(std::iter::Flatten<Taker<Self, IndexedPower>>) -> BH,
+        R: Fn(B, BH) -> B,
+    {
+        unimplemented!()
     }
 }
 

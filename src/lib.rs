@@ -29,5 +29,7 @@ pub enum Policy {
 /// All scheduling algorithms.
 pub(crate) mod schedulers;
 
+/// Helper mechanisms: have a special sequential thread.
+pub(crate) mod help;
 pub(crate) mod smallchannel;
 pub(crate) mod utils;
