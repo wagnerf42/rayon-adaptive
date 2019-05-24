@@ -2,9 +2,10 @@
 //! where one thread works sequentially with no overhead and
 //! other threads help him (with overhead).
 //! The idea is that if no steal occurs, we end up with the sequential algorithm.
+use crate::atomiclist::{AtomicLink, AtomicList};
 use crate::prelude::*;
 use std::iter;
-use std::iter::repeat;
+use std::iter::{once, repeat};
 use std::marker::PhantomData;
 
 /// Iterate on sequential iterators until interrupted
@@ -61,4 +62,52 @@ where
     };
     let reduced_value = reduce(taker.flatten());
     (reduced_value, optionned_iterator.unwrap())
+}
+
+/// We are going to do one big fold operation in order to compute
+/// the final result.
+/// Sometimes we fold on some input but sometimes we also fold
+/// on intermediate outputs.
+/// Having an enumerated type enables to conveniently iterate on both types.
+enum RemainingElement<I, BH> {
+    Input(I),
+    Output(BH),
+}
+
+/// Let's have a sequential thread and helper threads.
+pub(crate) fn schedule_help<P, I, SR, HR, B, R, BH>(
+    iterator: I,
+    sequential_reducer: SR,
+    helper_threads_reducer: HR,
+    retrieve_op: R,
+) -> B
+where
+    B: Send,
+    P: Power,
+    I: ParallelIterator<P>,
+    SR: Fn(std::iter::Flatten<Taker<I, P>>) -> B,
+    HR: Fn(std::iter::Flatten<Taker<I, P>>) -> BH,
+    R: Fn(B, BH) -> B,
+{
+    let stolen_stuffs: &AtomicList<(Option<BH>, Option<I>)> = &AtomicList::new();
+    let sizes = iterator.blocks_sizes();
+    rayon::scope(|s| {
+        unimplemented!()
+        //        let mut todo = iterator
+        //            .blocks(sizes)
+        //            .flat_map(|block| {
+        //                once(RemainingElement::Input(block)).chain(stolen_stuffs.iter().flat_map(
+        //                    |(bh, i)| {
+        //                        bh.map(RemainingElement::Output)
+        //                            .into_iter()
+        //                            .chain(i.map(RemainingElement::Input).into_iter())
+        //                    },
+        //                ))
+        //            });
+        //        let initial_value = todo.next.unwrap(); // we are sure to have one from sequential thread
+        //        todo.fold(b, |b, element| match element {
+        //                RemainingElement::Input(i) => unimplemented!(),
+        //                RemainingElement::Output(bh) => retrieve_op(b, bh),
+        //            })
+    })
 }
