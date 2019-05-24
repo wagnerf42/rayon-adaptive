@@ -9,7 +9,8 @@ struct PartialSlice<'a, T: 'a + Sync> {
     slice: &'a mut [T],
 }
 
-impl<'a, T: 'a + Sync> Divisible<IndexedPower> for PartialSlice<'a, T> {
+impl<'a, T: 'a + Sync> Divisible for PartialSlice<'a, T> {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some(self.slice.len() - self.used)
     }

@@ -2,7 +2,6 @@
 use crate::prelude::*;
 use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator};
-use std::marker::PhantomData;
 use std::option::IntoIter;
 
 /// The `Fold` struct is a parallel folder, returned by the `fold` method on `ParallelIterator`.
@@ -10,16 +9,15 @@ use std::option::IntoIter;
 /// So instead of reducing all tiny pieces created by local iterators we just
 /// reduce for the real divisions.
 #[derive(Divisible, IntoIterator)]
-#[power(P)]
+#[power(I::Power)]
 #[item(O)]
 #[trait_bounds(
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     O: Send,
     ID: Fn() -> O + Clone + Send,
     F: Fn(O, I::Item) -> O + Clone + Send,
 )]
-pub struct Fold<P, I, O, ID, F> {
+pub struct Fold<I, O, ID, F> {
     pub(crate) remaining_input: I,
     #[divide_by(default)]
     pub(crate) current_output: Option<O>,
@@ -27,17 +25,14 @@ pub struct Fold<P, I, O, ID, F> {
     pub(crate) identity: ID,
     #[divide_by(clone)]
     pub(crate) fold_op: F,
-    #[divide_by(default)]
-    pub(crate) phantom: PhantomData<P>,
 }
 
 impl<
-        P: Power,
-        I: ParallelIterator<P>,
+        I: ParallelIterator,
         O: Send,
         ID: Fn() -> O + Clone + Send,
         F: Fn(O, I::Item) -> O + Clone + Send,
-    > ParallelIterator<P> for Fold<P, I, O, ID, F>
+    > ParallelIterator for Fold<I, O, ID, F>
 {
     type Item = O;
     type SequentialIterator = IntoIter<O>;

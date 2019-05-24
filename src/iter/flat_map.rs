@@ -3,7 +3,6 @@ use crate::prelude::*;
 use either::Either;
 use std::iter;
 use std::iter::repeat;
-use std::marker::PhantomData;
 
 /// OUT is outer iterator type.
 /// IN is inner iterator type.
@@ -12,21 +11,19 @@ use std::marker::PhantomData;
 /// PIN is the power of the inner iterator. it has no purpose but the compiler
 /// forces us to have it here.
 /// invariant: WE SHOULD NEVER BE OF SIZE ONE ON OUTER ITERATOR
-pub enum FlatMap<P, PIN, OUT, IN, F> {
+pub enum FlatMap<OUT, IN, F> {
     /// We still have some content on the outer level
-    OuterIterator(OUT, F, PhantomData<P>),
+    OuterIterator(OUT, F),
     /// Only content left is at inner level
-    InnerIterator(IN, PhantomData<PIN>),
+    InnerIterator(IN),
 }
 
-impl<P, PIN, OUT, IN, F, INTO> FlatMap<P, PIN, OUT, IN, F>
+impl<OUT, IN, F, INTO> FlatMap<OUT, IN, F>
 where
-    P: Power,
-    PIN: Power,
-    OUT: ParallelIterator<P>,
+    OUT: ParallelIterator,
     F: Fn(OUT::Item) -> INTO + Clone,
-    INTO: IntoParallelIterator<PIN, Iter = IN>,
-    IN: ParallelIterator<PIN, Item = INTO::Item>,
+    INTO: IntoParallelIterator<Iter = IN>,
+    IN: ParallelIterator<Item = INTO::Item>,
 {
     fn new(out: OUT, map_op: F) -> Self {
         let length = out.base_length();
@@ -34,56 +31,50 @@ where
             let (mut outer_iterator_sequential, _) = out.iter(1);
             let final_outer_element = outer_iterator_sequential.next().unwrap();
             let inner_parallel_iterator = map_op(final_outer_element).into_par_iter();
-            FlatMap::InnerIterator(inner_parallel_iterator, Default::default())
+            FlatMap::InnerIterator(inner_parallel_iterator)
         } else {
-            FlatMap::OuterIterator(out, map_op, Default::default())
+            FlatMap::OuterIterator(out, map_op)
         }
     }
 }
 
-impl<P, PIN, OUT, IN, F, INTO> Divisible<P::NotIndexed> for FlatMap<P, PIN, OUT, IN, F>
+impl<OUT, IN, F, INTO> Divisible for FlatMap<OUT, IN, F>
 where
-    P: Power,
-    PIN: Power,
-    OUT: ParallelIterator<P>,
+    OUT: ParallelIterator,
     F: Fn(OUT::Item) -> INTO + Clone,
-    INTO: IntoParallelIterator<PIN, Iter = IN>,
-    IN: ParallelIterator<PIN, Item = INTO::Item>,
+    INTO: IntoParallelIterator<Iter = IN>,
+    IN: ParallelIterator<Item = INTO::Item>,
 {
+    type Power = <<OUT as Divisible>::Power as Power>::NotIndexed;
     fn base_length(&self) -> Option<usize> {
         match self {
-            FlatMap::OuterIterator(i, _, _) => i.base_length(),
-            FlatMap::InnerIterator(i, _) => i.base_length(),
+            FlatMap::OuterIterator(i, _) => i.base_length(),
+            FlatMap::InnerIterator(i) => i.base_length(),
         }
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         match self {
-            FlatMap::OuterIterator(i, f, _) => {
+            FlatMap::OuterIterator(i, f) => {
                 let (left, right) = i.divide_at(index);
                 (
-                    FlatMap::OuterIterator(left, f.clone(), Default::default()),
+                    FlatMap::OuterIterator(left, f.clone()),
                     FlatMap::new(right, f),
                 )
             }
-            FlatMap::InnerIterator(i, _) => {
+            FlatMap::InnerIterator(i) => {
                 let (left, right) = i.divide_at(index);
-                (
-                    FlatMap::InnerIterator(left, Default::default()),
-                    FlatMap::InnerIterator(right, Default::default()),
-                )
+                (FlatMap::InnerIterator(left), FlatMap::InnerIterator(right))
             }
         }
     }
 }
 
-impl<P, PIN, OUT, IN, F, INTO> ParallelIterator<P::NotIndexed> for FlatMap<P, PIN, OUT, IN, F>
+impl<OUT, IN, F, INTO> ParallelIterator for FlatMap<OUT, IN, F>
 where
-    P: Power,
-    PIN: Power,
-    OUT: ParallelIterator<P>,
+    OUT: ParallelIterator,
     F: Fn(OUT::Item) -> INTO + Clone + Send,
-    INTO: IntoParallelIterator<PIN, Iter = IN>,
-    IN: ParallelIterator<PIN, Item = INTO::Item>,
+    INTO: IntoParallelIterator<Iter = IN>,
+    IN: ParallelIterator<Item = INTO::Item>,
 {
     type Item = IN::Item;
     type SequentialIterator = Either<
@@ -96,7 +87,7 @@ where
     >;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         match self {
-            FlatMap::OuterIterator(i, f, _) => {
+            FlatMap::OuterIterator(i, f) => {
                 let (outer_sequential_iterator, remaining_outer_iterator) = i.iter(size);
                 (
                     Either::Left(
@@ -111,11 +102,11 @@ where
                     FlatMap::new(remaining_outer_iterator, f),
                 )
             }
-            FlatMap::InnerIterator(i, _) => {
+            FlatMap::InnerIterator(i) => {
                 let (inner_sequential_iterator, remaining_inner_iterator) = i.iter(size);
                 (
                     Either::Right(inner_sequential_iterator),
-                    FlatMap::InnerIterator(remaining_inner_iterator, Default::default()),
+                    FlatMap::InnerIterator(remaining_inner_iterator),
                 )
             }
         }
@@ -123,13 +114,10 @@ where
 }
 
 /// Turn outer parallel iter into flatmaped inner sequential iterator.
-fn map_par_to_seq<E, F, INTO, PIN>(
-    t: (E, F),
-) -> <INTO::Iter as ParallelIterator<PIN>>::SequentialIterator
+fn map_par_to_seq<E, F, INTO>(t: (E, F)) -> <INTO::Iter as ParallelIterator>::SequentialIterator
 where
-    PIN: Power,
     F: Fn(E) -> INTO + Clone,
-    INTO: IntoParallelIterator<PIN>,
+    INTO: IntoParallelIterator,
 {
     let (e, fun) = t;
     let par_iter = fun(e).into_par_iter();

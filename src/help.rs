@@ -6,21 +6,18 @@ use crate::atomiclist::{AtomicLink, AtomicList};
 use crate::prelude::*;
 use std::iter;
 use std::iter::{once, repeat};
-use std::marker::PhantomData;
 
 /// Iterate on sequential iterators until interrupted
 /// We are also able to retrieve the remaining part after interruption.
-pub struct Taker<'a, I, P> {
+pub struct Taker<'a, I> {
     iterator: &'a mut Option<I>, // option is just here to avoid unsafe calls
     interruption_checker: Box<Fn() -> bool>,
     sizes: Box<Iterator<Item = usize>>,
-    phantom: PhantomData<P>,
 }
 
-impl<'a, I, P> Iterator for Taker<'a, I, P>
+impl<'a, I> Iterator for Taker<'a, I>
 where
-    P: Power,
-    I: ParallelIterator<P> + 'a,
+    I: ParallelIterator + 'a,
 {
     type Item = I::SequentialIterator;
     fn next(&mut self) -> Option<Self::Item> {
@@ -40,16 +37,15 @@ where
     }
 }
 
-fn reduce_until_interrupted<P, I, B, R, C>(
+fn reduce_until_interrupted<I, B, R, C>(
     mut iterator: I,
     reduce: R,
     interruption_checker: C,
 ) -> (B, I)
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     B: Send,
-    R: Fn(iter::Flatten<Taker<I, P>>) -> B,
+    R: Fn(iter::Flatten<Taker<I>>) -> B,
     C: Fn() -> bool + 'static, // for now
 {
     let sizes = Box::new(repeat(1)); // for now
@@ -58,7 +54,6 @@ where
         iterator: &mut optionned_iterator,
         interruption_checker: Box::new(interruption_checker),
         sizes,
-        phantom: PhantomData,
     };
     let reduced_value = reduce(taker.flatten());
     (reduced_value, optionned_iterator.unwrap())
@@ -75,18 +70,17 @@ enum RemainingElement<I, BH> {
 }
 
 /// Let's have a sequential thread and helper threads.
-pub(crate) fn schedule_help<P, I, SR, HR, B, R, BH>(
-    iterator: I,
+pub(crate) fn schedule_help<I, SR, HR, B, R, BH>(
+    mut iterator: I,
     sequential_reducer: SR,
     helper_threads_reducer: HR,
     retrieve_op: R,
 ) -> B
 where
     B: Send,
-    P: Power,
-    I: ParallelIterator<P>,
-    SR: Fn(std::iter::Flatten<Taker<I, P>>) -> B,
-    HR: Fn(std::iter::Flatten<Taker<I, P>>) -> BH,
+    I: ParallelIterator,
+    SR: Fn(std::iter::Flatten<Taker<I>>) -> B,
+    HR: Fn(std::iter::Flatten<Taker<I>>) -> BH,
     R: Fn(B, BH) -> B,
 {
     let stolen_stuffs: &AtomicList<(Option<BH>, Option<I>)> = &AtomicList::new();

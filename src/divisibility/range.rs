@@ -3,7 +3,8 @@ use super::IndexedPower;
 use crate::prelude::*;
 use std::ops::Range;
 
-impl Divisible<IndexedPower> for Range<u64> {
+impl Divisible for Range<u64> {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some((self.end - self.start) as usize)
     }
@@ -13,7 +14,8 @@ impl Divisible<IndexedPower> for Range<u64> {
     }
 }
 
-impl Divisible<IndexedPower> for Range<usize> {
+impl Divisible for Range<usize> {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some(self.end - self.start)
     }

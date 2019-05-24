@@ -9,7 +9,8 @@ pub enum RangeFromParIter<E> {
     UnBounded(RangeFrom<E>),
 }
 
-impl Divisible<IndexedPower> for RangeFromParIter<usize> {
+impl Divisible for RangeFromParIter<usize> {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         match self {
             RangeFromParIter::Bounded(r) => Some(r.len()),
@@ -42,7 +43,7 @@ impl Divisible<IndexedPower> for RangeFromParIter<usize> {
     }
 }
 
-impl ParallelIterator<IndexedPower> for RangeFromParIter<usize> {
+impl ParallelIterator for RangeFromParIter<usize> {
     type SequentialIterator = Range<usize>;
     type Item = usize;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -59,7 +60,7 @@ impl ParallelIterator<IndexedPower> for RangeFromParIter<usize> {
     }
 }
 
-impl IntoParallelIterator<IndexedPower> for RangeFrom<usize> {
+impl IntoParallelIterator for RangeFrom<usize> {
     type Iter = RangeFromParIter<usize>;
     type Item = usize;
     fn into_par_iter(self) -> Self::Iter {

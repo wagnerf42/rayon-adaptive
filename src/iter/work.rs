@@ -1,19 +1,16 @@
 //! Work locally.
 use crate::prelude::*;
-use std::marker::PhantomData;
 use std::option::IntoIter;
 
 /// The `Work` struct is returned by the `work` method on any `Divisible`.
 /// It slowly consumes the input piece by piece.
-pub struct Work<P: Power, I: Divisible<P>, W: Clone> {
+pub struct Work<I: Divisible, W: Clone> {
     pub(crate) remaining_input: Option<I>,
     pub(crate) work_op: W,
-    pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: Divisible<P>, W: Fn(I, usize) -> I + Send + Clone> Divisible<P::NotIndexed>
-    for Work<P, I, W>
-{
+impl<I: Divisible, W: Fn(I, usize) -> I + Send + Clone> Divisible for Work<I, W> {
+    type Power = <<I as Divisible>::Power as Power>::NotIndexed;
     fn base_length(&self) -> Option<usize> {
         if self.remaining_input.is_none() {
             Some(0)
@@ -27,15 +24,12 @@ impl<P: Power, I: Divisible<P>, W: Fn(I, usize) -> I + Send + Clone> Divisible<P
         let right_work = Work {
             remaining_input: Some(right),
             work_op: self.work_op.clone(),
-            phantom: PhantomData,
         };
         (self, right_work)
     }
 }
 
-impl<P: Power, I: Divisible<P> + Send, W: Fn(I, usize) -> I + Send + Clone>
-    ParallelIterator<P::NotIndexed> for Work<P, I, W>
-{
+impl<I: Divisible + Send, W: Fn(I, usize) -> I + Send + Clone> ParallelIterator for Work<I, W> {
     type Item = I;
     type SequentialIterator = IntoIter<I>;
     fn iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {

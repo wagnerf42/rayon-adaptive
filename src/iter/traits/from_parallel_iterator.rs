@@ -9,17 +9,15 @@ where
     T: Send,
 {
     /// Turn a parallel iterator into a collection.
-    fn from_par_iter<P, I>(par_iter: I) -> Self
+    fn from_par_iter<I>(par_iter: I) -> Self
     where
-        P: Power,
-        I: IntoParallelIterator<P, Item = T>;
+        I: IntoParallelIterator<Item = T>;
 }
 
 impl<T: Send> FromParallelIterator<T> for Vec<T> {
-    fn from_par_iter<P, I>(par_iter: I) -> Self
+    fn from_par_iter<I>(par_iter: I) -> Self
     where
-        P: Power,
-        I: IntoParallelIterator<P, Item = T>,
+        I: IntoParallelIterator<Item = T>,
     {
         let par_iter = par_iter.into_par_iter();
         // for now just a dumb version

@@ -5,7 +5,8 @@ use crate::prelude::*;
 use std::cmp::min;
 
 // read only slice
-impl<'a, T: 'a> Divisible<IndexedPower> for &'a [T] {
+impl<'a, T: 'a> Divisible for &'a [T] {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some(self.len())
     }
@@ -15,7 +16,8 @@ impl<'a, T: 'a> Divisible<IndexedPower> for &'a [T] {
 }
 
 // mutable slice
-impl<'a, T: 'a> Divisible<IndexedPower> for &'a mut [T] {
+impl<'a, T: 'a> Divisible for &'a mut [T] {
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some(self.len())
     }

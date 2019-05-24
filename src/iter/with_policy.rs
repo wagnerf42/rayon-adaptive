@@ -2,23 +2,19 @@
 use crate::prelude::*;
 use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator};
-use std::marker::PhantomData;
 
 /// Iterator remembering which scheduling policy has been set by the user.
 #[derive(Divisible, IntoIterator)]
-#[power(P)]
+#[power(I::Power)]
 #[item(I::Item)]
-#[trait_bounds(P: Power, I: ParallelIterator<P>)]
-
-pub struct WithPolicy<P, I> {
+#[trait_bounds(I: ParallelIterator)]
+pub struct WithPolicy<I> {
     #[divide_by(clone)]
     pub(crate) policy: Policy,
     pub(crate) iterator: I,
-    #[divide_by(default)]
-    pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for WithPolicy<P, I> {
+impl<I: ParallelIterator> ParallelIterator for WithPolicy<I> {
     type Item = I::Item;
     type SequentialIterator = I::SequentialIterator;
     fn policy(&self) -> Policy {
@@ -31,7 +27,6 @@ impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for WithPolicy<P, I> 
             WithPolicy {
                 policy: self.policy,
                 iterator: remaining,
-                phantom: PhantomData,
             },
         )
     }

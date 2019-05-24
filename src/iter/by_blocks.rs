@@ -3,21 +3,18 @@ use crate::prelude::*;
 use crate::Policy;
 use derive_divisible::{Divisible, IntoIterator};
 use std::iter::empty;
-use std::marker::PhantomData;
 
 /// Iterator which configured to run on macro blocks. See `ParallelIterator::by_blocks`.
 #[derive(Divisible, IntoIterator)]
-#[power(P)]
+#[power(I::Power)]
 #[item(I::Item)]
-pub struct ByBlocks<P: Power, I: ParallelIterator<P>> {
+pub struct ByBlocks<I: ParallelIterator> {
     #[divide_by(default)]
     pub(crate) sizes_iterator: Option<Box<Iterator<Item = usize> + Send>>,
     pub(crate) iterator: I,
-    #[divide_by(default)]
-    pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: ParallelIterator<P>> ParallelIterator<P> for ByBlocks<P, I> {
+impl<I: ParallelIterator> ParallelIterator for ByBlocks<I> {
     type SequentialIterator = I::SequentialIterator;
     type Item = I::Item;
     fn policy(&self) -> Policy {

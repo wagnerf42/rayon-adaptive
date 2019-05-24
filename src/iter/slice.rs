@@ -12,7 +12,7 @@ pub struct Iter<'a, T: 'a + Sync> {
     slice: &'a [T],
 }
 
-impl<'a, T: 'a + Sync> ParallelIterator<IndexedPower> for Iter<'a, T> {
+impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
     type Item = &'a T;
     type SequentialIterator = slice::Iter<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -27,7 +27,7 @@ pub struct IterMut<'a, T: 'a + Sync + Send> {
     slice: &'a mut [T],
 }
 
-impl<'a, T: 'a + Sync + Send> ParallelIterator<IndexedPower> for IterMut<'a, T> {
+impl<'a, T: 'a + Sync + Send> ParallelIterator for IterMut<'a, T> {
     type Item = &'a mut T;
     type SequentialIterator = slice::IterMut<'a, T>;
     fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
@@ -36,7 +36,7 @@ impl<'a, T: 'a + Sync + Send> ParallelIterator<IndexedPower> for IterMut<'a, T> 
     }
 }
 
-impl<'a, T: 'a + Sync> IntoParallelIterator<IndexedPower> for &'a [T] {
+impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
     type Iter = Iter<'a, T>;
     type Item = &'a T;
     fn into_par_iter(self) -> Self::Iter {
@@ -44,7 +44,7 @@ impl<'a, T: 'a + Sync> IntoParallelIterator<IndexedPower> for &'a [T] {
     }
 }
 
-impl<'a, T: 'a + Sync + Send> IntoParallelIterator<IndexedPower> for &'a mut [T] {
+impl<'a, T: 'a + Sync + Send> IntoParallelIterator for &'a mut [T] {
     type Iter = IterMut<'a, T>;
     type Item = &'a mut T;
     fn into_par_iter(self) -> Self::Iter {

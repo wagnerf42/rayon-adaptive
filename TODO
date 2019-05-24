@@ -6,3 +6,4 @@
 - if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
    is it a big deal ?
 - divide: shoud we divide something of size one ? what about flatmap ?
+- what power do we have when we chain and how do we do it ?

@@ -7,10 +7,9 @@ use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
 use std::iter::{empty, successors};
-use std::marker::PhantomData;
 
 /// This traits enables to implement all basic methods for all type of iterators.
-pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
+pub trait ParallelIterator: Divisible + Send {
     /// This registers the type of output produced (it IS the item of the SequentialIterator).
     type Item: Send; // TODO: can we get rid of that and keep a short name ?
     /// This registers the type of iterators produced.
@@ -28,17 +27,13 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     }
 
     /// Parallel flat_map with a map to sequential iterators.
-    fn flat_map_seq<F: Clone, PI>(self, map_op: F) -> FlatMapSeq<P, Self, F>
+    fn flat_map_seq<F: Clone, PI>(self, map_op: F) -> FlatMapSeq<Self, F>
     where
         F: Fn(Self::Item) -> PI + Sync + Send,
         PI: IntoIterator,
         PI::Item: Send,
     {
-        FlatMapSeq {
-            base: self,
-            map_op,
-            phantom: PhantomData,
-        }
+        FlatMapSeq { base: self, map_op }
     }
 
     /// Parallel flat_map with a map to parallel iterators.
@@ -49,19 +44,18 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     /// use rayon_adaptive::prelude::*;
     /// assert_eq!((2u64..5).into_par_iter().flat_map(|i| (1..i)).collect::<Vec<_>>(), vec![1, 1, 2, 1, 2, 3])
     /// ```
-    fn flat_map<F: Clone, INTO, PIN>(self, map_op: F) -> FlatMap<P, PIN, Self, INTO::Iter, F>
+    fn flat_map<F: Clone, INTO>(self, map_op: F) -> FlatMap<Self, INTO::Iter, F>
     where
-        PIN: Power,
         F: Fn(Self::Item) -> INTO + Sync + Send,
-        INTO: IntoParallelIterator<PIN>,
+        INTO: IntoParallelIterator,
         INTO::Item: Send,
     {
-        FlatMap::OuterIterator(self, map_op, Default::default())
+        FlatMap::OuterIterator(self, map_op)
     }
 
     /// Fold each sequential iterator into a single value.
     /// See the max method below as a use case.
-    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<P, Self, F>
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
     where
         R: Sized + Send,
         F: Fn(Self::SequentialIterator) -> R + Send + Clone,
@@ -69,23 +63,20 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
         IteratorFold {
             iterator: self,
             fold: fold_op,
-            phantom: PhantomData,
         }
     }
     /// Sets scheduling policy.
-    fn with_policy(self, policy: Policy) -> WithPolicy<P, Self> {
+    fn with_policy(self, policy: Policy) -> WithPolicy<Self> {
         WithPolicy {
             policy,
             iterator: self,
-            phantom: PhantomData,
         }
     }
     /// Sets the macro-blocks sizes.
-    fn by_blocks<I: Iterator<Item = usize> + Send + 'static>(self, sizes: I) -> ByBlocks<P, Self> {
+    fn by_blocks<I: Iterator<Item = usize> + Send + 'static>(self, sizes: I) -> ByBlocks<Self> {
         ByBlocks {
             sizes_iterator: Some(Box::new(sizes)),
             iterator: self,
-            phantom: PhantomData,
         }
     }
     /// Reduce with call to scheduler.
@@ -132,7 +123,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///     (0u64..100).collect::<Vec<u64>>()
     /// )
     /// ```
-    fn fold<T, ID, F>(self, identity: ID, fold_op: F) -> Fold<P, Self, T, ID, F>
+    fn fold<T, ID, F>(self, identity: ID, fold_op: F) -> Fold<Self, T, ID, F>
     where
         F: Fn(T, Self::Item) -> T + Sync + Send + Clone,
         ID: Fn() -> T + Sync + Send + Clone,
@@ -143,11 +134,10 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
             current_output: Some(identity()),
             identity,
             fold_op,
-            phantom: PhantomData,
         }
     }
     /// filter map
-    fn filter_map<Predicate, R>(self, filter_op: Predicate) -> FilterMap<P, Self, Predicate>
+    fn filter_map<Predicate, R>(self, filter_op: Predicate) -> FilterMap<Self, Predicate>
     where
         Predicate: Fn(Self::Item) -> Option<R> + Sync + Send + Clone,
         R: Send,
@@ -155,7 +145,6 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
         FilterMap {
             base: self,
             filter_op,
-            phantom: PhantomData,
         }
     }
     /// Map each element of the `ParallelIterator`.
@@ -168,7 +157,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
     ///     Some(198)
     /// )
     /// ```
-    fn map<F, R>(self, map_op: F) -> Map<P, Self, F>
+    fn map<F, R>(self, map_op: F) -> Map<Self, F>
     where
         F: Fn(Self::Item) -> R + Sync + Send + Clone,
         R: Send,
@@ -176,7 +165,6 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
         Map {
             iter: self,
             f: map_op,
-            phantom: PhantomData,
         }
     }
 
@@ -213,7 +201,7 @@ pub trait ParallelIterator<P: Power>: Divisible<P> + Send {
 }
 
 /// Here go all methods for basic power only.
-pub trait BasicParallelIterator: ParallelIterator<BasicPower> {
+pub trait BasicParallelIterator: ParallelIterator {
     /// slow find
     fn find(self) {
         unimplemented!()
@@ -221,7 +209,7 @@ pub trait BasicParallelIterator: ParallelIterator<BasicPower> {
 }
 
 /// Here go all methods for blocked power only.
-pub trait BlockedParallelIterator: ParallelIterator<BlockedPower> {
+pub trait BlockedParallelIterator: ParallelIterator {
     /// slow find
     fn find(self) {
         unimplemented!()
@@ -231,11 +219,15 @@ pub trait BlockedParallelIterator: ParallelIterator<BlockedPower> {
 //TODO: WE NEED A METHOD FOR COLLECT UP TO BLOCKED
 
 /// Here go all methods for indexed.
-pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
+pub trait IndexedParallelIterator: ParallelIterator {
     /// zip two iterators
     fn zip() {
         unimplemented!()
     }
+}
+
+/// Here go all methods specialized for iterators which have a power at least Blocked.
+pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     /// fast find, by blocks
     ///
     /// Example:
@@ -264,8 +256,9 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
         retrieve_op: R,
     ) -> B
     where
-        SR: Fn(std::iter::Flatten<Taker<Self, IndexedPower>>) -> B,
-        HR: Fn(std::iter::Flatten<Taker<Self, IndexedPower>>) -> BH,
+        B: Send,
+        SR: Fn(std::iter::Flatten<Taker<Self>>) -> B,
+        HR: Fn(std::iter::Flatten<Taker<Self>>) -> BH,
         R: Fn(B, BH) -> B,
     {
         schedule_help(
@@ -277,5 +270,7 @@ pub trait IndexedParallelIterator: ParallelIterator<IndexedPower> {
     }
 }
 
-impl<I: ParallelIterator<IndexedPower>> IndexedParallelIterator for I {}
-impl<I: ParallelIterator<BlockedPower>> BlockedParallelIterator for I {}
+impl<I: ParallelIterator<Power = BasicPower>> BasicParallelIterator for I {}
+impl<I: ParallelIterator<Power = BlockedPower>> BlockedParallelIterator for I {}
+impl<I: ParallelIterator<Power = IndexedPower>> IndexedParallelIterator for I {}
+impl<P: BlockedPowerOrMore, I: ParallelIterator<Power = P>> BlockedOrMoreParallelIterator for I {}

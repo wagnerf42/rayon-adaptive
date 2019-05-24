@@ -5,15 +5,14 @@ use crate::utils::power_sizes;
 use crate::Policy;
 
 /// reduce parallel iterator
-pub(crate) fn schedule<P, I, ID, OP, B>(
+pub(crate) fn schedule<I, ID, OP, B>(
     scheduling_policy: Policy,
     blocks: &mut B,
     identity: &ID,
     op: &OP,
 ) -> I::Item
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     B: Iterator<Item = I>,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
@@ -36,10 +35,9 @@ where
         .fold(identity(), op)
 }
 
-fn schedule_sequential<P, I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
+fn schedule_sequential<I, ID, OP>(iterator: I, identity: &ID, op: &OP) -> I::Item
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
@@ -50,15 +48,14 @@ where
     seq_iter.fold(identity(), op)
 }
 
-fn schedule_join<P, I, ID, OP>(
+fn schedule_join<I, ID, OP>(
     iterator: I,
     identity: &ID,
     op: &OP,
     sequential_fallback: usize,
 ) -> I::Item
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
@@ -77,7 +74,7 @@ where
     }
 }
 
-pub(crate) fn schedule_rayon<P, I, ID, OP>(
+pub(crate) fn schedule_rayon<I, ID, OP>(
     iterator: I,
     identity: &ID,
     op: &OP,
@@ -85,8 +82,7 @@ pub(crate) fn schedule_rayon<P, I, ID, OP>(
     counter: usize,
 ) -> I::Item
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
@@ -117,15 +113,14 @@ where
     }
 }
 
-pub(crate) fn schedule_adaptive<P, I, ID, OP>(
+pub(crate) fn schedule_adaptive<I, ID, OP>(
     iterator: I,
     identity: &ID,
     op: &OP,
     output: I::Item,
 ) -> I::Item
 where
-    P: Power,
-    I: ParallelIterator<P>,
+    I: ParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {

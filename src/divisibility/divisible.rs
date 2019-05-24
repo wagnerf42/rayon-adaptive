@@ -1,5 +1,4 @@
 use crate::iter::{Cut, Work};
-use std::marker::PhantomData;
 use std::mem;
 
 /// This is a marker type for specialization
@@ -31,7 +30,9 @@ impl BlockedPowerOrMore for IndexedPower {}
 /// All parallel objects must at least implement this trait.
 /// Note that this abstraction is stronger than parallel iterators and
 /// will allow parallel operations on non-iterator objects.
-pub trait Divisible<P: Power>: Sized {
+pub trait Divisible: Sized {
+    /// What we can really do.
+    type Power: Power;
     /// Return our size. This corresponds to the number of operations to be issued.
     /// For example *i.filter(f)* should have as size the number of elements in i before
     /// filtering. At size 0 nothing is left to do.
@@ -48,40 +49,34 @@ pub trait Divisible<P: Power>: Sized {
     /// Cut the `Divisible` into two parts, if possible at given index.
     fn divide_at(self, index: usize) -> (Self, Self);
     /// Return a sequential iterator on blocks of Self of given sizes.
-    fn blocks<S: Iterator<Item = usize>>(self, sizes: S) -> BlocksIterator<P, Self, S> {
+    fn blocks<S: Iterator<Item = usize>>(self, sizes: S) -> BlocksIterator<Self, S> {
         BlocksIterator {
             sizes,
             remaining: Some(self),
-            phantom: PhantomData,
         }
     }
     /// Work on ourselves piece by piece until length reaches 0.
-    fn work<W: Fn(Self, usize) -> Self + Send + Clone>(self, work_op: W) -> Work<P, Self, W> {
+    fn work<W: Fn(Self, usize) -> Self + Send + Clone>(self, work_op: W) -> Work<Self, W> {
         Work {
             remaining_input: Some(self),
             work_op,
-            phantom: PhantomData,
         }
     }
     /// Get a parallel iterator on parts of self.
-    fn cut(self) -> Cut<P, Self> {
-        Cut {
-            input: self,
-            phantom: PhantomData,
-        }
+    fn cut(self) -> Cut<Self> {
+        Cut { input: self }
     }
 }
 
 /// Iterator on some `Divisible` input by blocks.
-pub struct BlocksIterator<P: Power, I: Divisible<P>, S: Iterator<Item = usize>> {
+pub struct BlocksIterator<I: Divisible, S: Iterator<Item = usize>> {
     /// sizes of all the remaining blocks
     pub(crate) sizes: S,
     /// remaining input
     pub(crate) remaining: Option<I>,
-    pub(crate) phantom: PhantomData<P>,
 }
 
-impl<P: Power, I: Divisible<P>, S: Iterator<Item = usize>> Iterator for BlocksIterator<P, I, S> {
+impl<I: Divisible, S: Iterator<Item = usize>> Iterator for BlocksIterator<I, S> {
     type Item = I;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining.is_none() {
