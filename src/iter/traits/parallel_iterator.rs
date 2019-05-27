@@ -1,11 +1,12 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
-use crate::help::{schedule_help, Taker};
+use crate::help::{Help, Taker};
 use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
+use std::iter;
 use std::iter::{empty, successors};
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -248,25 +249,17 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
             .filter_map(|o| o)
             .next()
     }
-    /// Let's have a sequential thread and helper threads.
-    fn with_help<SR, HR, B, R, BH>(
-        self,
-        sequential_reducer: SR,
-        helper_threads_reducer: HR,
-        retrieve_op: R,
-    ) -> B
+
+    /// Fully adaptive algorithms where one sequential worker is helped by other threads.
+    fn with_help<B, H>(self, help_op: H) -> Help<Self, H>
     where
         B: Send,
-        SR: Fn(std::iter::Flatten<Taker<Self>>) -> B,
-        HR: Fn(std::iter::Flatten<Taker<Self>>) -> BH,
-        R: Fn(B, BH) -> B,
+        H: Fn(iter::Flatten<Taker<Self>>) -> B + Clone,
     {
-        schedule_help(
-            self,
-            sequential_reducer,
-            helper_threads_reducer,
-            retrieve_op,
-        )
+        Help {
+            iterator: self,
+            help_op,
+        }
     }
 }
 

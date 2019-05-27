@@ -5,7 +5,7 @@
 use crate::atomiclist::{AtomicLink, AtomicList};
 use crate::prelude::*;
 use std::iter;
-use std::iter::{once, repeat};
+use std::iter::repeat;
 
 /// Iterate on sequential iterators until interrupted
 /// We are also able to retrieve the remaining part after interruption.
@@ -57,6 +57,34 @@ where
     };
     let reduced_value = reduce(taker.flatten());
     (reduced_value, optionned_iterator.unwrap())
+}
+
+/// Remember how helper threads are helping us.
+pub struct Help<I, H> {
+    pub(crate) iterator: I,
+    pub(crate) help_op: H,
+}
+
+impl<C, I, H> Help<I, H>
+where
+    I: ParallelIterator,
+    H: Fn(iter::Flatten<Taker<I>>) -> C + Clone + Send,
+{
+    pub fn fold<B, F, R>(self, initial_value: B, fold_op: F, retrieve_op: R) -> B
+    where
+        F: Fn(B, I::Item) -> B,
+        R: Fn(B, C) -> B,
+    {
+        unimplemented!()
+    }
+
+    pub fn for_each<F, R>(self, op: F, retrieve_op: R)
+    where
+        F: Fn(I::Item),
+        R: Fn(C),
+    {
+        self.fold((), |_, e| op(e), |_, c| retrieve_op(c))
+    }
 }
 
 /// We are going to do one big fold operation in order to compute

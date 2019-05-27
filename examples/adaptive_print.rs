@@ -23,9 +23,22 @@ fn main() {
         .into_par_iter()
         .map(f)
         .by_blocks(repeat(50))
-        .with_help(
-            |i| i.for_each(|e| println!("{}", e)),
-            |i| i.collect::<Vec<_>>(),
-            |_, v| v.iter().for_each(|e| println!("{}", e)),
+        .with_help(|i| i.collect::<Vec<_>>())
+        .for_each(
+            |e| println!("{}", e),
+            |v| {
+                for e in v {
+                    println!("{}", e)
+                }
+            },
         )
+    // .fold(
+    //     (),
+    //     |_, e| println!("{}", e),
+    //     |_, v| {
+    //         for e in v {
+    //             println!("{}", e)
+    //         }
+    //     },
+    // )
 }
