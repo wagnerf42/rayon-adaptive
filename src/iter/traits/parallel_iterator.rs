@@ -254,7 +254,7 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     fn with_help<B, H>(self, help_op: H) -> Help<Self, H>
     where
         B: Send,
-        H: Fn(iter::Flatten<Taker<Self>>) -> B + Clone,
+        H: Fn(iter::Flatten<Taker<Self, fn() -> bool>>) -> B + Clone,
     {
         Help {
             iterator: self,
