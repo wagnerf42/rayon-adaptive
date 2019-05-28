@@ -1,6 +1,6 @@
 //! All schedulers are written here.
 use crate::prelude::*;
-use crate::smallchannel::small_channel;
+use crate::small_channel::small_channel;
 use crate::utils::power_sizes;
 use crate::Policy;
 

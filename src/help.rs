@@ -4,7 +4,10 @@
 //! The idea is that if no steal occurs, we end up with the sequential algorithm.
 use crate::atomiclist::{AtomicLink, AtomicList};
 use crate::prelude::*;
+use crate::small_channel::{small_channel, SmallSender};
+use rayon::Scope;
 use std::iter;
+use std::iter::once;
 use std::iter::repeat;
 
 /// Iterate on sequential iterators until interrupted
@@ -45,7 +48,7 @@ fn reduce_until_interrupted<I, B, R, C>(
 where
     I: ParallelIterator,
     B: Send,
-    R: Fn(iter::Flatten<Taker<I>>) -> B,
+    R: FnOnce(iter::Flatten<Taker<I>>) -> B,
     C: Fn() -> bool + 'static, // for now
 {
     let sizes = Box::new(repeat(1)); // for now
@@ -67,21 +70,29 @@ pub struct Help<I, H> {
 
 impl<C, I, H> Help<I, H>
 where
+    C: Send,
     I: ParallelIterator,
-    H: Fn(iter::Flatten<Taker<I>>) -> C + Clone + Send,
+    H: Fn(iter::Flatten<Taker<I>>) -> C + Clone + Send + Sync,
 {
     pub fn fold<B, F, R>(self, initial_value: B, fold_op: F, retrieve_op: R) -> B
     where
-        F: Fn(B, I::Item) -> B,
-        R: Fn(B, C) -> B,
+        B: Send,
+        F: Fn(B, I::Item) -> B + Sync,
+        R: Fn(B, C) -> B + Sync,
     {
-        unimplemented!()
+        schedule_help(
+            self.iterator,
+            fold_op,
+            self.help_op,
+            retrieve_op,
+            initial_value,
+        )
     }
 
     pub fn for_each<F, R>(self, op: F, retrieve_op: R)
     where
-        F: Fn(I::Item),
-        R: Fn(C),
+        F: Fn(I::Item) + Sync,
+        R: Fn(C) + Sync,
     {
         self.fold((), |_, e| op(e), |_, c| retrieve_op(c))
     }
@@ -98,38 +109,107 @@ enum RemainingElement<I, BH> {
 }
 
 /// Let's have a sequential thread and helper threads.
-pub(crate) fn schedule_help<I, SR, HR, B, R, BH>(
+pub(crate) fn schedule_help<I, B, C, F, R, H>(
     mut iterator: I,
-    sequential_reducer: SR,
-    helper_threads_reducer: HR,
+    fold_op: F,
+    help_op: H,
     retrieve_op: R,
+    initial_value: B,
 ) -> B
 where
     B: Send,
+    C: Send,
     I: ParallelIterator,
-    SR: Fn(std::iter::Flatten<Taker<I>>) -> B,
-    HR: Fn(std::iter::Flatten<Taker<I>>) -> BH,
-    R: Fn(B, BH) -> B,
+    F: Fn(B, I::Item) -> B + Sync,
+    H: Fn(std::iter::Flatten<Taker<I>>) -> C + Sync,
+    R: Fn(B, C) -> B + Sync,
 {
-    let stolen_stuffs: &AtomicList<(Option<BH>, Option<I>)> = &AtomicList::new();
-    let sizes = iterator.blocks_sizes();
+    let stolen_stuffs: &AtomicList<(Option<C>, Option<I>)> = &AtomicList::new();
     rayon::scope(|s| {
-        unimplemented!()
-        //        let mut todo = iterator
-        //            .blocks(sizes)
-        //            .flat_map(|block| {
-        //                once(RemainingElement::Input(block)).chain(stolen_stuffs.iter().flat_map(
-        //                    |(bh, i)| {
-        //                        bh.map(RemainingElement::Output)
-        //                            .into_iter()
-        //                            .chain(i.map(RemainingElement::Input).into_iter())
-        //                    },
-        //                ))
-        //            });
-        //        let initial_value = todo.next.unwrap(); // we are sure to have one from sequential thread
-        //        todo.fold(b, |b, element| match element {
-        //                RemainingElement::Input(i) => unimplemented!(),
-        //                RemainingElement::Output(bh) => retrieve_op(b, bh),
-        //            })
+        let sizes = iterator.blocks_sizes();
+        iterator
+            .blocks(sizes)
+            .flat_map(|block| {
+                once(RemainingElement::Input(block)).chain(stolen_stuffs.iter().flat_map(
+                    |(c, i)| {
+                        c.map(RemainingElement::Output)
+                            .into_iter()
+                            .chain(i.map(RemainingElement::Input).into_iter())
+                    },
+                ))
+            })
+            .fold(initial_value, |b, element| match element {
+                RemainingElement::Input(i) => sequential_fold(s, i, b, &fold_op, &help_op),
+                RemainingElement::Output(c) => retrieve_op(b, c),
+            })
     })
+}
+
+fn spawn_stealing_task<'scope, H, I, C>(
+    scope: &Scope<'scope>,
+    help_op: &'scope H,
+) -> SmallSender<AtomicLink<(Option<C>, Option<I>)>>
+where
+    C: Send + 'scope,
+    I: ParallelIterator + 'scope,
+    H: Fn(std::iter::Flatten<Taker<I>>) -> C + Sync,
+{
+    let (sender, receiver) = small_channel();
+    scope.spawn(move |s| {
+        let stolen_input: Option<AtomicLink<(Option<C>, Option<I>)>>;
+        #[cfg(feature = "logs")]
+        {
+            stolen_input = rayon_logs::subgraph("slave wait", 1, || receiver.recv());
+        }
+        #[cfg(not(feature = "logs"))]
+        {
+            stolen_input = receiver.recv();
+        }
+        if stolen_input.is_none() {
+            return;
+        }
+        helper_reduction(s, stolen_input.unwrap(), help_op)
+    });
+    sender
+}
+
+pub(crate) fn sequential_fold<'scope, I, B, C, F, H>(
+    scope: &Scope<'scope>,
+    iterator: I,
+    initial_value: B,
+    fold_op: &'scope F,
+    help_op: &'scope H,
+) -> B
+where
+    B: Send,
+    C: Send + 'scope,
+    I: ParallelIterator + 'scope,
+    F: Fn(B, I::Item) -> B,
+    H: Fn(std::iter::Flatten<Taker<I>>) -> C + Sync,
+{
+    let mut remaining_iterator = iterator;
+    let mut sender = spawn_stealing_task(scope, help_op);
+    let mut current_value = initial_value;
+    while remaining_iterator.base_length().unwrap_or(1) > 0 {
+        let (new_folded_value, iterator) = reduce_until_interrupted(
+            remaining_iterator,
+            move |i| i.fold(current_value, fold_op),
+            || false,
+        );
+        current_value = new_folded_value;
+        remaining_iterator = iterator;
+    }
+    current_value
+}
+
+pub(crate) fn helper_reduction<'scope, I, C, H>(
+    scope: &Scope<'scope>,
+    link: AtomicLink<(Option<C>, Option<I>)>,
+    help_op: &'scope H,
+) where
+    C: Send,
+    I: ParallelIterator,
+    H: Fn(std::iter::Flatten<Taker<I>>) -> C,
+{
+    unimplemented!()
 }
