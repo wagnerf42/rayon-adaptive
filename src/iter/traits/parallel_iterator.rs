@@ -1,6 +1,6 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
-use crate::help::{Help, Taker};
+use crate::help::{Help, Retriever};
 use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy};
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -8,6 +8,7 @@ use crate::Policy;
 use std::cmp::max;
 use std::iter;
 use std::iter::{empty, successors};
+use std::marker::PhantomData;
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator: Divisible + Send {
@@ -251,14 +252,15 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     }
 
     /// Fully adaptive algorithms where one sequential worker is helped by other threads.
-    fn with_help<B, H>(self, help_op: H) -> Help<Self, H>
+    fn with_help<C, H>(self, help_op: H) -> Help<Self, H, C>
     where
-        B: Send,
-        H: Fn(iter::Flatten<Taker<Self, fn() -> bool>>) -> B + Clone,
+        C: Send,
+        H: Fn(iter::Flatten<Retriever<Self, H, C>>) -> C + Clone,
     {
         Help {
             iterator: self,
             help_op,
+            phantom: PhantomData,
         }
     }
 }

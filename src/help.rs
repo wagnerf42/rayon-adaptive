@@ -10,6 +10,7 @@ use crate::Policy;
 use rayon::Scope;
 use std::iter;
 use std::iter::once;
+use std::marker::PhantomData;
 use std::mem;
 
 //TODO: do we really need all these lifetimes ?
@@ -30,7 +31,7 @@ impl<'a, 'c, 'scope, I, H, C> StealAnswerer<'a, 'c, 'scope, I, H, C>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Taker<I, fn() -> bool>>) -> C + Sync,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     fn new(
         scope: &'a Scope<'scope>,
@@ -60,7 +61,7 @@ impl<'a, 'c, 'scope, I, H, C> Iterator for StealAnswerer<'a, 'c, 'scope, I, H, C
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Taker<I, fn() -> bool>>) -> C + Sync,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     type Item = I::SequentialIterator;
     fn next(&mut self) -> Option<Self::Item> {
@@ -72,10 +73,13 @@ where
             if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
                 // let's split, we have enough for both
                 let (my_half, his_half) = iterator.divide();
-                let stolen_node = self.stolen_stuffs.push_front((None, Some(his_half)));
-                let mut new_sender = spawn_stealing_task(self.scope, self.help_op);
-                mem::swap(&mut new_sender, &mut self.sender);
-                new_sender.send(stolen_node);
+                if his_half.base_length().expect("infinite iterator") > 0 {
+                    // TODO: remove this if ?
+                    let stolen_node = self.stolen_stuffs.push_front((None, Some(his_half)));
+                    let mut new_sender = spawn_stealing_task(self.scope, self.help_op);
+                    mem::swap(&mut new_sender, &mut self.sender);
+                    new_sender.send(stolen_node);
+                }
                 iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
@@ -86,71 +90,102 @@ where
     }
 }
 
-/// Iterate on sequential iterators until interrupted
-/// We are also able to retrieve the remaining part after interruption.
-pub struct Taker<'a, 'b, I, C> {
-    iterator: &'a mut Option<I>, // option is just here to avoid unsafe calls
-    interruption_checker: &'b C,
-    sizes: Box<Iterator<Item = usize>>,
+/// This structure is used by the helper threads
+/// to answer steal requests and retrieve requests.
+/// It acts as an iterator on all sequential iterators produced between requests.
+pub struct Retriever<'a, 'b, 'scope, I, H, C> {
+    scope: &'a Scope<'scope>,
+    sizes_bounds: (usize, usize),
+    sizes: Box<Iterator<Item = usize>>, // TODO: remove box
+    help_op: &'scope H,
+    node: &'b AtomicLink<(Option<C>, Option<I>)>,
+    iterator: Option<I>,
+    sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
 }
 
-impl<'a, 'b, I, C> Iterator for Taker<'a, 'b, I, C>
+impl<'a, 'b, 'scope, I, H, C> Retriever<'a, 'b, 'scope, I, H, C>
 where
-    I: ParallelIterator + 'a,
-    C: Fn() -> bool + 'b,
+    C: Send + 'scope,
+    I: ParallelIterator + 'scope,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
-    type Item = I::SequentialIterator;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.iterator.base_length().unwrap_or(1) == 0 || (self.interruption_checker)() {
-            None
-        } else {
-            let next_size = self.sizes.next();
-            if let Some(size) = next_size {
-                let (sequential_iterator, remaining_parallel_iterator) =
-                    self.iterator.take().unwrap().iter(size);
-                *self.iterator = Some(remaining_parallel_iterator);
-                Some(sequential_iterator)
-            } else {
-                None
-            }
+    fn new(
+        scope: &'a Scope<'scope>,
+        help_op: &'scope H,
+        node: &'b AtomicLink<(Option<C>, Option<I>)>,
+    ) -> Self {
+        let iterator = node.take().unwrap().1.unwrap();
+        let policy = iterator.policy();
+        let sizes_bounds = match policy {
+            Policy::Adaptive(min_size, max_size) => (min_size, max_size),
+            _ => panic!("only adaptive policies are supported in helper schemes"),
+        };
+        let sender = spawn_stealing_task(scope, help_op);
+        Retriever {
+            scope,
+            sizes_bounds,
+            sizes: Box::new(power_sizes(sizes_bounds.0, sizes_bounds.1)),
+            help_op,
+            node,
+            iterator: Some(iterator),
+            sender,
         }
     }
 }
 
-fn reduce_until_interrupted<I, B, R, C>(iterator: I, reduce: R, interruption_checker: &C) -> (B, I)
+impl<'a, 'b, 'scope, I, H, C> Iterator for Retriever<'a, 'b, 'scope, I, H, C>
 where
-    I: ParallelIterator,
-    B: Send,
-    R: FnOnce(iter::Flatten<Taker<I, C>>) -> B,
-    C: Fn() -> bool,
+    C: Send + 'scope,
+    I: ParallelIterator + 'scope,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
-    let policy = iterator.policy();
-    let (min_size, max_size) = match policy {
-        Policy::Adaptive(min_size, max_size) => (min_size, max_size),
-        _ => panic!("non adaptive policies are not supported for helper algorithms"),
-    };
-    let sizes = Box::new(power_sizes(min_size, max_size));
-    let mut optionned_iterator = Some(iterator);
-    let taker = Taker {
-        iterator: &mut optionned_iterator,
-        interruption_checker,
-        sizes,
-    };
-    let reduced_value = reduce(taker.flatten());
-    (reduced_value, optionned_iterator.unwrap())
+    type Item = I::SequentialIterator;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iterator.is_none() {
+            return None;
+        }
+        let mut iterator = self.iterator.take().unwrap();
+        let remaining_length = iterator.base_length().expect("infinite iterator");
+        if remaining_length == 0 {
+            None
+        } else {
+            if self.node.requested() {
+                // we are being retrieved.
+                // give the iterator back to sequential thread through the list.
+                self.node.replace((None, Some(iterator)));
+                return None;
+            } else if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
+                // let's split, we have enough for both
+                let (my_half, his_half) = iterator.divide();
+                if his_half.base_length().expect("infinite iterator") > 0 {
+                    // TODO: remove this if ?
+                    let stolen_node = self.node.split((None, Some(his_half)));
+                    let mut new_sender = spawn_stealing_task(self.scope, self.help_op);
+                    mem::swap(&mut new_sender, &mut self.sender);
+                    new_sender.send(stolen_node);
+                }
+                iterator = my_half;
+            }
+            let next_length = self.sizes.next().unwrap();
+            let (sequential_iterator, remaining_parallel_iterator) = iterator.iter(next_length);
+            self.iterator = Some(remaining_parallel_iterator);
+            Some(sequential_iterator)
+        }
+    }
 }
 
 /// Remember how helper threads are helping us.
-pub struct Help<I, H> {
+pub struct Help<I, H, C> {
     pub(crate) iterator: I,
     pub(crate) help_op: H,
+    pub(crate) phantom: PhantomData<C>,
 }
 
-impl<C, I, H> Help<I, H>
+impl<C, I, H> Help<I, H, C>
 where
     C: Send,
     I: ParallelIterator,
-    H: Fn(iter::Flatten<Taker<I, fn() -> bool>>) -> C + Clone + Send + Sync,
+    H: Fn(iter::Flatten<Retriever<I, H, C>>) -> C + Clone + Send + Sync,
 {
     pub fn fold<B, F, R>(self, initial_value: B, fold_op: F, retrieve_op: R) -> B
     where
@@ -199,7 +234,7 @@ where
     C: Send,
     I: ParallelIterator,
     F: Fn(B, I::Item) -> B + Sync,
-    H: Fn(std::iter::Flatten<Taker<I, fn() -> bool>>) -> C + Sync,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
     R: Fn(B, C) -> B + Sync,
 {
     let stolen_stuffs: &AtomicList<(Option<C>, Option<I>)> = &AtomicList::new();
@@ -232,7 +267,7 @@ fn spawn_stealing_task<'scope, H, I, C>(
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Taker<I, fn() -> bool>>) -> C + Sync,
+    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     let (sender, receiver) = small_channel();
     scope.spawn(move |s| {
@@ -245,22 +280,13 @@ where
         {
             stolen_input = receiver.recv();
         }
-        if stolen_input.is_none() {
-            return;
+        if let Some(node) = stolen_input {
+            let c = help_op(Retriever::new(s, help_op, &node).flatten());
+            let remaining_iterator = node.take().unwrap().1;
+            // store helper's result back in the linked list
+            // together with possibly retrieved iterator
+            node.replace((Some(c), remaining_iterator))
         }
-        helper_reduction(s, stolen_input.unwrap(), help_op)
     });
     sender
-}
-
-pub(crate) fn helper_reduction<'scope, I, C, H>(
-    scope: &Scope<'scope>,
-    link: AtomicLink<(Option<C>, Option<I>)>,
-    help_op: &'scope H,
-) where
-    C: Send,
-    I: ParallelIterator,
-    H: Fn(std::iter::Flatten<Taker<I, fn() -> bool>>) -> C + Sync,
-{
-    unimplemented!()
 }

@@ -20,27 +20,19 @@ fn f(e: usize) -> usize {
 }
 
 fn main() {
-    (1usize..100)
-        .into_par_iter()
-        .map(f)
-        .by_blocks(repeat(50))
-        .with_policy(Policy::Adaptive(1, 1))
-        .with_help(|i| i.collect::<Vec<_>>())
-        .for_each(
-            |e| println!("{}", e),
-            |v| {
-                for e in v {
-                    println!("{}", e)
-                }
-            },
-        )
-    // .fold(
-    //     (),
-    //     |_, e| println!("{}", e),
-    //     |_, v| {
-    //         for e in v {
-    //             println!("{}", e)
-    //         }
-    //     },
-    // )
+    // un-comment to show cyclic type pb
+    //    (1usize..100)
+    //        .into_par_iter()
+    //        .map(f)
+    //        .by_blocks(repeat(50))
+    //        .with_policy(Policy::Adaptive(1, 1))
+    //        .with_help(|i| i.collect::<Vec<_>>())
+    //        .for_each(
+    //            |e| println!("{}", e),
+    //            |v| {
+    //                for e in v {
+    //                    println!("{}", e)
+    //                }
+    //            },
+    //        )
 }
