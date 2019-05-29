@@ -17,26 +17,25 @@ use std::mem;
 /// This structure is used by the sequential worker
 /// to answer steal requests.
 /// It acts as an iterator on all sequential iterators produced between steal requests.
-struct StealAnswerer<'a, 'c, 'scope, I, H, C> {
+struct StealAnswerer<'a, 'c, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
     iterator: Option<I>,                // TODO: keep or remove option ? (and be unsafe)
-    help_op: &'scope H,
+    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
 }
 
-impl<'a, 'c, 'scope, I, H, C> StealAnswerer<'a, 'c, 'scope, I, H, C>
+impl<'a, 'c, 'scope, I, C> StealAnswerer<'a, 'c, 'scope, I, C>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     fn new(
         scope: &'a Scope<'scope>,
         iterator: I,
-        help_op: &'scope H,
+        help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
         stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
     ) -> Self {
         let policy = iterator.policy();
@@ -57,11 +56,10 @@ where
     }
 }
 
-impl<'a, 'c, 'scope, I, H, C> Iterator for StealAnswerer<'a, 'c, 'scope, I, H, C>
+impl<'a, 'c, 'scope, I, C> Iterator for StealAnswerer<'a, 'c, 'scope, I, C>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     type Item = I::SequentialIterator;
     fn next(&mut self) -> Option<Self::Item> {
@@ -93,25 +91,24 @@ where
 /// This structure is used by the helper threads
 /// to answer steal requests and retrieve requests.
 /// It acts as an iterator on all sequential iterators produced between requests.
-pub struct Retriever<'a, 'b, 'scope, I, H, C> {
+pub struct Retriever<'a, 'b, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
-    help_op: &'scope H,
+    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     node: &'b AtomicLink<(Option<C>, Option<I>)>,
     iterator: Option<I>,
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
 }
 
-impl<'a, 'b, 'scope, I, H, C> Retriever<'a, 'b, 'scope, I, H, C>
+impl<'a, 'b, 'scope, I, C> Retriever<'a, 'b, 'scope, I, C>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     fn new(
         scope: &'a Scope<'scope>,
-        help_op: &'scope H,
+        help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
         node: &'b AtomicLink<(Option<C>, Option<I>)>,
     ) -> Self {
         let iterator = node.take().unwrap().1.unwrap();
@@ -133,11 +130,10 @@ where
     }
 }
 
-impl<'a, 'b, 'scope, I, H, C> Iterator for Retriever<'a, 'b, 'scope, I, H, C>
+impl<'a, 'b, 'scope, I, C> Iterator for Retriever<'a, 'b, 'scope, I, C>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     type Item = I::SequentialIterator;
     fn next(&mut self) -> Option<Self::Item> {
@@ -175,17 +171,16 @@ where
 }
 
 /// Remember how helper threads are helping us.
-pub struct Help<I, H, C> {
+pub struct Help<I, C> {
     pub(crate) iterator: I,
-    pub(crate) help_op: H,
+    pub(crate) help_op: Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     pub(crate) phantom: PhantomData<C>,
 }
 
-impl<C, I, H> Help<I, H, C>
+impl<C, I> Help<I, C>
 where
     C: Send,
     I: ParallelIterator,
-    H: Fn(iter::Flatten<Retriever<I, H, C>>) -> C + Clone + Send + Sync,
 {
     pub fn fold<B, F, R>(self, initial_value: B, fold_op: F, retrieve_op: R) -> B
     where
@@ -222,10 +217,10 @@ enum RemainingElement<I, BH> {
 }
 
 /// Let's have a sequential thread and helper threads.
-pub(crate) fn schedule_help<I, B, C, F, R, H>(
+pub(crate) fn schedule_help<I, B, C, F, R>(
     mut iterator: I,
     fold_op: F,
-    help_op: H,
+    help_op: Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     retrieve_op: R,
     initial_value: B,
 ) -> B
@@ -234,7 +229,6 @@ where
     C: Send,
     I: ParallelIterator,
     F: Fn(B, I::Item) -> B + Sync,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
     R: Fn(B, C) -> B + Sync,
 {
     let stolen_stuffs: &AtomicList<(Option<C>, Option<I>)> = &AtomicList::new();
@@ -260,14 +254,13 @@ where
     })
 }
 
-fn spawn_stealing_task<'scope, H, I, C>(
+fn spawn_stealing_task<'scope, I, C>(
     scope: &Scope<'scope>,
-    help_op: &'scope H,
+    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
 ) -> SmallSender<AtomicLink<(Option<C>, Option<I>)>>
 where
     C: Send + 'scope,
     I: ParallelIterator + 'scope,
-    H: Fn(std::iter::Flatten<Retriever<I, H, C>>) -> C + Sync,
 {
     let (sender, receiver) = small_channel();
     scope.spawn(move |s| {
@@ -282,7 +275,7 @@ where
         }
         if let Some(node) = stolen_input {
             let c = help_op(Retriever::new(s, help_op, &node).flatten());
-            let remaining_iterator = node.take().unwrap().1;
+            let remaining_iterator = node.take().and_then(|c| c.1);
             // store helper's result back in the linked list
             // together with possibly retrieved iterator
             node.replace((Some(c), remaining_iterator))

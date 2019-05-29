@@ -252,14 +252,14 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     }
 
     /// Fully adaptive algorithms where one sequential worker is helped by other threads.
-    fn with_help<C, H>(self, help_op: H) -> Help<Self, H, C>
+    fn with_help<C, H>(self, help_op: H) -> Help<Self, C>
     where
         C: Send,
-        H: Fn(iter::Flatten<Retriever<Self, H, C>>) -> C + Clone,
+        H: Fn(iter::Flatten<Retriever<Self, C>>) -> C + Sync + 'static, // TODO how bad is this 'static ?
     {
         Help {
             iterator: self,
-            help_op,
+            help_op: Box::new(help_op),
             phantom: PhantomData,
         }
     }
