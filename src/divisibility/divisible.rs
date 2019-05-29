@@ -1,4 +1,6 @@
+use crate::help_work::HelpWork;
 use crate::iter::{Cut, Work};
+use std::iter::empty;
 use std::mem;
 
 /// This is a marker type for specialization
@@ -65,6 +67,17 @@ pub trait Divisible: Sized {
     /// Get a parallel iterator on parts of self.
     fn cut(self) -> Cut<Self> {
         Cut { input: self }
+    }
+    /// Let's work, helping the sequential thread.
+    fn with_help_work<H>(self, help_op: H) -> HelpWork<Self, H>
+    where
+        H: Fn(Self, usize) -> Self,
+    {
+        HelpWork {
+            input: self,
+            help_op,
+            sizes: Box::new(empty()),
+        }
     }
 }
 

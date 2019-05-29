@@ -211,9 +211,9 @@ where
 /// Sometimes we fold on some input but sometimes we also fold
 /// on intermediate outputs.
 /// Having an enumerated type enables to conveniently iterate on both types.
-enum RemainingElement<I, BH> {
+pub(crate) enum RemainingElement<I, C> {
     Input(I),
-    Output(BH),
+    Output(C),
 }
 
 /// Let's have a sequential thread and helper threads.

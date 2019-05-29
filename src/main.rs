@@ -4,36 +4,6 @@ extern crate rayon_logs as rayon;
 use rayon::ThreadPoolBuilder;
 use rayon_adaptive::prelude::*;
 use std::iter::repeat;
-// use std::cmp::min;
-// use std::ops::Mul;
-// use std::slice::{Iter, IterMut};
-//
-// // TODO: en profiter pour penser a la taille infinie
-//
-// trait AdaptiveIterator: Divisible {
-//     type SequentialIterator: Iterator;
-//     fn iter(self, size: usize) -> (Self, Self::SequentialIterator);
-// }
-//
-// // exemple d'implem manuelle
-//
-// impl<'a, T: 'a> AdaptiveIterator for &'a [T] {
-//     type SequentialIterator = Iter<'a, T>;
-//     fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
-//         let (now, later) = self.split_at(size);
-//         (later, now.into_iter())
-//     }
-// }
-//
-//
-// impl<'a, T: 'a> AdaptiveIterator for &'a mut [T] {
-//     type SequentialIterator = IterMut<'a, T>;
-//     fn iter(self, size: usize) -> (Self, Self::SequentialIterator) {
-//         let (now, later) = self.divide_at(size);
-//         (later, now.into_iter())
-//     }
-// }
-//
 // // exemple d'iterateur pour lequel la division coute qqch
 // struct Powers<E: Mul<Output = E> + Clone> {
 //     base: E,
@@ -118,30 +88,6 @@ use std::iter::repeat;
 //     }
 // }
 //
-// // pour le work, on va faire un iterateur sur 0 elements pour tous les blocs sauf le dernier
-// // on va communiquer l'input d'un bloc a l'autre a travers un raw pointer comme pour les puissances.
-//
-// struct Work<I, F> {
-//     input: Box<I>,
-//     work_function: F,
-// }
-//
-// fn main() {
-//     let mut powers = Powers {
-//         base: 2,
-//         current_output: Box::new(1),
-//         size: 10,
-//     };
-//     let (remaining, first_three) = powers.iter(3);
-//     for x in first_three {
-//         println!("power: {}", x);
-//     }
-//     // let's not drop nothing
-//     let (nothing, last_powers) = remaining.iter(200);
-//     for x in last_powers {
-//         println!("next power: {}", x);
-//     }
-// }
 fn main() {
     let v: Vec<u64> = (0..100_000u64).collect();
     let pool = ThreadPoolBuilder::new()

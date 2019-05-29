@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator: Divisible + Send {
     /// This registers the type of output produced (it IS the item of the SequentialIterator).
-    type Item: Send; // TODO: can we get rid of that and keep a short name ?
+    type Item: Send;
     /// This registers the type of iterators produced.
     type SequentialIterator: Iterator<Item = Self::Item>;
     /// Give us a sequential iterator corresponding to `size` iterations.
@@ -217,8 +217,6 @@ pub trait BlockedParallelIterator: ParallelIterator {
         unimplemented!()
     }
 }
-
-//TODO: WE NEED A METHOD FOR COLLECT UP TO BLOCKED
 
 /// Here go all methods for indexed.
 pub trait IndexedParallelIterator: ParallelIterator {

@@ -32,5 +32,7 @@ pub(crate) mod schedulers;
 pub(crate) mod atomiclist;
 /// Helper mechanisms: have a special sequential thread.
 pub(crate) mod help;
+/// Helper mechanisms: have a special sequential thread with work instead of i terators.
+pub(crate) mod help_work;
 pub(crate) mod small_channel;
 pub(crate) mod utils;

@@ -1,10 +1,10 @@
-- get back helper scheme
 - choose if divide needs a checked argument or not (and fix either range or slice)
 - local iterator extraction "iter" name is not well chosen
-- collect trait
-- iterator trait for blockedormore is not working
 - if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
    is it a big deal ?
 - divide: shoud we divide something of size one ? what about flatmap ?
 - what power do we have when we chain and how do we do it ?
 - add unsafe to directly replace iterators when extracting ?
+- can a Fn not implement Clone ? if so should we switch to Arc for sharing fn ?
+- power iterator
+- debug help_work
