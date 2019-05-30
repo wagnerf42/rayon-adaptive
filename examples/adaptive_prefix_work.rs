@@ -1,6 +1,5 @@
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
-use derive_divisible::Divisible;
 use rayon_adaptive::prelude::*;
 use rayon_adaptive::IndexedPower;
 use std::cmp::min;
@@ -9,12 +8,30 @@ use std::slice::IterMut;
 
 const SIZE: usize = 10_000_000;
 
-#[derive(Divisible)]
-#[power(IndexedPower)]
 struct PrefixSlice<'a, T: 'a + Send + Sync> {
     slice: &'a mut [T],
-    #[divide_by(default)]
     index: usize,
+}
+
+impl<'a, T: 'a + Send + Sync> Divisible for PrefixSlice<'a, T> {
+    type Power = IndexedPower;
+    fn base_length(&self) -> Option<usize> {
+        Some(self.slice.len() - self.index)
+    }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let checked_index = min(self.index + index, self.slice.len()); // TODO: check sizes inside scheduler
+        let (left, right) = self.slice.split_at_mut(checked_index);
+        (
+            PrefixSlice {
+                slice: left,
+                index: self.index,
+            },
+            PrefixSlice {
+                slice: right,
+                index: 0,
+            },
+        )
+    }
 }
 
 impl<'a, T: 'a + Send + Sync> IntoIterator for PrefixSlice<'a, T> {
@@ -26,7 +43,6 @@ impl<'a, T: 'a + Send + Sync> IntoIterator for PrefixSlice<'a, T> {
 }
 
 fn main() {
-    unimplemented!("this is buggy");
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(2)
         .build()
@@ -53,14 +69,14 @@ fn main() {
                         .unwrap()
                 };
                 let len = prefix_slice.slice.len();
-                let checked_limit = min(len, prefix_slice.index + limit);
+                let checked_limit = min(len, prefix_slice.index + limit); // TODO: keep check here or move in scheduler
                 prefix_slice.slice[prefix_slice.index..checked_limit]
                     .iter_mut()
                     .fold(previous_value, |previous_value, e| {
                         *e += previous_value;
                         *e
                     });
-                prefix_slice.index += limit;
+                prefix_slice.index = checked_limit;
                 prefix_slice
             })
             .by_blocks(repeat(length / 10))
