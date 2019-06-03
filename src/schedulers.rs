@@ -41,11 +41,7 @@ where
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
-    let full_length = iterator
-        .base_length()
-        .expect("running on infinite iterator");
-    let (seq_iter, _remaining) = iterator.iter(full_length);
-    seq_iter.fold(identity(), op)
+    iterator.to_sequential().fold(identity(), op)
 }
 
 fn schedule_join<I, ID, OP>(
@@ -134,7 +130,7 @@ where
         |_| match power_sizes(min_size, max_size)
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((iterator, output), |(iterator, output), s| {
-                let (sequential_iterator, remaining_iterator) = iterator.iter(s);
+                let (sequential_iterator, remaining_iterator) = iterator.extract_iter(s);
                 let new_output = sequential_iterator.fold(output, op);
                 if remaining_iterator
                     .base_length()
@@ -152,7 +148,7 @@ where
                     .expect("running on infinite iterator");
                 if full_length <= min_size {
                     sender.send(None);
-                    let (seq_iter, _remaining) = remaining_iterator.iter(full_length);
+                    let (seq_iter, _remaining) = remaining_iterator.extract_iter(full_length);
                     seq_iter.fold(output, op)
                 } else {
                     let (my_half, his_half) = remaining_iterator.divide();

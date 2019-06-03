@@ -1,9 +1,8 @@
+- fromrange : to_sequential is not that ok
 - choose if divide needs a checked argument or not (and fix either range or slice)
      ----> I finally think the best choice is to check sizes inside the scheduler
 - document how base_length works
      --> flatmap -> non-decreasing + if ask for more than lenght -> eat all
-- add a final iterator extraction fn
-- local iterator extraction "iter" name is not well chosen
 - if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
    is it a big deal ?
 - divide: shoud we divide something of size one ? what about flatmap ?
