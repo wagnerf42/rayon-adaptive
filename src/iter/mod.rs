@@ -36,3 +36,5 @@ mod filter_map;
 pub use filter_map::FilterMap;
 mod zip;
 pub use zip::Zip;
+mod interruptible;
+pub use interruptible::Interruptible;

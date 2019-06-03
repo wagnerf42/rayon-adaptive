@@ -1,7 +1,10 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
 use crate::help::{Help, Retriever};
-use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy, Zip};
+use crate::iter::{
+    ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map, WithPolicy,
+    Zip,
+};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
@@ -9,6 +12,8 @@ use std::cmp::max;
 use std::iter;
 use std::iter::{empty, successors};
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator: Divisible + Send {
@@ -173,7 +178,6 @@ pub trait ParallelIterator: Divisible + Send {
     /// Turn a parallel iterator into a collection.
     ///
     /// Example:
-    ///
     /// ```
     /// use rayon_adaptive::prelude::*;
     /// assert_eq!((1u64..4).into_par_iter().collect::<Vec<_>>(), vec![1,2,3])
@@ -200,6 +204,31 @@ pub trait ParallelIterator: Divisible + Send {
         })
         .reduce(|| (), |_, _| ())
     }
+    /// Tests if every elements matches a predicate
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert!((1u64..25).into_par_iter().all(|x| x > 0));
+    /// assert!(!(0u64..25).into_par_iter().all(|x| x > 2));
+    ///
+    fn all<F>(self, f: F) -> bool
+    where
+        F: Fn(Self::Item) -> bool + Sync,
+    {
+        let b = AtomicBool::new(true);
+        let i = Interruptible {
+            iterator: self,
+            keepexec: &b,
+        };
+        i.iterator_fold(|mut i| {
+            if !(i.all(&f)) {
+                b.store(false, Ordering::Relaxed);
+            }
+        })
+        .reduce(|| (), |_, _| ());
+        b.load(Ordering::Relaxed)
+    }
 }
 
 /// Here go all methods for basic power only.
@@ -221,18 +250,20 @@ pub trait BlockedParallelIterator: ParallelIterator {
 /// Here go all methods for indexed.
 pub trait IndexedParallelIterator: ParallelIterator {
     /// zip two iterators
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// use rayon_adaptive::prelude::*;
     /// let mut v = vec![0u64; 10_000];
     /// v.as_mut_slice().into_par_iter().zip((0..10_000u64).into_par_iter()).for_each(|(o, e)| *o = e);
     /// assert_eq!(v, (0..10_000).collect::<Vec<u64>>());
     /// ```
-    fn zip<Z>(self, zip_op: Z) -> Zip<Self, Z::Iter> where
-    Z: IntoParallelIterator,
-    Z::Iter: ParallelIterator<Power=IndexedPower>, {
+    fn zip<Z>(self, zip_op: Z) -> Zip<Self, Z::Iter>
+    where
+        Z: IntoParallelIterator,
+        Z::Iter: ParallelIterator<Power = IndexedPower>,
+    {
         Zip {
             a: self,
             b: zip_op.into_par_iter(),
