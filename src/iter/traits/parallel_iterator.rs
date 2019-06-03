@@ -1,7 +1,7 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
 use crate::help::{Help, Retriever};
-use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy};
+use crate::iter::{ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map, WithPolicy, Zip};
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
@@ -221,8 +221,22 @@ pub trait BlockedParallelIterator: ParallelIterator {
 /// Here go all methods for indexed.
 pub trait IndexedParallelIterator: ParallelIterator {
     /// zip two iterators
-    fn zip() {
-        unimplemented!()
+    /// 
+    /// Example:
+    /// 
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let mut v = vec![0u64; 10_000];
+    /// v.as_mut_slice().into_par_iter().zip((0..10_000u64).into_par_iter()).for_each(|(o, e)| *o = e);
+    /// assert_eq!(v, (0..10_000).collect::<Vec<u64>>());
+    /// ```
+    fn zip<Z>(self, zip_op: Z) -> Zip<Self, Z::Iter> where
+    Z: IntoParallelIterator,
+    Z::Iter: ParallelIterator<Power=IndexedPower>, {
+        Zip {
+            a: self,
+            b: zip_op.into_par_iter(),
+        }
     }
 }
 

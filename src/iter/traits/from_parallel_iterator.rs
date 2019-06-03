@@ -26,11 +26,6 @@ impl<T: Send> FromParallelIterator<T> for Vec<T> {
                 v.push(e);
                 v
             })
-            .map(|v| once(v).collect::<LinkedList<Vec<T>>>())
-            .reduce(LinkedList::new, |mut l1, mut l2| {
-                l1.append(&mut l2);
-                l1
-            })
             .into_iter();
         let mut final_vector = blocks.next().unwrap();
         for block in blocks {

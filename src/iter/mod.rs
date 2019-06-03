@@ -34,3 +34,5 @@ mod flat_map;
 pub use flat_map::FlatMap;
 mod filter_map;
 pub use filter_map::FilterMap;
+mod zip;
+pub use zip::Zip;
