@@ -15,7 +15,7 @@ pub struct Cut<D> {
 impl<D: Divisible + Send> ParallelIterator for Cut<D> {
     type Item = D;
     type SequentialIterator = Once<D>;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (left, right) = self.input.divide_at(size);
         (once(left), Cut { input: right })
     }

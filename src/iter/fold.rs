@@ -36,9 +36,9 @@ impl<
 {
     type Item = O;
     type SequentialIterator = IntoIter<O>;
-    fn iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
         let final_call = self.base_length().expect("cannot fold infinite sizes") == size;
-        let (sequential_iterator, new_remaining_input) = self.remaining_input.iter(size);
+        let (sequential_iterator, new_remaining_input) = self.remaining_input.extract_iter(size);
         let current_output = self.current_output.take().unwrap_or_else(&self.identity);
         let new_output = sequential_iterator.fold(current_output, &self.fold_op);
         self.remaining_input = new_remaining_input;

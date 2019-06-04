@@ -31,7 +31,7 @@ impl Divisible for RangeParIter<usize> {
 impl ParallelIterator for RangeParIter<usize> {
     type Item = usize;
     type SequentialIterator = Range<usize>;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (iterator, remaining) = self.0.divide_at(size);
         (iterator, RangeParIter(remaining))
     }
@@ -40,7 +40,7 @@ impl ParallelIterator for RangeParIter<usize> {
 impl ParallelIterator for RangeParIter<u64> {
     type Item = u64;
     type SequentialIterator = Range<u64>;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (iterator, remaining) = self.0.divide_at(size);
         (iterator, RangeParIter(remaining))
     }

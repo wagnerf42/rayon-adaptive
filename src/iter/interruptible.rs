@@ -42,8 +42,8 @@ where
 {
     type Item = I::Item;
     type SequentialIterator = I::SequentialIterator;
-    fn iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (inner_iterator, remaining) = self.iterator.iter(size);
+    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
+        let (inner_iterator, remaining) = self.iterator.extract_iter(size);
         self.iterator = remaining;
         (inner_iterator, self)
     }

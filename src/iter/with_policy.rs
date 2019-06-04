@@ -20,8 +20,8 @@ impl<I: ParallelIterator> ParallelIterator for WithPolicy<I> {
     fn policy(&self) -> Policy {
         self.policy
     }
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (seq_iterator, remaining) = self.iterator.iter(size);
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+        let (seq_iterator, remaining) = self.iterator.extract_iter(size);
         (
             seq_iterator,
             WithPolicy {

@@ -28,7 +28,7 @@ where
     fn new(out: OUT, map_op: F) -> Self {
         let length = out.base_length();
         if length == Some(1) {
-            let (mut outer_iterator_sequential, _) = out.iter(1);
+            let (mut outer_iterator_sequential, _) = out.extract_iter(1);
             let final_outer_element = outer_iterator_sequential.next().unwrap();
             let inner_parallel_iterator = map_op(final_outer_element).into_par_iter();
             FlatMap::InnerIterator(inner_parallel_iterator)
@@ -85,10 +85,10 @@ where
         >,
         IN::SequentialIterator,
     >;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         match self {
             FlatMap::OuterIterator(i, f) => {
-                let (outer_sequential_iterator, remaining_outer_iterator) = i.iter(size);
+                let (outer_sequential_iterator, remaining_outer_iterator) = i.extract_iter(size);
                 (
                     Either::Left(
                         // we need to zip with the repeated f in order to pass a function and not a
@@ -103,7 +103,7 @@ where
                 )
             }
             FlatMap::InnerIterator(i) => {
-                let (inner_sequential_iterator, remaining_inner_iterator) = i.iter(size);
+                let (inner_sequential_iterator, remaining_inner_iterator) = i.extract_iter(size);
                 (
                     Either::Right(inner_sequential_iterator),
                     FlatMap::InnerIterator(remaining_inner_iterator),
@@ -126,6 +126,6 @@ where
         .expect("cannot flat_map into infinite iterators");
     //TODO: technically we could but we need a method to extract the full iterator
     //it would be bad performance wise though
-    let (seq_iter, _) = par_iter.iter(size);
+    let (seq_iter, _) = par_iter.extract_iter(size);
     seq_iter
 }

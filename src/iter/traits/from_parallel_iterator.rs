@@ -1,7 +1,5 @@
 //! we implement parallel collects here.
 use crate::prelude::*;
-use std::collections::LinkedList;
-use std::iter::once;
 
 /// Types which can be collected into from a parallel iterator should implement this.
 pub trait FromParallelIterator<T>

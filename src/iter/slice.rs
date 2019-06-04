@@ -15,7 +15,7 @@ pub struct Iter<'a, T: 'a + Sync> {
 impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
     type Item = &'a T;
     type SequentialIterator = slice::Iter<'a, T>;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (beginning, remaining) = self.divide_at(size);
         (beginning.slice.iter(), remaining)
     }
@@ -30,7 +30,7 @@ pub struct IterMut<'a, T: 'a + Sync + Send> {
 impl<'a, T: 'a + Sync + Send> ParallelIterator for IterMut<'a, T> {
     type Item = &'a mut T;
     type SequentialIterator = slice::IterMut<'a, T>;
-    fn iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
         let (beginning, remaining) = self.divide_at(size);
         (beginning.slice.iter_mut(), remaining)
     }
