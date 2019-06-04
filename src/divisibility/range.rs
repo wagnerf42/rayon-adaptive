@@ -10,6 +10,7 @@ impl Divisible for Range<u64> {
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         let mid = self.start + index as u64;
+        debug_assert!(mid <= self.end);
         ((self.start..mid), (mid..self.end))
     }
 }

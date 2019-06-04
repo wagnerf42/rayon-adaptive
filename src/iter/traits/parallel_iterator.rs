@@ -220,23 +220,43 @@ pub trait ParallelIterator: Divisible + Send {
     /// use rayon_adaptive::prelude::*;
     /// assert!((1u64..25).into_par_iter().all(|x| x > 0));
     /// assert!(!(0u64..25).into_par_iter().all(|x| x > 2));
-    ///
-    fn all<F>(self, f: F) -> bool
+    /// ```
+    fn all<F>(mut self, f: F) -> bool
     where
         F: Fn(Self::Item) -> bool + Sync,
     {
-        let b = AtomicBool::new(true);
-        let i = Interruptible {
-            iterator: self,
-            keepexec: &b,
-        };
-        i.iterator_fold(|mut i| {
-            if !(i.all(&f)) {
-                b.store(false, Ordering::Relaxed);
-            }
-        })
-        .reduce(|| (), |_, _| ());
-        b.load(Ordering::Relaxed)
+        let sizes = self.blocks_sizes();
+        self.blocks(sizes.chain(successors(Some(2_usize), |n| n.checked_mul(2))))
+            .all(|block| {
+                let b = AtomicBool::new(true);
+                let i = Interruptible {
+                    iterator: block,
+                    keepexec: &b,
+                };
+                i.iterator_fold(|mut i| {
+                    if !(i.all(&f)) {
+                        b.store(false, Ordering::Relaxed);
+                    }
+                })
+                .reduce(|| (), |_, _| ());
+                b.load(Ordering::Relaxed)
+            })
+    }
+
+    ///
+    ///  Applies this closure to each element of the iterator, and if any of them return true, then so does any().
+    /// If they all return false, it returns false.
+    ///  Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert!((1u64..25).into_par_iter().any(|x| x > 0));
+    /// assert!(!(0u64..25).into_par_iter().any(|x| x > 26));
+    /// ```
+    fn any<F>(self, f: F) -> bool
+    where
+        F: Fn(Self::Item) -> bool + Sync,
+    {
+        !self.all(|i| !f(i))
     }
 }
 

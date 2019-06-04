@@ -1,5 +1,6 @@
 use crate::help_work::HelpWork;
 use crate::iter::{Cut, Work};
+use std::cmp::min;
 use std::iter::empty;
 use std::mem;
 
@@ -108,7 +109,8 @@ impl<I: Divisible, S: Iterator<Item = usize>> Iterator for BlocksIterator<I, S> 
         let current_size = self.sizes.next();
         if let Some(size) = current_size {
             let remaining_input = self.remaining.take().unwrap();
-            let (left, right) = remaining_input.divide_at(size);
+            let checked_size = remaining_length.map(|r| min(r, size)).unwrap_or(size);
+            let (left, right) = remaining_input.divide_at(checked_size);
             mem::replace(&mut self.remaining, Some(right));
             Some(left)
         } else {

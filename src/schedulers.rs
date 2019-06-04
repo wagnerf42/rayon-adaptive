@@ -3,6 +3,7 @@ use crate::prelude::*;
 use crate::small_channel::small_channel;
 use crate::utils::power_sizes;
 use crate::Policy;
+use std::cmp::min;
 
 /// reduce parallel iterator
 pub(crate) fn schedule<I, ID, OP, B>(
@@ -130,8 +131,19 @@ where
         |_| match power_sizes(min_size, max_size)
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((iterator, output), |(iterator, output), s| {
-                let (sequential_iterator, remaining_iterator) = iterator.extract_iter(s);
-                let new_output = sequential_iterator.fold(output, op);
+                let checked_size = min(s, iterator.base_length().expect("infinite iterator"));
+                let (sequential_iterator, remaining_iterator) = iterator.extract_iter(checked_size);
+                let new_output;
+                #[cfg(feature = "logs")]
+                {
+                    new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
+                        sequential_iterator.fold(output, op)
+                    })
+                }
+                #[cfg(not(feature = "logs"))]
+                {
+                    new_output = sequential_iterator.fold(output, op)
+                }
                 if remaining_iterator
                     .base_length()
                     .expect("running on infinite iterator")
