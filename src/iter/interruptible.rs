@@ -1,8 +1,8 @@
 use crate::divisibility::*;
 use crate::prelude::*;
+use crate::Policy;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use crate::Policy;
 /// iterator adapter used by 'all' function on `ParallelIterator`
 pub struct Interruptible<'a, I> {
     pub(crate) keepexec: &'a AtomicBool,
@@ -48,7 +48,7 @@ where
         (inner_iterator, self)
     }
 
-      fn policy(&self) -> Policy {
+    fn policy(&self) -> Policy {
         self.iterator.policy()
     }
 
