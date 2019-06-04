@@ -7,10 +7,8 @@
 // try to re-factor things.
 
 // TODO: we could do with a list of inputs instead of a list of couples
-// TODO: we need to put block sizes in here
 
 use crate::atomiclist::{AtomicLink, AtomicList};
-use crate::help::RemainingElement;
 use crate::prelude::*;
 use crate::small_channel::{small_channel, SmallSender};
 use crate::utils::power_sizes;
@@ -45,27 +43,40 @@ impl<I: Divisible + IntoIterator + Send, H: Fn(I, usize) -> I + Sync> HelpWork<I
         F: Fn(B, I::Item) -> B + Sync,
         R: Fn(B, I) -> B + Sync,
     {
-        let stolen_stuffs: &AtomicList<(Option<I>, Option<I>)> = &AtomicList::new();
+        let stolen_stuffs: &AtomicList<I> = &AtomicList::new();
         let sizes = self.sizes;
         let input = self.input;
         let help_op = self.help_op;
+        // TODO: the sizes unwraps here don't make sense.
+        // wouldn't it be better to compute the sizes inside each macro-block ?
+        let min_block_size = input
+            .base_length()
+            .map(|s| (s as f64).log2() as usize)
+            .unwrap_or(1);
+        let max_block_size = input
+            .base_length()
+            .map(|s| (s as f64).sqrt() as usize)
+            .unwrap_or(100_000);
         rayon::scope(|s| {
             input
                 .blocks(sizes)
-                .flat_map(|block| {
-                    once(RemainingElement::Input(block)).chain(stolen_stuffs.iter().flat_map(
-                        |(c, i)| {
-                            c.map(RemainingElement::Output)
-                                .into_iter()
-                                .chain(i.map(RemainingElement::Input).into_iter())
-                        },
-                    ))
-                })
-                .fold(initial_value, |b, element| match element {
-                    RemainingElement::Input(i) => StealAnswerer::new(s, i, &help_op, stolen_stuffs)
-                        .flatten()
-                        .fold(b, &fold_op),
-                    RemainingElement::Output(i) => retrieve_op(b, i),
+                .flat_map(|block| once(block).chain(stolen_stuffs.iter()))
+                .fold(initial_value, |b, i| {
+                    // now, this division is crucial.
+                    // by dividing at 0 we separate the computed result in done
+                    // and the remaining input in remaining
+                    // we can then retrieve the 'done' part and let the sequential thread
+                    // go on with the remaining part.
+                    let (done, remaining) = i.divide_at(0);
+                    StealAnswerer::new(
+                        s,
+                        remaining,
+                        &help_op,
+                        stolen_stuffs,
+                        (min_block_size, max_block_size),
+                    )
+                    .flatten()
+                    .fold(retrieve_op(b, done), &fold_op)
                 })
         })
     }
@@ -80,8 +91,8 @@ struct StealAnswerer<'a, 'c, 'scope, I, H> {
     sizes: Box<Iterator<Item = usize>>,
     input: Option<I>,
     help_op: &'scope H,
-    stolen_stuffs: &'c AtomicList<(Option<I>, Option<I>)>,
-    sender: SmallSender<AtomicLink<(Option<I>, Option<I>)>>,
+    stolen_stuffs: &'c AtomicList<I>,
+    sender: SmallSender<AtomicLink<I>>,
 }
 
 impl<'a, 'c, 'scope, I, H> StealAnswerer<'a, 'c, 'scope, I, H>
@@ -93,13 +104,14 @@ where
         scope: &'a Scope<'scope>,
         input: I,
         help_op: &'scope H,
-        stolen_stuffs: &'c AtomicList<(Option<I>, Option<I>)>,
+        stolen_stuffs: &'c AtomicList<I>,
+        sizes_bounds: (usize, usize),
     ) -> Self {
-        let sender = spawn_stealing_task(scope, help_op);
+        let sender = spawn_stealing_task(scope, help_op, sizes_bounds);
         StealAnswerer {
             scope,
-            sizes_bounds: (100, 10_000), // for now,
-            sizes: Box::new(power_sizes(100, 10_000)),
+            sizes_bounds,
+            sizes: Box::new(power_sizes(sizes_bounds.0, sizes_bounds.1)),
             input: Some(input),
             help_op,
             stolen_stuffs,
@@ -125,8 +137,9 @@ where
                 let (my_half, his_half) = input.divide();
                 if his_half.base_length().expect("infinite input") > 0 {
                     // TODO: remove this if ?
-                    let stolen_node = self.stolen_stuffs.push_front((None, Some(his_half)));
-                    let mut new_sender = spawn_stealing_task(self.scope, self.help_op);
+                    let stolen_node = self.stolen_stuffs.push_front(his_half);
+                    let mut new_sender =
+                        spawn_stealing_task(self.scope, self.help_op, self.sizes_bounds);
                     mem::swap(&mut new_sender, &mut self.sender);
                     new_sender.send(stolen_node);
                 }
@@ -143,14 +156,15 @@ where
 fn spawn_stealing_task<'scope, I, H>(
     scope: &Scope<'scope>,
     help_op: &'scope H,
-) -> SmallSender<AtomicLink<(Option<I>, Option<I>)>>
+    sizes_bounds: (usize, usize),
+) -> SmallSender<AtomicLink<I>>
 where
     I: Divisible + Send + 'scope,
     H: Fn(I, usize) -> I + Sync,
 {
     let (sender, receiver) = small_channel();
     scope.spawn(move |s| {
-        let stolen_input: Option<AtomicLink<(Option<I>, Option<I>)>>;
+        let stolen_input: Option<AtomicLink<I>>;
         #[cfg(feature = "logs")]
         {
             stolen_input = rayon_logs::subgraph("slave wait", 1, || receiver.recv());
@@ -160,7 +174,7 @@ where
             stolen_input = receiver.recv();
         }
         if let Some(node) = stolen_input {
-            helper_work(s, node, help_op)
+            helper_work(s, node, help_op, sizes_bounds)
         }
     });
     sender
@@ -168,16 +182,17 @@ where
 
 fn helper_work<'scope, I, H>(
     scope: &Scope<'scope>,
-    node: AtomicLink<(Option<I>, Option<I>)>,
+    node: AtomicLink<I>,
     help_op: &'scope H,
+    sizes_bounds: (usize, usize),
 ) where
     I: Divisible + Send + 'scope,
     H: Fn(I, usize) -> I + Sync + 'scope,
 {
-    let mut input = node.take().unwrap().1.unwrap();
+    let mut input = node.take().unwrap();
     loop {
-        let sender = spawn_stealing_task(scope, help_op);
-        match power_sizes(100, 10_000)
+        let sender = spawn_stealing_task(scope, help_op, sizes_bounds);
+        match power_sizes(sizes_bounds.0, sizes_bounds.1)
             .take_while(|_| !sender.receiver_is_waiting() && !node.requested())
             .try_fold(input, |input, size| {
                 let remaining_size = input.base_length().expect("infinite iterator");
@@ -191,21 +206,15 @@ fn helper_work<'scope, I, H>(
                 // we were stolen or retrieved
                 if node.requested() {
                     // we were retrieved
-                    node.replace(
-                        if remaining_input.base_length().expect("infinite iterator") == 0 {
-                            (Some(remaining_input), None)
-                        } else {
-                            (None, Some(remaining_input))
-                        },
-                    );
+                    node.replace(remaining_input);
                     return;
                 } else {
                     // we were stolen
                     let length = remaining_input.base_length().expect("infinite iterator");
-                    if length > 100 {
+                    if length > sizes_bounds.0 {
                         let (my_half, his_half) = remaining_input.divide();
                         if his_half.base_length().expect("infinite iterator") > 0 {
-                            let stolen_node = (&node).split((None, Some(his_half)));
+                            let stolen_node = (&node).split(his_half);
                             sender.send(stolen_node)
                         }
                         input = my_half;
@@ -215,7 +224,7 @@ fn helper_work<'scope, I, H>(
                 }
             }
             Err(final_input) => {
-                node.replace((Some(final_input), None));
+                node.replace(final_input);
                 return;
             }
         }
