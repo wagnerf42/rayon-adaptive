@@ -103,4 +103,16 @@ fn main() {
     assert_eq!(input_vector, expected_result);
 
     println!("time taken with 2 threads : {}", time_taken_ms);
+
+    // now do a sequential run
+    let mut input_vector = repeat(1).take(SIZE).collect::<Vec<u64>>();
+    let start = time::precise_time_ns();
+    input_vector.iter_mut().fold(0, |c, e| {
+        *e += c;
+        *e
+    });
+    let end = time::precise_time_ns();
+    let time_taken_ms = ((end - start) as f64) / (1e6 as f64);
+    assert_eq!(input_vector, expected_result);
+    println!("time taken sequentially: {}", time_taken_ms);
 }

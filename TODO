@@ -15,3 +15,5 @@
    if indexed we change size
    if not indexed we cannot change size
    -> we need to parametrize take by the power or have several ones
+
+- double check the divide_at(0) in help_work is not needed in help.rs even with special iterators like folders
