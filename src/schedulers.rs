@@ -32,6 +32,13 @@ where
             ),
             Policy::Sequential => schedule_sequential(b, identity, op),
             Policy::Adaptive(_, _) => schedule_adaptive(b, identity, op, identity()),
+            Policy::DefaultPolicy => schedule_rayon(
+                b,
+                identity,
+                op,
+                1,
+                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+            ),
         })
         .fold(identity(), op)
 }
