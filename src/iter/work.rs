@@ -32,18 +32,20 @@ impl<I: Divisible, W: Fn(I, usize) -> I + Send + Clone> Divisible for Work<I, W>
 impl<I: Divisible + Send, W: Fn(I, usize) -> I + Send + Clone> ParallelIterator for Work<I, W> {
     type Item = I;
     type SequentialIterator = IntoIter<I>;
-    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
         let final_call = self.base_length().expect("cannot fold infinite sizes") == size;
         let new_input = (self.work_op)(self.remaining_input.take().unwrap(), size);
-        (
-            if final_call {
-                Some(new_input)
-            } else {
-                self.remaining_input = Some(new_input);
-                None
-            }
-            .into_iter(),
-            self,
-        )
+        if final_call {
+            Some(new_input)
+        } else {
+            self.remaining_input = Some(new_input);
+            None
+        }
+        .into_iter()
+    }
+    fn to_sequential(mut self) -> Self::SequentialIterator {
+        let size = self.base_length().expect("cannot fold infinite sizes");
+        let new_input = (self.work_op)(self.remaining_input.take().unwrap(), size);
+        Some(new_input).into_iter()
     }
 }

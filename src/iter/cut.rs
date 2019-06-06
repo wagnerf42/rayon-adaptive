@@ -4,19 +4,30 @@ use derive_divisible::{Divisible, IntoIterator};
 use std::iter::{once, Once};
 
 /// `ParallelIterator` on divided `Divisible`.
-#[derive(Divisible, IntoIterator)]
-#[power(D::Power)]
-#[item(D)]
-#[trait_bounds(D:Divisible + Send)]
 pub struct Cut<D> {
-    pub(crate) input: D,
+    pub(crate) input: Option<D>, // Option is just to avoid unsafe
+}
+
+impl<D: Divisible> Divisible for Cut<D> {
+    type Power = D::Power;
+    fn base_length(&self) -> Option<usize> {
+        self.input.as_ref().unwrap().base_length()
+    }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right) = self.input.unwrap().divide_at(index);
+        (Cut { input: Some(left) }, Cut { input: Some(right) })
+    }
 }
 
 impl<D: Divisible + Send> ParallelIterator for Cut<D> {
     type Item = D;
     type SequentialIterator = Once<D>;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (left, right) = self.input.divide_at(size);
-        (once(left), Cut { input: right })
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        let (left, right) = self.input.take().unwrap().divide_at(size);
+        self.input = Some(right);
+        once(left)
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        once(self.input.unwrap())
     }
 }

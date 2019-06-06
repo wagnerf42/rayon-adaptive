@@ -25,9 +25,10 @@ impl<I: ParallelIterator> ParallelIterator for ByBlocks<I> {
             .take()
             .unwrap_or_else(|| Box::new(empty()))
     }
-    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (iterator, remaining) = self.iterator.extract_iter(size);
-        self.iterator = remaining;
-        (iterator, self)
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        self.iterator.extract_iter(size)
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.iterator.to_sequential()
     }
 }

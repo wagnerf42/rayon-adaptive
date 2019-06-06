@@ -81,9 +81,8 @@ where
                 iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let (sequential_iterator, remaining_parallel_iterator) =
-                iterator.extract_iter(next_length);
-            self.iterator = Some(remaining_parallel_iterator);
+            let sequential_iterator = iterator.extract_iter(next_length);
+            self.iterator = Some(iterator);
             Some(sequential_iterator)
         }
     }
@@ -164,9 +163,8 @@ where
                 iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let (sequential_iterator, remaining_parallel_iterator) =
-                iterator.extract_iter(next_length);
-            self.iterator = Some(remaining_parallel_iterator);
+            let sequential_iterator = iterator.extract_iter(next_length);
+            self.iterator = Some(iterator);
             Some(sequential_iterator)
         }
     }

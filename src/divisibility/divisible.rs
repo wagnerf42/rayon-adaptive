@@ -116,7 +116,7 @@ pub trait Divisible: Sized {
     /// Get a parallel iterator on parts of self divided by the load balancing algorithm.
     /// See `example/cut.rs`.
     fn cut(self) -> Cut<Self> {
-        Cut { input: self }
+        Cut { input: Some(self) }
     }
 
     /// This is the most complex operation available in the library.

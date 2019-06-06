@@ -46,17 +46,27 @@ impl Divisible for RangeFromParIter<usize> {
 impl ParallelIterator for RangeFromParIter<usize> {
     type SequentialIterator = Range<usize>;
     type Item = usize;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
         match self {
             RangeFromParIter::Bounded(r) => {
                 let end = r.start + size;
-                (r.start..end, RangeFromParIter::Bounded(end..r.end))
+                let iter = r.start..end;
+                r.start = end;
+                iter
             }
             RangeFromParIter::UnBounded(r) => {
                 let end = r.start + size;
-                (r.start..end, RangeFromParIter::UnBounded(end..))
+                let iter = r.start..end;
+                r.start = end;
+                iter
             }
         }
+    }
+    fn to_sequential(mut self) -> Self::SequentialIterator {
+        let size = self
+            .base_length()
+            .expect("TODO: implement to_sequential in infinite ranges");
+        self.extract_iter(size)
     }
 }
 

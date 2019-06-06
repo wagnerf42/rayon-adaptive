@@ -42,10 +42,11 @@ where
 {
     type Item = I::Item;
     type SequentialIterator = I::SequentialIterator;
-    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (inner_iterator, remaining) = self.iterator.extract_iter(size);
-        self.iterator = remaining;
-        (inner_iterator, self)
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        self.iterator.extract_iter(size)
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.iterator.to_sequential()
     }
 
     fn policy(&self) -> Policy {

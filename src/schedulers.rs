@@ -130,9 +130,9 @@ where
     let (left_result, maybe_right_result): (I::Item, Option<I::Item>) = rayon::join_context(
         |_| match power_sizes(min_size, max_size)
             .take_while(|_| !sender.receiver_is_waiting())
-            .try_fold((iterator, output), |(iterator, output), s| {
+            .try_fold((iterator, output), |(mut iterator, output), s| {
                 let checked_size = min(s, iterator.base_length().expect("infinite iterator"));
-                let (sequential_iterator, remaining_iterator) = iterator.extract_iter(checked_size);
+                let sequential_iterator = iterator.extract_iter(checked_size);
                 let new_output;
                 #[cfg(feature = "logs")]
                 {
@@ -144,14 +144,14 @@ where
                 {
                     new_output = sequential_iterator.fold(output, op)
                 }
-                if remaining_iterator
+                if iterator
                     .base_length()
                     .expect("running on infinite iterator")
                     == 0
                 {
-                    Err((remaining_iterator, new_output))
+                    Err((iterator, new_output))
                 } else {
-                    Ok((remaining_iterator, new_output))
+                    Ok((iterator, new_output))
                 }
             }) {
             Ok((remaining_iterator, output)) => {
@@ -160,8 +160,7 @@ where
                     .expect("running on infinite iterator");
                 if full_length <= min_size {
                     sender.send(None);
-                    let (seq_iter, _remaining) = remaining_iterator.extract_iter(full_length);
-                    seq_iter.fold(output, op)
+                    remaining_iterator.to_sequential().fold(output, op)
                 } else {
                     let (my_half, his_half) = remaining_iterator.divide();
                     sender.send(Some(his_half));

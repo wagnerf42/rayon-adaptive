@@ -36,23 +36,27 @@ impl<
 {
     type Item = O;
     type SequentialIterator = IntoIter<O>;
-    fn extract_iter(mut self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
         let final_call = self.base_length().expect("cannot fold infinite sizes") == size;
-        let (sequential_iterator, new_remaining_input) = self.remaining_input.extract_iter(size);
+        let sequential_iterator = self.remaining_input.extract_iter(size);
         let current_output = self.current_output.take().unwrap_or_else(&self.identity);
         let new_output = sequential_iterator.fold(current_output, &self.fold_op);
-        self.remaining_input = new_remaining_input;
-        (
-            if final_call {
-                Some(new_output)
-            } else {
-                self.current_output = Some(new_output); // we put it back here
-                None
-            }
-            .into_iter(),
-            self,
-        )
+        if final_call {
+            Some(new_output)
+        } else {
+            self.current_output = Some(new_output); // we put it back here
+            None
+        }
+        .into_iter()
     }
+
+    fn to_sequential(mut self) -> Self::SequentialIterator {
+        let sequential_iterator = self.remaining_input.to_sequential();
+        let current_output = self.current_output.take().unwrap_or_else(&self.identity);
+        let new_output = sequential_iterator.fold(current_output, &self.fold_op);
+        Some(new_output).into_iter()
+    }
+
     fn policy(&self) -> Policy {
         self.remaining_input.policy()
     }

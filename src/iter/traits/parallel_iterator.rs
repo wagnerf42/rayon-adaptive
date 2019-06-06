@@ -22,16 +22,9 @@ pub trait ParallelIterator: Divisible + Send {
     /// This registers the type of iterators produced.
     type SequentialIterator: Iterator<Item = Self::Item>;
     /// Convert ourselves to a standard sequential iterator.
-    /// Note to implementors: you are most likely ok with the default implementation unless you are
-    /// implementing infinite iterators in which case you need to implement this function yourself.
-    /// Other possible problem is if you expect the remaining part to outlive the returned iterator.
-    fn to_sequential(self) -> Self::SequentialIterator {
-        let size = self.base_length().expect("infinite iterator");
-        let (iterator, _) = self.extract_iter(size);
-        iterator
-    }
+    fn to_sequential(self) -> Self::SequentialIterator;
     /// Give us a sequential iterator corresponding to `size` iterations.
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self);
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator;
     /// Return current scheduling `Policy`.
     fn policy(&self) -> Policy {
         Policy::Rayon(1)

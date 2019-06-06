@@ -28,7 +28,7 @@ where
     fn new(out: OUT, map_op: F) -> Self {
         let length = out.base_length();
         if length == Some(1) {
-            let (mut outer_iterator_sequential, _) = out.extract_iter(1);
+            let mut outer_iterator_sequential = out.to_sequential();
             let final_outer_element = outer_iterator_sequential.next().unwrap();
             let inner_parallel_iterator = map_op(final_outer_element).into_par_iter();
             FlatMap::InnerIterator(inner_parallel_iterator)
@@ -85,29 +85,43 @@ where
         >,
         IN::SequentialIterator,
     >;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
         match self {
             FlatMap::OuterIterator(i, f) => {
-                let (outer_sequential_iterator, remaining_outer_iterator) = i.extract_iter(size);
-                (
-                    Either::Left(
-                        // we need to zip with the repeated f in order to pass a function and not a
-                        // closure to flat_map.
-                        // however I don't get why I need to cast manually.
-                        // if I don't it complains about receiving a fn item.
-                        outer_sequential_iterator.zip(repeat(f.clone())).flat_map(
-                            map_par_to_seq as fn((OUT::Item, F)) -> IN::SequentialIterator,
-                        ),
-                    ),
-                    FlatMap::new(remaining_outer_iterator, f),
+                let outer_sequential_iterator = i.extract_iter(size);
+                Either::Left(
+                    // we need to zip with the repeated f in order to pass a function and not a
+                    // closure to flat_map.
+                    // however I don't get why I need to cast manually.
+                    // if I don't it complains about receiving a fn item.
+                    outer_sequential_iterator
+                        .zip(repeat(f.clone()))
+                        .flat_map(map_par_to_seq as fn((OUT::Item, F)) -> IN::SequentialIterator),
                 )
             }
             FlatMap::InnerIterator(i) => {
-                let (inner_sequential_iterator, remaining_inner_iterator) = i.extract_iter(size);
-                (
-                    Either::Right(inner_sequential_iterator),
-                    FlatMap::InnerIterator(remaining_inner_iterator),
+                let inner_sequential_iterator = i.extract_iter(size);
+                Either::Right(inner_sequential_iterator)
+            }
+        }
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        match self {
+            FlatMap::OuterIterator(i, f) => {
+                let outer_sequential_iterator = i.to_sequential();
+                Either::Left(
+                    // we need to zip with the repeated f in order to pass a function and not a
+                    // closure to flat_map.
+                    // however I don't get why I need to cast manually.
+                    // if I don't it complains about receiving a fn item.
+                    outer_sequential_iterator
+                        .zip(repeat(f.clone()))
+                        .flat_map(map_par_to_seq as fn((OUT::Item, F)) -> IN::SequentialIterator),
                 )
+            }
+            FlatMap::InnerIterator(i) => {
+                let inner_sequential_iterator = i.to_sequential();
+                Either::Right(inner_sequential_iterator)
             }
         }
     }
@@ -121,11 +135,5 @@ where
 {
     let (e, fun) = t;
     let par_iter = fun(e).into_par_iter();
-    let size = par_iter
-        .base_length()
-        .expect("cannot flat_map into infinite iterators");
-    //TODO: technically we could but we need a method to extract the full iterator
-    //it would be bad performance wise though
-    let (seq_iter, _) = par_iter.extract_iter(size);
-    seq_iter
+    par_iter.to_sequential()
 }

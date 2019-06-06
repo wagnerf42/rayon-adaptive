@@ -31,18 +31,28 @@ impl Divisible for RangeParIter<usize> {
 impl ParallelIterator for RangeParIter<usize> {
     type Item = usize;
     type SequentialIterator = Range<usize>;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (iterator, remaining) = self.0.divide_at(size);
-        (iterator, RangeParIter(remaining))
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        let end = self.0.start + size;
+        let iter = self.0.start..end;
+        self.0.start = end;
+        iter
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.0
     }
 }
 
 impl ParallelIterator for RangeParIter<u64> {
     type Item = u64;
     type SequentialIterator = Range<u64>;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (iterator, remaining) = self.0.divide_at(size);
-        (iterator, RangeParIter(remaining))
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        let end = self.0.start + size as u64;
+        let iter = self.0.start..end;
+        self.0.start = end;
+        iter
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.0
     }
 }
 

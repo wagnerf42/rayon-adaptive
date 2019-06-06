@@ -22,15 +22,10 @@ where
 {
     type Item = (A::Item, B::Item);
     type SequentialIterator = iter::Zip<A::SequentialIterator, B::SequentialIterator>;
-    fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self) {
-        let (iter_a, remaining_a) = self.a.extract_iter(size);
-        let (iter_b, remaining_b) = self.b.extract_iter(size);
-        (
-            iter_a.zip(iter_b),
-            Zip {
-                a: remaining_a,
-                b: remaining_b,
-            },
-        )
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        self.a.extract_iter(size).zip(self.b.extract_iter(size))
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.a.to_sequential().zip(self.b.to_sequential())
     }
 }
