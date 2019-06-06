@@ -9,6 +9,7 @@ extern crate rayon_logs as rayon;
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
 pub use divisibility::{BasicPower, BlockedPower, IndexedPower};
+
 /// Adaptive iterators
 pub mod iter;
 /// Import all traits in prelude to enable adaptive iterators.
@@ -25,6 +26,8 @@ pub enum Policy {
     Adaptive(usize, usize),
     /// Just run sequentially
     Sequential,
+    /// Use Rayon(1) if the user do not indiquate any policy 
+    DefaultPolicy,
 }
 /// All scheduling algorithms.
 pub(crate) mod schedulers;

@@ -9,6 +9,7 @@ use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::Policy;
 use std::cmp::max;
+use std::f32;
 use std::iter;
 use std::iter::{empty, successors};
 use std::marker::PhantomData;
@@ -34,7 +35,7 @@ pub trait ParallelIterator: Divisible + Send {
     fn extract_iter(self, size: usize) -> (Self::SequentialIterator, Self);
     /// Return current scheduling `Policy`.
     fn policy(&self) -> Policy {
-        Policy::Rayon(1)
+        Policy::DefaultPolicy
     }
 
     /// Return an iterator on sizes of all macro blocks.
@@ -225,8 +226,26 @@ pub trait ParallelIterator: Divisible + Send {
     where
         F: Fn(Self::Item) -> bool + Sync,
     {
-        let sizes = self.blocks_sizes();
-        self.blocks(sizes.chain(successors(Some(2_usize), |n| n.checked_mul(2))))
+        let size_entry = self.base_length().unwrap();
+        let p = rayon::current_num_threads();
+        let sizes_block = self.blocks_sizes();
+        let mut policy = self.policy();
+        policy = match (policy) {
+            Policy::DefaultPolicy => {
+                // if the user did not explicitely choose a scheduling policy we are going to choose one for him.
+                // this is worthwhile here because this algorithm benefits from adaptive policies.
+                if (((p as f64).log(2.0).ceil() as usize) * p * p * 100) < size_entry {
+                    policy = Policy::Adaptive(((size_entry as f32).log2() * 2.0) as usize, 10_000);
+                    policy
+                } else {
+                    policy // the size is too small for adaptive algorithms which work a little BEFORE dividing.
+                }
+            }
+            _ => policy,
+        };
+
+        self.with_policy(policy)
+            .blocks(sizes_block.chain(successors(Some(10_000usize * 2), |n| n.checked_mul(2))))
             .all(|block| {
                 let b = AtomicBool::new(true);
                 let i = Interruptible {
