@@ -1,6 +1,5 @@
 //! Parallel iterator on pieces of a `Divisible`. This can be useful when divisions cost nothing.
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator};
 use std::iter::{once, Once};
 
 /// `ParallelIterator` on divided `Divisible`.

@@ -38,3 +38,7 @@ mod zip;
 pub use zip::Zip;
 mod interruptible;
 pub use interruptible::Interruptible;
+
+// functions
+mod functions;
+pub use functions::successors;

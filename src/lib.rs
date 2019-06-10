@@ -12,6 +12,7 @@ pub use divisibility::{BasicPower, BlockedPower, IndexedPower};
 
 /// Adaptive iterators
 pub mod iter;
+pub use iter::successors;
 /// Import all traits in prelude to enable adaptive iterators.
 pub mod prelude;
 /// Different available scheduling policies.
@@ -26,7 +27,7 @@ pub enum Policy {
     Adaptive(usize, usize),
     /// Just run sequentially
     Sequential,
-    /// Use Rayon(1) if the user do not indiquate any policy 
+    /// Use Rayon(1) if the user do not indiquate any policy
     DefaultPolicy,
 }
 /// All scheduling algorithms.

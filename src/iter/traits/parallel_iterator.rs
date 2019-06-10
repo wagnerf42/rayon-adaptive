@@ -223,7 +223,7 @@ pub trait ParallelIterator: Divisible + Send {
         let p = rayon::current_num_threads();
         let sizes_block = self.blocks_sizes();
         let mut policy = self.policy();
-        policy = match (policy) {
+        policy = match policy {
             Policy::DefaultPolicy => {
                 // if the user did not explicitely choose a scheduling policy we are going to choose one for him.
                 // this is worthwhile here because this algorithm benefits from adaptive policies.
