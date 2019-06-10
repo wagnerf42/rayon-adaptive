@@ -8,36 +8,20 @@ pub use traits::parallel_iterator::{
     IndexedParallelIterator, ParallelIterator,
 };
 
-// basic types are
-mod range;
-mod rangefrom;
-mod slice;
+// basic types are defined here.
+mod basic_types;
 
-// adaptors
-mod iterator_fold;
-pub use iterator_fold::IteratorFold;
-mod with_policy;
-pub use with_policy::WithPolicy;
-mod by_blocks;
-pub use by_blocks::ByBlocks;
-mod fold;
-pub use fold::Fold;
+// special types
 mod work;
 pub use work::Work;
 mod cut;
 pub use cut::Cut;
-mod map;
-pub use map::Map;
-mod flat_map_seq;
-pub use flat_map_seq::FlatMapSeq;
-mod flat_map;
-pub use flat_map::FlatMap;
-mod filter_map;
-pub use filter_map::FilterMap;
-mod zip;
-pub use zip::Zip;
-mod interruptible;
-pub use interruptible::Interruptible;
+
+mod adaptors;
+pub use adaptors::{
+    ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map, WithPolicy,
+    Zip,
+};
 
 // functions
 mod functions;

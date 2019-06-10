@@ -21,3 +21,19 @@
 - double check the divide_at(0) in help_work is not needed in help.rs even with special iterators like folders
 
 - use the same trick as rayon to get our own Try and implement try_fold for our sequential iterators
+
+- Cap has three different problems:
+   - first do we need to distinguish between dividing on the left for blocks iterators and dividing on the right for //ism ?
+   - we need a way to fail dividing. -> we could maybe divide to obtain a size of 0 on the right and then test for sizes in the stealer
+   - we need to change atomic counter when dropping but if we implement drop we cannot move anymore
+
+   ----> isn't it better to just go away from the move api ?
+       go from divide(self) -> (Self, Self) to divide_left(&mut self) -> Option<Self> and divide_right(&mut self) -> Option<Self>
+       (maybe without options)
+       is it really a big deal to have options overheads on a logarithmic number of ops ?
+
+
+*** api changes to discuss:
+  - cap pb: is not moving really a pb ?
+  - do all Fn implement Clone ? is Sync better than Send (if we go to Arc)
+  - unsafety of successors
