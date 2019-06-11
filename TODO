@@ -1,3 +1,4 @@
+- cap: default policy + check tasks of sizes 0 are not stolen but discarded immediately
 - fromrange : to_sequential is not that ok
 
 - if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
@@ -37,9 +38,16 @@
        in order to divide without borrowing).
 
    so the debate is between move api and no pb with lifetimes but pb with drop and the borrow api with the reversed problems.
+   ***********
+   ANYWAY we cannot and should not drop on parallel iterators because the real drop should be done on the final sequential iterator.
+   so: let's stick to moving divides. we can get some convenience functions for borrow_divide.
+   the only drawback is that we make no distinctions between splitting for blocks and splitting for parallelism
+   --> could we actually do both ? since we could specialize the borrow_divide_at method ?
+   ***********
 
 
 *** api changes to discuss:
   - cap pb: is not moving really a pb ?
   - do all Fn implement Clone ? is Sync better than Send (if we go to Arc)
   - unsafety of successors
+

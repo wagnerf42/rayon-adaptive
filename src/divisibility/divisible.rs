@@ -96,6 +96,26 @@ pub trait Divisible: Sized {
         self.divide_at(mid)
     }
 
+    /// This is a convenience function to `divide_at` and put back
+    /// the left part in self. Doing this we don't really need to
+    /// move out of self ; a mutable borrow is enough.
+    fn borrow_divide_at(&mut self, index: usize) -> Self {
+        let moved_self = unsafe { (self as *mut Self).read() };
+        let (left, right) = moved_self.divide_at(index);
+        unsafe { (self as *mut Self).write(left) };
+        right
+    }
+
+    /// This is a convenience function to `divide` and put back
+    /// the left part in self. Doing this we don't really need to
+    /// move out of self ; a mutable borrow is enough.
+    fn borrow_divide(&mut self) -> Self {
+        let moved_self = unsafe { (self as *mut Self).read() };
+        let (left, right) = moved_self.divide();
+        unsafe { (self as *mut Self).write(left) };
+        right
+    }
+
     /// Return a sequential iterator on blocks of Self of given sizes.
     fn blocks<S: Iterator<Item = usize>>(self, sizes: S) -> BlocksIterator<Self, S> {
         BlocksIterator {

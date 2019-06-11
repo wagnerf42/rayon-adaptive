@@ -22,3 +22,5 @@ mod interruptible;
 pub use interruptible::Interruptible;
 mod cap;
 pub use cap::Cap;
+mod filter;
+pub use filter::Filter;
