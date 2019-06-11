@@ -24,13 +24,19 @@
 
 - Cap has three different problems:
    - first do we need to distinguish between dividing on the left for blocks iterators and dividing on the right for //ism ?
+                -> well, we could just mem::swap
    - we need a way to fail dividing. -> we could maybe divide to obtain a size of 0 on the right and then test for sizes in the stealer
+                -> dividing at length seems fine ; we cannot divide for parallelism on an infinite iterator
    - we need to change atomic counter when dropping but if we implement drop we cannot move anymore
+                -> could we decrease at last iteration ? -> yes we can
 
    ----> isn't it better to just go away from the move api ?
-       go from divide(self) -> (Self, Self) to divide_left(&mut self) -> Option<Self> and divide_right(&mut self) -> Option<Self>
-       (maybe without options)
-       is it really a big deal to have options overheads on a logarithmic number of ops ?
+       go from divide(self) -> (Self, Self) to divide(&mut self) -> Self
+
+       we will then have the same problems as slice's IterMut with lifetimes (currently extract_iter forced us to switch to options
+       in order to divide without borrowing).
+
+   so the debate is between move api and no pb with lifetimes but pb with drop and the borrow api with the reversed problems.
 
 
 *** api changes to discuss:
