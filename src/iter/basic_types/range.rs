@@ -46,6 +46,7 @@ impl ParallelIterator for RangeParIter<u64> {
     type Item = u64;
     type SequentialIterator = Range<u64>;
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        debug_assert!(self.base_length().map(|l| l >= size).unwrap_or(true));
         let end = self.0.start + size as u64;
         let iter = self.0.start..end;
         self.0.start = end;

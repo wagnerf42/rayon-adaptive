@@ -13,6 +13,7 @@ use crate::prelude::*;
 use crate::small_channel::{small_channel, SmallSender};
 use crate::utils::power_sizes;
 use rayon::Scope;
+use std::cmp::min;
 use std::iter::once;
 use std::mem;
 
@@ -146,7 +147,8 @@ where
                 input = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let (first_part, remaining_part) = input.divide_at(next_length);
+            let checked_length = min(next_length, input.base_length().expect("infinite input"));
+            let (first_part, remaining_part) = input.divide_at(checked_length);
             self.input = Some(remaining_part);
             Some(first_part.into_iter())
         }

@@ -31,6 +31,7 @@ fn main() {
     let end = time::precise_time_ns();
     println!("we took with sequential fusion: {}", end - start);
 
+    let start = time::precise_time_ns();
     let v: Vec<u64> = (0..10_000_000u64)
         .into_par_iter()
         .filter(|&e| e % 3 == 0)
@@ -62,6 +63,7 @@ fn main() {
     let end = time::precise_time_ns();
     println!("we took with parallel fusion: {}", end - start);
 
+    let start = time::precise_time_ns();
     let v: Vec<u64> = (0..10_000_000u64)
         .into_par_iter()
         .filter(|&e| e % 3 == 0)
@@ -80,7 +82,7 @@ fn main() {
                 (&mut previous_vec[current_len..])
                     .into_par_iter()
                     .zip(v.as_slice().into_par_iter())
-                    .with_policy(Policy::Adaptive(1000, 10_000))
+                    .with_policy(Policy::Adaptive(1000, 100_000))
                     .cap(2)
                     .for_each(|(d, s)| *d = *s);
                 Some(previous_vec)
@@ -94,8 +96,7 @@ fn main() {
     let end = time::precise_time_ns();
     println!("we took with adaptive fusion: {}", end - start);
 
-    unimplemented!("there is quite a bug here");
-
+    let start = time::precise_time_ns();
     let v: Vec<u64> = scope(|s| {
         (0..10_000_000u64)
             .into_par_iter()
@@ -110,8 +111,22 @@ fn main() {
                     v
                 },
                 |mut v, v2| {
-                    //TODO: use scope to fill in capped parallel
-                    v.extend(v2);
+                    let current_length = v.len();
+                    let reserved_slice = unsafe {
+                        v.set_len(current_length + v2.len());
+                        std::slice::from_raw_parts_mut(
+                            v.as_mut_slice().as_mut_ptr().add(current_length),
+                            v2.len(),
+                        )
+                    };
+                    s.spawn(move |_s| {
+                        reserved_slice
+                            .into_par_iter()
+                            .zip(v2.as_slice().into_par_iter())
+                            .with_policy(Policy::Adaptive(100, 100_000))
+                            .cap(3) // TODO: did we forget to prevent sending iterators of sizes 0 ?
+                            .for_each(|(d, s)| *d = *s)
+                    });
                     v
                 },
             )
