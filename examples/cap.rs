@@ -124,7 +124,8 @@ fn main() {
                             .into_par_iter()
                             .zip(v2.as_slice().into_par_iter())
                             .with_policy(Policy::Adaptive(100, 100_000))
-                            .cap(3) // TODO: did we forget to prevent sending iterators of sizes 0 ?
+                            //                            .cap(2) // the cap will not work unless we change rayon or stop being
+                            //                            recursive in adaptive algorithms with a scope
                             .for_each(|(d, s)| *d = *s)
                     });
                     v

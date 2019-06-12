@@ -9,6 +9,34 @@ pub enum RangeFromParIter<E> {
     UnBounded(RangeFrom<E>),
 }
 
+/// Sequential iterator on unbounded range.
+pub enum RangeFromSeqIter<E> {
+    Bounded(Range<E>),
+    UnBounded(RangeFrom<E>),
+}
+
+impl Iterator for RangeFromSeqIter<usize> {
+    type Item = usize;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            RangeFromSeqIter::Bounded(ref mut r) => {
+                if r.start == r.end {
+                    None
+                } else {
+                    let value = r.start;
+                    r.start += 1;
+                    Some(value)
+                }
+            }
+            RangeFromSeqIter::UnBounded(ref mut r) => {
+                let value = r.start;
+                r.start += 1;
+                Some(value)
+            }
+        }
+    }
+}
+
 impl Divisible for RangeFromParIter<usize> {
     type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
@@ -44,7 +72,7 @@ impl Divisible for RangeFromParIter<usize> {
 }
 
 impl ParallelIterator for RangeFromParIter<usize> {
-    type SequentialIterator = Range<usize>;
+    type SequentialIterator = RangeFromSeqIter<usize>;
     type Item = usize;
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
         match self {
@@ -52,21 +80,21 @@ impl ParallelIterator for RangeFromParIter<usize> {
                 let end = r.start + size;
                 let iter = r.start..end;
                 r.start = end;
-                iter
+                RangeFromSeqIter::Bounded(iter)
             }
             RangeFromParIter::UnBounded(r) => {
                 let end = r.start + size;
                 let iter = r.start..end;
                 r.start = end;
-                iter
+                RangeFromSeqIter::Bounded(iter)
             }
         }
     }
-    fn to_sequential(mut self) -> Self::SequentialIterator {
-        let size = self
-            .base_length()
-            .expect("TODO: implement to_sequential in infinite ranges");
-        self.extract_iter(size)
+    fn to_sequential(self) -> Self::SequentialIterator {
+        match self {
+            RangeFromParIter::Bounded(r) => RangeFromSeqIter::Bounded(r),
+            RangeFromParIter::UnBounded(r) => RangeFromSeqIter::UnBounded(r),
+        }
     }
 }
 

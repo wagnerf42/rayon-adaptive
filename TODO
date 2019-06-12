@@ -1,5 +1,4 @@
 - cap: default policy + check tasks of sizes 0 are not stolen but discarded immediately
-- fromrange : to_sequential is not that ok
 
 - if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
    is it a big deal ?
