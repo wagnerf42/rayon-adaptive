@@ -90,7 +90,7 @@ struct StealAnswerer<'a, 'c, 'scope, I, H> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>,
-    input: Option<I>,
+    input: I,
     help_op: &'scope H,
     stolen_stuffs: &'c AtomicList<I>,
     sender: SmallSender<AtomicLink<I>>,
@@ -113,7 +113,7 @@ where
             scope,
             sizes_bounds,
             sizes: Box::new(power_sizes(sizes_bounds.0, sizes_bounds.1)),
-            input: Some(input),
+            input,
             help_op,
             stolen_stuffs,
             sender,
@@ -128,14 +128,13 @@ where
 {
     type Item = <I as IntoIterator>::IntoIter;
     fn next(&mut self) -> Option<Self::Item> {
-        let mut input = self.input.take().unwrap();
-        let remaining_length = input.base_length().expect("infinite input");
+        let remaining_length = self.input.base_length().expect("infinite input");
         if remaining_length == 0 {
             None
         } else {
             if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
                 // let's split, we have enough for both
-                let (my_half, his_half) = input.divide();
+                let his_half = self.input.borrow_divide();
                 if his_half.base_length().expect("infinite input") > 0 {
                     // TODO: remove this if ?
                     let stolen_node = self.stolen_stuffs.push_front(his_half);
@@ -144,13 +143,15 @@ where
                     mem::swap(&mut new_sender, &mut self.sender);
                     new_sender.send(stolen_node);
                 }
-                input = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let checked_length = min(next_length, input.base_length().expect("infinite input"));
-            let (first_part, remaining_part) = input.divide_at(checked_length);
-            self.input = Some(remaining_part);
-            Some(first_part.into_iter())
+            let checked_length = min(
+                next_length,
+                self.input.base_length().expect("infinite input"),
+            );
+            let mut remaining_part = self.input.borrow_divide_at(checked_length);
+            std::mem::swap(&mut self.input, &mut remaining_part); // we need the other one
+            Some(remaining_part.into_iter())
         }
     }
 }

@@ -99,7 +99,7 @@ pub struct Retriever<'a, 'b, 'scope, I, C> {
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
     help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     node: &'b AtomicLink<(Option<C>, Option<I>)>,
-    iterator: Option<I>,
+    iterator: Option<I>, // this Option enables us to be retrieved, leaving nothing here. we could eventually avoid it by dividing at the end.
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
 }
 
