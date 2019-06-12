@@ -47,7 +47,7 @@ fn main() {
     })
     .with_policy(Policy::Join(5))
     .map(|s| s.slice)
-    .into_iter()
+    .reduced_iter()
     .fold(None, |possible_last, s| {
         println!("slice is : {:?}", s);
         if let Some(previous_value) = possible_last {

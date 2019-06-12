@@ -1,10 +1,10 @@
 //! Map iterator.
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
+use derive_divisible::{Divisible, ParallelIterator};
 use std::iter;
 
 /// Map iterator adapter, returning by `map` function on `ParallelIterator`.
-#[derive(Divisible, ParallelIterator, IntoIterator)]
+#[derive(Divisible, ParallelIterator)]
 #[power(I::Power)]
 #[item(R)]
 #[sequential_iterator(iter::Map<I::SequentialIterator, F>)]

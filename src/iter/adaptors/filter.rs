@@ -1,10 +1,10 @@
 //! Implementation of the `Filter` parallel iterator.
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
+use derive_divisible::{Divisible, ParallelIterator};
 use std::iter;
 
 /// `Filter` parallel iterator structure obtained from the `filter` method.
-#[derive(Divisible, ParallelIterator, IntoIterator)]
+#[derive(Divisible, ParallelIterator)]
 #[power(<<I as Divisible>::Power as Power>::NotIndexed)]
 #[item(I::Item)]
 #[sequential_iterator(iter::Filter<I::SequentialIterator, P>)]

@@ -1,17 +1,10 @@
 - cap: default policy + check tasks of sizes 0 are not stolen but discarded immediately
 
-- if we use into_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
+- if we use reduced_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes
    is it a big deal ?
 
 - what power do we have when we chain and how do we do it ?
      ----> we can implement chain 3 times for each power level
-
-- add unsafe to directly replace iterators when extracting ?
-  -> it's not that easy. division is ok but we also need to move without dividing.
-  (for example in blocks iterator when no sizes are left or in help when storing back in list)
-  if iterators are bounded that's ok we could just divide at length but what if they are infinite ?
-
-- can a Fn not implement Clone ? if so should we switch to Arc for sharing fn ?
 
 - we can do Take like that:
    if indexed we change size
@@ -19,8 +12,6 @@
    -> we need to parametrize take by the power or have several ones
 
 - double check the divide_at(0) in help_work is not needed in help.rs even with special iterators like folders
-
-- use the same trick as rayon to get our own Try and implement try_fold for our sequential iterators
 
 - Cap has three different problems:
    - first do we need to distinguish between dividing on the left for blocks iterators and dividing on the right for //ism ?
@@ -49,4 +40,4 @@
   - cap pb: is not moving really a pb ?
   - do all Fn implement Clone ? is Sync better than Send (if we go to Arc)
   - unsafety of successors
-
+  - the blocks_sizes takes a mut borrow. while ok it's not very pretty, can we avoid it ?

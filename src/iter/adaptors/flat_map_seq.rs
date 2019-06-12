@@ -1,9 +1,9 @@
 //! Implementation of flatmap.
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
+use derive_divisible::{Divisible, ParallelIterator};
 use std::iter;
 
-#[derive(Divisible, ParallelIterator, IntoIterator)]
+#[derive(Divisible, ParallelIterator)]
 #[power(<<I as Divisible>::Power as Power>::NotIndexed)]
 #[item(PI::Item)]
 #[sequential_iterator(iter::FlatMap<I::SequentialIterator, PI, F>)]

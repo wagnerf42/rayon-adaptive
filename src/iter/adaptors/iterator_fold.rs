@@ -1,12 +1,12 @@
 //! Fold sequential iterators to get a value for each.
 //! This simplifies a lot of top-level fold ops (see the code for max as an example).
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
+use derive_divisible::{Divisible, ParallelIterator};
 use std::iter::{once, Once};
 
 /// ParallelIterator where SequentialIterator are turned into a single value.
 /// See `iterator_fold` method of `ParallelIterator` trait.
-#[derive(Divisible, ParallelIterator, IntoIterator)]
+#[derive(Divisible, ParallelIterator)]
 #[power(I::Power)]
 #[item(R)]
 #[sequential_iterator(Once<R>)]

@@ -1,6 +1,7 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
 use crate::help::{Help, Retriever};
+use crate::iter::Try;
 use crate::iter::{
     ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map,
     WithPolicy, Zip,
@@ -12,7 +13,6 @@ use crate::Policy;
 use std::cmp::max;
 use std::f32;
 use std::iter;
-use crate::iter::Try;
 use std::iter::{empty, successors};
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
@@ -114,6 +114,7 @@ pub trait ParallelIterator: Divisible + Send {
         let sizes = self.blocks_sizes();
         schedule(policy, &mut self.blocks(sizes), &identity, &op)
     }
+
     ///
     /// Reduces the items in the iterator into one item using a fallible op.
     /// call to sechuler interruptible
@@ -126,6 +127,32 @@ pub trait ParallelIterator: Divisible + Send {
     {
         let policy = self.policy();
         schedule_interruptible(policy, self, &identity, &op)
+    }
+
+    /// Get a sequential iterator on items produced in parallel.
+    /// This iterator has the added bonus to be lazy on the blocks
+    /// which means it will not consume more blocks than the strict minimum.
+    fn reduced_iter(
+        mut self,
+    ) -> std::iter::FlatMap<
+        crate::divisibility::BlocksIterator<Self, Box<Iterator<Item = usize>>>,
+        std::iter::Flatten<std::collections::linked_list::IntoIter<Vec<Self::Item>>>,
+        fn(Self) -> std::iter::Flatten<std::collections::linked_list::IntoIter<Vec<Self::Item>>>,
+    > {
+        let sizes = self.blocks_sizes();
+        self.blocks(sizes).flat_map(|b| {
+            b.fold(Vec::new, |mut v, e| {
+                v.push(e);
+                v
+            })
+            .map(|v| std::iter::once(v).collect::<std::collections::LinkedList<Vec<Self::Item>>>())
+            .reduce(std::collections::LinkedList::new, |mut l1, mut l2| {
+                l1.append(&mut l2);
+                l1
+            })
+            .into_iter()
+            .flatten()
+        })
     }
 
     /// Return the max of all elements.
