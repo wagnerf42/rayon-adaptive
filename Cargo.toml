@@ -32,3 +32,5 @@ either = "*"
 [[bench]]
 name = "all"
 harness = false
+
+#![feature(try_trait)]
