@@ -6,6 +6,9 @@
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 
+#[macro_use]
+mod private;
+
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
 pub use divisibility::{BasicPower, BlockedPower, IndexedPower};
@@ -38,5 +41,6 @@ pub(crate) mod atomiclist;
 pub(crate) mod help;
 /// Helper mechanisms: have a special sequential thread with work instead of i terators.
 pub(crate) mod help_work;
+
 pub(crate) mod small_channel;
 pub(crate) mod utils;

@@ -1,6 +1,8 @@
 //! Parallel iterators on unbounded ranges !
 use crate::divisibility::IndexedPower;
 use crate::prelude::*;
+#[cfg(nightly)]
+use std::ops::Try;
 use std::ops::{Range, RangeFrom};
 
 /// Parallel iterator on unbounded range.
@@ -33,6 +35,17 @@ impl Iterator for RangeFromSeqIter<usize> {
                 r.start += 1;
                 Some(value)
             }
+        }
+    }
+    #[cfg(nightly)]
+    fn try_fold<B, F, R>(&mut self, init: B, f: F) -> R
+    where
+        F: FnMut(B, Self::Item) -> R,
+        R: Try<Ok = B>,
+    {
+        match self {
+            RangeFromSeqIter::Bounded(r) => r.try_fold(init, f),
+            RangeFromSeqIter::UnBounded(r) => r.try_fold(init, f),
         }
     }
 }
