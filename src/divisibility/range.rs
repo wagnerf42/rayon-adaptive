@@ -22,6 +22,7 @@ impl Divisible for Range<usize> {
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         let mid = self.start + index;
+        debug_assert!(mid <= self.end);
         ((self.start..mid), (mid..self.end))
     }
 }

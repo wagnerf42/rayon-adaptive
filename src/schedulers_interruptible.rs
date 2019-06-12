@@ -5,7 +5,7 @@ use crate::utils::power_sizes;
 use crate::Policy;
 use std::cmp::min;
 use std::iter::successors;
-use std::ops::Try;
+use crate::iter::Try;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering; // nightly
 /// reduce parallel iterator
@@ -20,12 +20,12 @@ where
     I: ParallelIterator,
     OP: Fn(T, T) -> I::Item + Sync,
     ID: Fn() -> T + Sync,
-    I::Item: std::ops::Try<Ok = T>,
+    I::Item: Try<Ok = T>,
 {
     let mut not_failed = AtomicBool::new(true);
     let sizes_block = par_iter.blocks_sizes();
     let sizes = sizes_block.chain(successors(Some(10_000usize * 2), |n| n.checked_mul(2)));
-    par_iter
+    try_fold(&mut par_iter
         .blocks(sizes)
         .map(|b| match scheduling_policy {
             Policy::Join(sequential_fallback) => {
@@ -70,8 +70,7 @@ where
                     )
                 }
             }
-        })
-        .try_fold(identity(), |b, i| match i.into_result() {
+        }), identity(), |b, i| match i.into_result() {
             Ok(t) => op(b, t),
             Err(e) => I::Item::from_error(e),
         })
@@ -87,12 +86,12 @@ where
     I: ParallelIterator,
     OP: Fn(T, T) -> I::Item + Sync,
     ID: Fn() -> T + Sync,
-    I::Item: std::ops::Try<Ok = T>,
+    I::Item: Try<Ok = T>,
 {
-    iterator
+    try_fold(&mut iterator
         .to_sequential()
-        .try_fold(identity(), |b, i| match i.into_result() {
-            Ok(t) => op(b, t),
+        ,identity(), |b, i| match i.into_result() {
+            Ok(t) => op(b, t) ,
             Err(e) => {
                 not_failed.store(false, Ordering::Relaxed);
                 I::Item::from_error(e)
@@ -111,7 +110,7 @@ where
     I: ParallelIterator,
     OP: Fn(T, T) -> I::Item + Sync,
     ID: Fn() -> T + Sync,
-    I::Item: std::ops::Try<Ok = T>,
+    I::Item: Try<Ok = T>,
 {
     let full_length = iterator
         .base_length()
@@ -171,7 +170,7 @@ where
     I: ParallelIterator,
     OP: Fn(T, T) -> I::Item + Sync,
     ID: Fn() -> T + Sync,
-    I::Item: std::ops::Try<Ok = T>,
+    I::Item: Try<Ok = T>,
 {
     let full_length = iterator
         .base_length()
@@ -243,7 +242,7 @@ where
     I: ParallelIterator,
     OP: Fn(T, T) -> I::Item + Sync,
     ID: Fn() -> T + Sync,
-    I::Item: std::ops::Try<Ok = T>,
+    I::Item: Try<Ok = T>,
 {
     let (sender, receiver) = small_channel();
     let (min_size, max_size) = if let Policy::Adaptive(min_size, max_size) = iterator.policy() {
@@ -263,11 +262,17 @@ where
                     {
                         new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
                             match output.into_result() {
-                                Ok(e) => sequential_iterator.try_fold(output, op),
-                                Err(e) => {
-                                    stop.store(false, Ordering::Relaxed);
-                                    I::Item::from_error(e)
-                                }
+                            Ok(e) => {
+                                new_output =
+                                    sequential_iterator.try_fold(e, |b, i| match i.into_result() {
+                                        Ok(t) => op(b, t),
+                                        Err(e) => {
+                                            not_failed.store(false, Ordering::Relaxed);
+                                            I::Item::from_error(e)
+                                        }
+                                    })
+                            }
+                            Err(e) => new_output = I::Item::from_error(e),
                             }
                         })
                     }
@@ -276,7 +281,7 @@ where
                         match output.into_result() {
                             Ok(e) => {
                                 new_output =
-                                    sequential_iterator.try_fold(e, |b, i| match i.into_result() {
+                                    try_fold (&mut sequential_iterator ,e, |b, i| match i.into_result() {
                                         Ok(t) => op(b, t),
                                         Err(e) => {
                                             not_failed.store(false, Ordering::Relaxed);
@@ -308,7 +313,7 @@ where
                     sender.send(None);
 
                     match output.into_result() {
-                        Ok(e) => remaining_iterator.to_sequential().try_fold(e, |b, i| {
+                        Ok(e) => try_fold(&mut remaining_iterator.to_sequential(),e, |b, i| {
                             match i.into_result() {
                                 Ok(t) => op(b, t),
                                 Err(e) => I::Item::from_error(e),
@@ -372,6 +377,26 @@ where
         left_answer
     }
 }
+
+
+fn try_fold<I, B, F, R>(iterator: &mut I, init: B, mut f: F) -> R where
+    F: FnMut(B, I::Item) -> R,
+    R: Try<Ok = B>,
+    I: Iterator {
+      let mut accum = init;
+        while let Some(x) = iterator.next() {
+            let accum_value = f(accum, x);
+            match accum_value.into_result() {
+                Ok(e) => {
+                    accum = e;
+                }
+                Err(e) => {
+                    return Try::from_error(e)
+                }
+            }
+        }
+        Try::from_ok(accum)
+    }
 
 #[test]
 fn test_all_adaptative() {

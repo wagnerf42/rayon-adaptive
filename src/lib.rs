@@ -2,9 +2,11 @@
 #![type_length_limit = "2097152"]
 #![warn(clippy::all)]
 #![deny(missing_docs)]
-#![feature(try_trait)]
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
+
+#[macro_use]
+mod private;
 
 /// Divisibility traits and implementations
 pub(crate) mod divisibility;
@@ -12,6 +14,7 @@ pub use divisibility::{BasicPower, BlockedPower, IndexedPower};
 
 /// Adaptive iterators
 pub mod iter;
+pub use iter::successors;
 /// Import all traits in prelude to enable adaptive iterators.
 pub mod prelude;
 /// Different available scheduling policies.
@@ -34,8 +37,10 @@ pub(crate) mod atomiclist;
 pub(crate) mod help;
 /// Helper mechanisms: have a special sequential thread with work instead of i terators.
 pub(crate) mod help_work;
+
 /// All scheduling algorithms.
 pub(crate) mod schedulers;
 pub(crate) mod schedulers_interruptible;
+
 pub(crate) mod small_channel;
 pub(crate) mod utils;

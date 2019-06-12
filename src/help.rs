@@ -8,6 +8,7 @@ use crate::small_channel::{small_channel, SmallSender};
 use crate::utils::power_sizes;
 use crate::Policy;
 use rayon::Scope;
+use std::cmp::min;
 use std::iter;
 use std::iter::once;
 use std::marker::PhantomData;
@@ -81,7 +82,11 @@ where
                 iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let sequential_iterator = iterator.extract_iter(next_length);
+            let checked_length = min(
+                next_length,
+                iterator.base_length().expect("infinite iterator"),
+            );
+            let sequential_iterator = iterator.extract_iter(checked_length);
             self.iterator = Some(iterator);
             Some(sequential_iterator)
         }
@@ -163,7 +168,11 @@ where
                 iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
-            let sequential_iterator = iterator.extract_iter(next_length);
+            let checked_length = min(
+                next_length,
+                iterator.base_length().expect("infinite iterator"),
+            );
+            let sequential_iterator = iterator.extract_iter(checked_length);
             self.iterator = Some(iterator);
             Some(sequential_iterator)
         }

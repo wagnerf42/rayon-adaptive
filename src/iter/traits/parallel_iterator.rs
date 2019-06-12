@@ -2,8 +2,8 @@
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
 use crate::help::{Help, Retriever};
 use crate::iter::{
-    ByBlocks, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map, WithPolicy,
-    Zip,
+    ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map,
+    WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -12,11 +12,12 @@ use crate::Policy;
 use std::cmp::max;
 use std::f32;
 use std::iter;
+use crate::iter::Try;
 use std::iter::{empty, successors};
 use std::marker::PhantomData;
-use std::ops::Try;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering; // nightly
+use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::Arc;
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator: Divisible + Send {
@@ -36,6 +37,18 @@ pub trait ParallelIterator: Divisible + Send {
     /// Return an iterator on sizes of all macro blocks.
     fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
         Box::new(empty())
+    }
+
+    /// Filter iterator with given closure.
+    /// If your power was indexed it's not the case anymore.
+    fn filter<P>(self, filter_op: P) -> Filter<Self, P>
+    where
+        P: Fn(&Self::Item) -> bool + Sync + Send,
+    {
+        Filter {
+            base: self,
+            filter_op,
+        }
     }
 
     /// Parallel flat_map with a map to sequential iterators.
@@ -160,6 +173,32 @@ pub trait ParallelIterator: Divisible + Send {
             current_output: Some(identity()),
             identity,
             fold_op,
+        }
+    }
+    /// Cap the number of threads executing us to given number.
+    /// We will automatically switch to an adaptive scheduling policy.
+    /// TODO: small pb right now, if we iterate by blocks we get one
+    /// less thread ?
+    /// TODO: fix that by always iterating by blocks and adding one to the limit.
+    ///
+    /// Example:
+    /// ```
+    /// // let's cap to two threads and manually check we never get more.
+    /// use rayon_adaptive::prelude::*;
+    /// use rayon_adaptive::Policy;
+    /// use std::sync::atomic::{AtomicUsize, Ordering};
+    /// let count = AtomicUsize::new(0);
+    /// (0..1_000_000u64).into_par_iter().with_policy(Policy::Adaptive(1000, 50_000)).cap(2).for_each(|_| {
+    ///     let other_threads = count.fetch_add(1, Ordering::SeqCst);
+    ///     assert!(other_threads < 2);
+    ///     count.fetch_sub(1, Ordering::SeqCst);
+    /// })
+    /// ```
+    fn cap(self, limit: usize) -> Cap<Self> {
+        Cap {
+            iterator: self,
+            count: Arc::new(AtomicUsize::new(0)),
+            limit,
         }
     }
     /// filter map
