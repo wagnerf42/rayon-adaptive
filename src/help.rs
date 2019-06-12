@@ -22,7 +22,7 @@ struct StealAnswerer<'a, 'c, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
-    iterator: Option<I>,                // TODO: keep or remove option ? (and be unsafe)
+    iterator: I,
     help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
     stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
@@ -49,7 +49,7 @@ where
             scope,
             sizes_bounds,
             sizes: Box::new(power_sizes(sizes_bounds.0, sizes_bounds.1)),
-            iterator: Some(iterator),
+            iterator,
             help_op,
             stolen_stuffs,
             sender,
@@ -64,14 +64,13 @@ where
 {
     type Item = I::SequentialIterator;
     fn next(&mut self) -> Option<Self::Item> {
-        let mut iterator = self.iterator.take().unwrap();
-        let remaining_length = iterator.base_length().expect("infinite iterator");
+        let remaining_length = self.iterator.base_length().expect("infinite iterator");
         if remaining_length == 0 {
             None
         } else {
             if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
                 // let's split, we have enough for both
-                let (my_half, his_half) = iterator.divide();
+                let his_half = self.iterator.borrow_divide();
                 if his_half.base_length().expect("infinite iterator") > 0 {
                     // TODO: remove this if ?
                     let stolen_node = self.stolen_stuffs.push_front((None, Some(his_half)));
@@ -79,15 +78,13 @@ where
                     mem::swap(&mut new_sender, &mut self.sender);
                     new_sender.send(stolen_node);
                 }
-                iterator = my_half;
             }
             let next_length = self.sizes.next().unwrap();
             let checked_length = min(
                 next_length,
-                iterator.base_length().expect("infinite iterator"),
+                self.iterator.base_length().expect("infinite iterator"),
             );
-            let sequential_iterator = iterator.extract_iter(checked_length);
-            self.iterator = Some(iterator);
+            let sequential_iterator = self.iterator.extract_iter(checked_length);
             Some(sequential_iterator)
         }
     }
