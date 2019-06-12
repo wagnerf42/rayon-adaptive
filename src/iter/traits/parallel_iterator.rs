@@ -7,14 +7,16 @@ use crate::iter::{
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
+use crate::schedulers_interruptible::schedule_interruptible;
 use crate::Policy;
 use std::cmp::max;
 use std::f32;
 use std::iter;
 use std::iter::{empty, successors};
 use std::marker::PhantomData;
+use std::ops::Try;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::Ordering; // nightly
 
 /// This traits enables to implement all basic methods for all type of iterators.
 pub trait ParallelIterator: Divisible + Send {
@@ -99,6 +101,20 @@ pub trait ParallelIterator: Divisible + Send {
         let sizes = self.blocks_sizes();
         schedule(policy, &mut self.blocks(sizes), &identity, &op)
     }
+    ///
+    /// Reduces the items in the iterator into one item using a fallible op.
+    /// call to sechuler interruptible
+    ///
+    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    where
+        OP: Fn(T, T) -> Self::Item + Sync + Send,
+        ID: Fn() -> T + Sync + Send,
+        Self::Item: Try<Ok = T>,
+    {
+        let policy = self.policy();
+        schedule_interruptible(policy, self, &identity, &op)
+    }
+
     /// Return the max of all elements.
     ///
     /// # Example
@@ -223,7 +239,7 @@ pub trait ParallelIterator: Divisible + Send {
         let p = rayon::current_num_threads();
         let sizes_block = self.blocks_sizes();
         let mut policy = self.policy();
-        policy = match (policy) {
+        policy = match policy {
             Policy::DefaultPolicy => {
                 // if the user did not explicitely choose a scheduling policy we are going to choose one for him.
                 // this is worthwhile here because this algorithm benefits from adaptive policies.
@@ -253,6 +269,26 @@ pub trait ParallelIterator: Divisible + Send {
                 .reduce(|| (), |_, _| ());
                 b.load(Ordering::Relaxed)
             })
+    }
+    ///
+    /// Test Function for all using schecule with boolean
+    ///
+    ///
+    ///
+    ///
+    fn allscheduling<F>(self, f: F) -> bool
+    where
+        F: Fn(Self::Item) -> bool + Sync,
+    {
+        let f_ref = &f;
+        match self
+            .iterator_fold(|mut i| if i.all(f_ref) { Ok(()) } else { Err(()) })
+            .try_reduce(|| (), |_, _| Ok(()))
+        {
+            // TODO
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
 
     ///

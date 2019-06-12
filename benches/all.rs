@@ -56,6 +56,16 @@ fn all_adaptive(c: &mut Criterion) {
                 || rand::thread_rng().gen_range(0, *input_size),
                 |idx| (0u64..*input_size).into_par_iter().all(|e| e != idx),
             )
+        }).with_function("Adaptive Interruptive ", |b, input_size| {
+            b.iter_with_setup(
+                || rand::thread_rng().gen_range(0, *input_size),
+                |idx| (0u64..*input_size).into_par_iter().allscheduling(|e| e != idx),
+            )
+        }).with_function("Rayon Interruptive", |b, input_size| {
+            b.iter_with_setup(
+                || rand::thread_rng().gen_range(0, *input_size),
+                |idx| (0u64..*input_size).into_par_iter().with_policy(Policy::Rayon(1)).allscheduling(|e| e != idx),
+            )
         }),
     );
 }

@@ -2,7 +2,7 @@
 #![type_length_limit = "2097152"]
 #![warn(clippy::all)]
 #![deny(missing_docs)]
-
+#![feature(try_trait)]
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
 
@@ -26,16 +26,16 @@ pub enum Policy {
     Adaptive(usize, usize),
     /// Just run sequentially
     Sequential,
-    /// Use Rayon(1) if the user do not indiquate any policy 
+    /// Use Rayon(1) if the user do not indiquate any policy
     DefaultPolicy,
 }
-/// All scheduling algorithms.
-pub(crate) mod schedulers;
-
 pub(crate) mod atomiclist;
 /// Helper mechanisms: have a special sequential thread.
 pub(crate) mod help;
 /// Helper mechanisms: have a special sequential thread with work instead of i terators.
 pub(crate) mod help_work;
+/// All scheduling algorithms.
+pub(crate) mod schedulers;
+pub(crate) mod schedulers_interruptible;
 pub(crate) mod small_channel;
 pub(crate) mod utils;
