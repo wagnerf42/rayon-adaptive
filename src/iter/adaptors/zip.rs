@@ -2,12 +2,11 @@
 
 use crate::prelude::*;
 use crate::IndexedPower;
-use derive_divisible::{Divisible, IntoIterator};
+use derive_divisible::Divisible;
 use std::iter;
 
 /// `Zip` is returned by the `zip` method on parallel iterators.
-#[derive(Divisible, IntoIterator)]
-#[item((A::Item, B::Item))]
+#[derive(Divisible)]
 #[power(IndexedPower)]
 #[trait_bounds(A: ParallelIterator<Power=IndexedPower>, B: ParallelIterator<Power=IndexedPower>)]
 pub struct Zip<A, B> {

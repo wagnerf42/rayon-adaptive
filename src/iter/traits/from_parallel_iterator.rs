@@ -24,7 +24,7 @@ impl<T: Send> FromParallelIterator<T> for Vec<T> {
                 v.push(e);
                 v
             })
-            .into_iter();
+            .reduced_iter();
         let mut final_vector = blocks.next().unwrap();
         for block in blocks {
             final_vector.extend(block)

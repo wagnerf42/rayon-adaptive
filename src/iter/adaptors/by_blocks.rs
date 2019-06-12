@@ -1,13 +1,12 @@
 //! `ByBlocks` structure for `ParallelIterator::by_blocks`.
 use crate::prelude::*;
 use crate::Policy;
-use derive_divisible::{Divisible, IntoIterator};
+use derive_divisible::Divisible;
 use std::iter::empty;
 
 /// Iterator which configured to run on macro blocks. See `ParallelIterator::by_blocks`.
-#[derive(Divisible, IntoIterator)]
+#[derive(Divisible)]
 #[power(I::Power)]
-#[item(I::Item)]
 pub struct ByBlocks<I: ParallelIterator> {
     #[divide_by(default)]
     pub(crate) sizes_iterator: Option<Box<Iterator<Item = usize> + Send>>,

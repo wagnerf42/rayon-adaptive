@@ -1,16 +1,15 @@
 //! Fold and avoid local reductions.
 use crate::prelude::*;
 use crate::Policy;
-use derive_divisible::{Divisible, IntoIterator};
+use derive_divisible::Divisible;
 use std::option::IntoIter;
 
 /// The `Fold` struct is a parallel folder, returned by the `fold` method on `ParallelIterator`.
 /// It is for use when the reduction operation comes with overhead.
 /// So instead of reducing all tiny pieces created by local iterators we just
 /// reduce for the real divisions.
-#[derive(Divisible, IntoIterator)]
+#[derive(Divisible)]
 #[power(I::Power)]
-#[item(O)]
 #[trait_bounds(
     I: ParallelIterator,
     O: Send,

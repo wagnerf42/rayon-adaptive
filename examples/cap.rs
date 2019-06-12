@@ -16,7 +16,7 @@ fn main() {
                 v
             },
         )
-        .into_iter()
+        .reduced_iter()
         .fold(None, |p: Option<Vec<_>>, v| {
             if let Some(mut previous_vec) = p {
                 previous_vec.extend(v);
@@ -42,7 +42,7 @@ fn main() {
                 v
             },
         )
-        .into_iter()
+        .reduced_iter()
         .fold(None, |p: Option<Vec<_>>, v| {
             if let Some(mut previous_vec) = p {
                 let current_len = previous_vec.len();
@@ -74,7 +74,7 @@ fn main() {
                 v
             },
         )
-        .into_iter()
+        .reduced_iter()
         .fold(None, |p: Option<Vec<_>>, v| {
             if let Some(mut previous_vec) = p {
                 let current_len = previous_vec.len();

@@ -1,10 +1,10 @@
 //! `FilterMap`
 use crate::prelude::*;
-use derive_divisible::{Divisible, IntoIterator, ParallelIterator};
+use derive_divisible::{Divisible, ParallelIterator};
 use std::iter;
 
 /// `FilterMap` struct is obtained from `filter_map` method on `ParallelIterator`.
-#[derive(Divisible, ParallelIterator, IntoIterator)]
+#[derive(Divisible, ParallelIterator)]
 #[power(<<I as Divisible>::Power as Power>::NotIndexed)]
 #[item(R)]
 #[iterator_extraction(i.filter_map(self.filter_op.clone()))]
