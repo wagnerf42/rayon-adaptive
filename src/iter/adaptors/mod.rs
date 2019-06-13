@@ -24,3 +24,5 @@ mod cap;
 pub use cap::Cap;
 mod filter;
 pub use filter::Filter;
+mod chain;
+pub use chain::Chain;
