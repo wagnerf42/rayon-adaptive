@@ -11,7 +11,7 @@ use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::schedulers_interruptible::schedule_interruptible;
 use crate::Policy;
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::f32;
 use std::iter;
 use std::iter::{empty, once, successors, Sum};
@@ -170,6 +170,7 @@ pub trait ParallelIterator: Divisible + Send {
     {
         self.iterator_fold(Iterator::max).reduce(|| None, max)
     }
+
     /// Fold parallel iterator. Self will be split dynamically. Each part gets folded
     /// independantly. We get back a `ParallelIterator` on all results of all sequential folds.
     ///

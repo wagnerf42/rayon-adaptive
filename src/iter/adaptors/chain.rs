@@ -28,14 +28,20 @@ where
     fn base_length(&self) -> Option<usize> {
         Some(
             (self.a.base_length().expect("Infinite iterator") as u64
-                + self.a.base_length().expect("Infinite iterator") as u64) as usize,
+                + self.b.base_length().expect("Infinite iterator") as u64) as usize,
         )
     }
 
     fn divide_at(self, index: usize) -> (Self, Self) {
         let len = self.a.base_length().expect("Infinite iterator");
         let (a1, a2) = self.a.divide_at(min(len, index));
-        let (b1, b2) = self.b.divide_at(max(index - len, 0));
+        let id;
+        if len > index {
+            id = 0;
+        } else {
+            id = index - len;
+        }
+        let (b1, b2) = self.b.divide_at(max(id as usize, 0));
         (
             Chain {
                 a: a1,
