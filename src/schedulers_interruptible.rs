@@ -1,11 +1,11 @@
 //! All schedulers are written here.
+use crate::iter::Try;
 use crate::prelude::*;
 use crate::small_channel::small_channel;
 use crate::utils::power_sizes;
 use crate::Policy;
 use std::cmp::min;
 use std::iter::successors;
-use crate::iter::Try;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering; // nightly
 /// reduce parallel iterator
@@ -22,12 +22,11 @@ where
     ID: Fn() -> T + Sync,
     I::Item: Try<Ok = T>,
 {
-    let mut not_failed = AtomicBool::new(true);
+    let not_failed = AtomicBool::new(true);
     let sizes_block = par_iter.blocks_sizes();
     let sizes = sizes_block.chain(successors(Some(10_000usize * 2), |n| n.checked_mul(2)));
-    try_fold(&mut par_iter
-        .blocks(sizes)
-        .map(|b| match scheduling_policy {
+    try_fold(
+        &mut par_iter.blocks(sizes).map(|b| match scheduling_policy {
             Policy::Join(sequential_fallback) => {
                 schedule_join(b, identity, op, sequential_fallback, &not_failed)
             }
@@ -70,10 +69,13 @@ where
                     )
                 }
             }
-        }), identity(), |b, i| match i.into_result() {
+        }),
+        identity(),
+        |b, i| match i.into_result() {
             Ok(t) => op(b, t),
             Err(e) => I::Item::from_error(e),
-        })
+        },
+    )
 }
 
 fn schedule_sequential<T, I, ID, OP>(
@@ -88,15 +90,15 @@ where
     ID: Fn() -> T + Sync,
     I::Item: Try<Ok = T>,
 {
-    try_fold(&mut iterator
-        .to_sequential()
-        ,identity(), |b, i| match i.into_result() {
-            Ok(t) => op(b, t) ,
+    try_fold(&mut iterator.to_sequential(), identity(), |b, i| {
+        match i.into_result() {
+            Ok(t) => op(b, t),
             Err(e) => {
                 not_failed.store(false, Ordering::Relaxed);
                 I::Item::from_error(e)
             }
-        })
+        }
+    })
 }
 
 fn schedule_join<T, I, ID, OP>(
@@ -262,34 +264,38 @@ where
                     {
                         new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
                             match output.into_result() {
-                            Ok(e) => {
-                                new_output =
-                                    sequential_iterator.try_fold(e, |b, i| match i.into_result() {
-                                        Ok(t) => op(b, t),
-                                        Err(e) => {
-                                            not_failed.store(false, Ordering::Relaxed);
-                                            I::Item::from_error(e)
+                                Ok(e) => {
+                                    try_fold(&mut sequential_iterator, e, |b, i| {
+                                        match i.into_result() {
+                                            Ok(t) => op(b, t),
+                                            Err(e) => {
+                                                not_failed.store(false, Ordering::Relaxed);
+                                                I::Item::from_error(e)
+                                            }
                                         }
                                     })
-                            }
-                            Err(e) => new_output = I::Item::from_error(e),
+                                }
+                                Err(e) =>  { 
+                                    I::Item::from_error(e)
+                                }
                             }
                         })
                     }
                     #[cfg(not(feature = "logs"))]
                     {
-                        match output.into_result() {
+                        new_output = match output.into_result() {
                             Ok(e) => {
-                                new_output =
-                                    try_fold (&mut sequential_iterator ,e, |b, i| match i.into_result() {
+                                try_fold(&mut sequential_iterator, e, |b, i| {
+                                    match i.into_result() {
                                         Ok(t) => op(b, t),
                                         Err(e) => {
                                             not_failed.store(false, Ordering::Relaxed);
                                             I::Item::from_error(e)
                                         }
-                                    })
+                                    }
+                                })
                             }
-                            Err(e) => new_output = I::Item::from_error(e),
+                            Err(e) => I::Item::from_error(e),
                         }
                     }
                 } else {
@@ -313,12 +319,14 @@ where
                     sender.send(None);
 
                     match output.into_result() {
-                        Ok(e) => try_fold(&mut remaining_iterator.to_sequential(),e, |b, i| {
-                            match i.into_result() {
-                                Ok(t) => op(b, t),
-                                Err(e) => I::Item::from_error(e),
-                            }
-                        }),
+                        Ok(e) => {
+                            try_fold(&mut remaining_iterator.to_sequential(), e, |b, i| {
+                                match i.into_result() {
+                                    Ok(t) => op(b, t),
+                                    Err(e) => I::Item::from_error(e),
+                                }
+                            })
+                        }
                         Err(e) => I::Item::from_error(e),
                     }
                 } else if (*not_failed).load(Ordering::Relaxed) {
@@ -378,25 +386,24 @@ where
     }
 }
 
-
-fn try_fold<I, B, F, R>(iterator: &mut I, init: B, mut f: F) -> R where
+fn try_fold<I, B, F, R>(iterator: &mut I, init: B, mut f: F) -> R
+where
     F: FnMut(B, I::Item) -> R,
     R: Try<Ok = B>,
-    I: Iterator {
-      let mut accum = init;
-        while let Some(x) = iterator.next() {
-            let accum_value = f(accum, x);
-            match accum_value.into_result() {
-                Ok(e) => {
-                    accum = e;
-                }
-                Err(e) => {
-                    return Try::from_error(e)
-                }
+    I: Iterator,
+{
+    let mut accum = init;
+    while let Some(x) = iterator.next() {
+        let accum_value = f(accum, x);
+        match accum_value.into_result() {
+            Ok(e) => {
+                accum = e;
             }
+            Err(e) => return Try::from_error(e),
         }
-        Try::from_ok(accum)
     }
+    Try::from_ok(accum)
+}
 
 #[test]
 fn test_all_adaptative() {
