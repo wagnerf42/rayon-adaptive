@@ -36,7 +36,7 @@ where
                 b,
                 identity,
                 op,
-                1,
+                0,
                 (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
             ),
         })
@@ -97,23 +97,29 @@ where
         schedule_sequential(iterator, identity, op)
     } else {
         let (left, right) = iterator.divide();
-        let (left_result, right_result) = rayon::join_context(
-            |_| schedule_rayon(left, identity, op, sequential_fallback, counter - 1),
-            |c| {
-                schedule_rayon(
-                    right,
-                    identity,
-                    op,
-                    sequential_fallback,
-                    if c.migrated() {
-                        (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1 // the +1 mimics rayon's current behaviour
-                    } else {
-                        counter - 1
-                    },
-                )
-            },
-        );
-        op(left_result, right_result)
+        if right.base_length().unwrap_or(1) == 0 {
+            // basic iterators don't know their sizes
+            // we need to divide and check if the division failed
+            schedule_sequential(left, identity, op)
+        } else {
+            let (left_result, right_result) = rayon::join_context(
+                |_| schedule_rayon(left, identity, op, sequential_fallback, counter - 1),
+                |c| {
+                    schedule_rayon(
+                        right,
+                        identity,
+                        op,
+                        sequential_fallback,
+                        if c.migrated() {
+                            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1 // the +1 mimics rayon's current behaviour
+                        } else {
+                            counter - 1
+                        },
+                    )
+                },
+            );
+            op(left_result, right_result)
+        }
     }
 }
 
