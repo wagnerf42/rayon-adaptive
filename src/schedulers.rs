@@ -36,7 +36,7 @@ where
                 b,
                 identity,
                 op,
-                0,
+                1,
                 (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
             ),
         })
