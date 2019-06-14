@@ -1,6 +1,7 @@
 //! Iterator governing traits.
-use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower};
+use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower, Power};
 use crate::help::{Help, Retriever};
+use crate::iter::Chain;
 use crate::iter::Try;
 use crate::iter::{
     ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map,
@@ -10,10 +11,10 @@ use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::schedulers_interruptible::schedule_interruptible;
 use crate::Policy;
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::f32;
 use std::iter;
-use std::iter::{empty, successors};
+use std::iter::{empty, once, successors, Sum};
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
@@ -169,6 +170,7 @@ pub trait ParallelIterator: Divisible + Send {
     {
         self.iterator_fold(Iterator::max).reduce(|| None, max)
     }
+
     /// Fold parallel iterator. Self will be split dynamically. Each part gets folded
     /// independantly. We get back a `ParallelIterator` on all results of all sequential folds.
     ///
@@ -215,7 +217,7 @@ pub trait ParallelIterator: Divisible + Send {
     /// use rayon_adaptive::Policy;
     /// use std::sync::atomic::{AtomicUsize, Ordering};
     /// let count = AtomicUsize::new(0);
-    /// (0..1_000_000u64).into_par_iter().with_policy(Policy::Adaptive(1000, 50_000)).cap(2).for_each(|_| {
+    /// (0..10_000u64).into_par_iter().with_policy(Policy::Adaptive(1000, 50_000)).cap(2).for_each(|_| {
     ///     let other_threads = count.fetch_add(1, Ordering::SeqCst);
     ///     assert!(other_threads < 2);
     ///     count.fetch_sub(1, Ordering::SeqCst);
@@ -339,9 +341,6 @@ pub trait ParallelIterator: Divisible + Send {
     ///
     /// Test Function for all using schecule with boolean
     ///
-    ///
-    ///
-    ///
     fn allscheduling<F>(self, f: F) -> bool
     where
         F: Fn(Self::Item) -> bool + Sync,
@@ -372,6 +371,25 @@ pub trait ParallelIterator: Divisible + Send {
     {
         !self.all(|i| !f(i))
     }
+
+    ///
+    /// Sums up the items in the iterator.
+    /// Note that the order in items will be reduced is not specified, so if the + operator is not truly associative
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((1u64..25).into_par_iter().sum::<u64>(),25u64*24 / 2);
+    /// ```
+    fn sum<S>(self) -> S
+    where
+        S: Send + Sum<Self::Item> + Sum<S>,
+    {
+        self.iterator_fold(|i| i.sum()).reduce(
+            || empty::<S>().sum(),
+            |s1, s2| once(s1).chain(once(s2)).sum(),
+        )
+    }
 }
 
 /// Here go all methods for basic power only.
@@ -380,6 +398,25 @@ pub trait BasicParallelIterator: ParallelIterator {
     fn find(self) {
         unimplemented!()
     }
+    /// chain two iterators
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = (0..5u64).into_par_iter().chain((0..10u64).into_par_iter()).sum::<u64>();
+    /// assert_eq!(55,v);
+    /// ```
+    fn chain<C>(self, chain: C) -> Chain<Self, C::Iter, BasicPower>
+    where
+        C: IntoParallelIterator<Item = Self::Item>,
+    {
+        Chain {
+            a: self,
+            b: chain.into_par_iter(),
+            p: Default::default(),
+        }
+    }
 }
 
 /// Here go all methods for blocked power only.
@@ -387,6 +424,32 @@ pub trait BlockedParallelIterator: ParallelIterator {
     /// slow find
     fn find(self) {
         unimplemented!()
+    }
+    /// chain two iterators
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = (0..5u64).into_par_iter().chain((0..10u64).into_par_iter()).sum::<u64>();
+    /// assert_eq!(55,v);
+    /// ```
+    fn chain<C>(
+        self,
+        chain: C,
+    ) -> Chain<
+        Self,
+        C::Iter,
+        <<<C as IntoParallelIterator>::Iter as Divisible>::Power as Power>::NotIndexed,
+    >
+    where
+        C: IntoParallelIterator<Item = Self::Item>,
+    {
+        Chain {
+            a: self,
+            b: chain.into_par_iter(),
+            p: Default::default(),
+        }
     }
 }
 
@@ -410,6 +473,28 @@ pub trait IndexedParallelIterator: ParallelIterator {
         Zip {
             a: self,
             b: zip_op.into_par_iter(),
+        }
+    }
+    /// chain two iterators
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = (0..5u64).into_par_iter().chain((0..10u64).into_par_iter()).sum::<u64>();
+    /// assert_eq!(55,v);
+    /// ```
+    fn chain<C>(
+        self,
+        chain: C,
+    ) -> Chain<Self, C::Iter, <<C as IntoParallelIterator>::Iter as Divisible>::Power>
+    where
+        C: IntoParallelIterator<Item = Self::Item>,
+    {
+        Chain {
+            a: self,
+            b: chain.into_par_iter(),
+            p: Default::default(),
         }
     }
 }

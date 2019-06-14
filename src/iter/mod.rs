@@ -20,7 +20,7 @@ pub use cut::Cut;
 mod adaptors;
 pub use adaptors::{
     ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map,
-    WithPolicy, Zip,
+    WithPolicy, Zip, Chain
 };
 
 // functions
