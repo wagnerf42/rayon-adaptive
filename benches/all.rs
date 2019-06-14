@@ -7,8 +7,7 @@ use criterion::{Criterion, ParameterizedBenchmark};
 use rand::Rng;
 use rayon_adaptive::prelude::*;
 use rayon_adaptive::Policy;
-use std::f32;
-use std::iter::{once, successors};
+use std::iter::{once};
 
 fn all_adaptive(c: &mut Criterion) {
     //let sizes = vec![10_000_000];
@@ -56,15 +55,26 @@ fn all_adaptive(c: &mut Criterion) {
                 || rand::thread_rng().gen_range(0, *input_size),
                 |idx| (0u64..*input_size).into_par_iter().all(|e| e != idx),
             )
-        }).with_function("Adaptive Interruptive ", |b, input_size| {
+        })
+        .with_function("Adaptive Interruptive ", |b, input_size| {
             b.iter_with_setup(
                 || rand::thread_rng().gen_range(0, *input_size),
-                |idx| (0u64..*input_size).into_par_iter().allscheduling(|e| e != idx),
+                |idx| {
+                    (0u64..*input_size)
+                        .into_par_iter()
+                        .all(|e| e != idx)
+                },
             )
-        }).with_function("Rayon Interruptive", |b, input_size| {
+        })
+        .with_function("Rayon Interruptive", |b, input_size| {
             b.iter_with_setup(
                 || rand::thread_rng().gen_range(0, *input_size),
-                |idx| (0u64..*input_size).into_par_iter().with_policy(Policy::Rayon(1)).allscheduling(|e| e != idx),
+                |idx| {
+                    (0u64..*input_size)
+                        .into_par_iter()
+                        .with_policy(Policy::Rayon(1))
+                        .all(|e| e != idx)
+                },
             )
         }),
     );

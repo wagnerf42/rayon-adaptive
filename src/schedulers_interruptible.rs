@@ -264,28 +264,7 @@ where
                     {
                         new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
                             match output.into_result() {
-                                Ok(e) => {
-                                    try_fold(&mut sequential_iterator, e, |b, i| {
-                                        match i.into_result() {
-                                            Ok(t) => op(b, t),
-                                            Err(e) => {
-                                                not_failed.store(false, Ordering::Relaxed);
-                                                I::Item::from_error(e)
-                                            }
-                                        }
-                                    })
-                                }
-                                Err(e) =>  { 
-                                    I::Item::from_error(e)
-                                }
-                            }
-                        })
-                    }
-                    #[cfg(not(feature = "logs"))]
-                    {
-                        new_output = match output.into_result() {
-                            Ok(e) => {
-                                try_fold(&mut sequential_iterator, e, |b, i| {
+                                Ok(e) => try_fold(&mut sequential_iterator, e, |b, i| {
                                     match i.into_result() {
                                         Ok(t) => op(b, t),
                                         Err(e) => {
@@ -293,8 +272,23 @@ where
                                             I::Item::from_error(e)
                                         }
                                     }
-                                })
+                                }),
+                                Err(e) => I::Item::from_error(e),
                             }
+                        })
+                    }
+                    #[cfg(not(feature = "logs"))]
+                    {
+                        new_output = match output.into_result() {
+                            Ok(e) => try_fold(&mut sequential_iterator, e, |b, i| {
+                                match i.into_result() {
+                                    Ok(t) => op(b, t),
+                                    Err(e) => {
+                                        not_failed.store(false, Ordering::Relaxed);
+                                        I::Item::from_error(e)
+                                    }
+                                }
+                            }),
                             Err(e) => I::Item::from_error(e),
                         }
                     }
@@ -407,11 +401,11 @@ where
 
 #[test]
 fn test_all_adaptative() {
-    assert!(!(1u64..10_000).into_par_iter().allscheduling(|x| x != 8_500));
-    assert!((1u64..10_000).into_par_iter().allscheduling(|x| x > 0));
+    assert!(!(1u64..10_000).into_par_iter().all(|x| x != 8_500));
+    assert!((1u64..10_000).into_par_iter().all(|x| x > 0));
     assert!(!(1u64..50_000)
         .into_par_iter()
-        .allscheduling(|x| x != 47_000));
+        .all(|x| x != 47_000));
 }
 
 #[test]
@@ -419,16 +413,16 @@ fn test_all_rayon() {
     assert!(!(0u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Rayon(1))
-        .allscheduling(|x| x != 8_500));
-    assert!(!(1u64..10_000).into_par_iter().allscheduling(|x| x != 8_500));
+        .all(|x| x != 8_500));
+    assert!(!(1u64..10_000).into_par_iter().all(|x| x != 8_500));
     assert!((1u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Rayon(1))
-        .allscheduling(|x| x > 0));
+        .all(|x| x > 0));
     assert!(!(1u64..50_000)
         .into_par_iter()
         .with_policy(Policy::Rayon(1))
-        .allscheduling(|x| x != 47_000));
+        .all(|x| x != 47_000));
 }
 
 #[test]
@@ -436,15 +430,15 @@ fn test_all_join() {
     assert!(!(1u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Join(2_000))
-        .allscheduling(|x| x != 8_500));
+        .all(|x| x != 8_500));
     assert!((1u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Join(2_000))
-        .allscheduling(|x| x > 0));
+        .all(|x| x > 0));
     assert!(!(1u64..50_000)
         .into_par_iter()
         .with_policy(Policy::Join(2_000))
-        .allscheduling(|x| x != 47_000));
+        .all(|x| x != 47_000));
 }
 
 #[test]
@@ -452,15 +446,15 @@ fn test_all_seq() {
     assert!(!(0u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Sequential)
-        .allscheduling(|x| x != 8_500));
+        .all(|x| x != 8_500));
     assert!((1u64..10_000)
         .into_par_iter()
         .with_policy(Policy::Sequential)
-        .allscheduling(|x| x > 0));
+        .all(|x| x > 0));
     assert!(!(1u64..50_000)
         .into_par_iter()
         .with_policy(Policy::Sequential)
-        .allscheduling(|x| x != 47_000));
+        .all(|x| x != 47_000));
 }
 
 #[test]

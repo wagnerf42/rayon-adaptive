@@ -1,23 +1,20 @@
 //! Iterator governing traits.
 use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedPower, Power};
 use crate::help::{Help, Retriever};
-use crate::iter::Chain;
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Interruptible, IteratorFold, Map,
-    WithPolicy, Zip,
+    ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map,
+    WithPolicy, Zip, Take, Chain
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::schedulers_interruptible::schedule_interruptible;
 use crate::Policy;
-use std::cmp::{max, min};
-use std::f32;
+use std::cmp::{max,min};
 use std::iter;
 use std::iter::{empty, once, successors, Sum};
 use std::marker::PhantomData;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicUsize};
 use std::sync::Arc;
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -170,7 +167,28 @@ pub trait ParallelIterator: Divisible + Send {
     {
         self.iterator_fold(Iterator::max).reduce(|| None, max)
     }
-
+    /// Return the min of all elements.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0u64..1_000_000).into_par_iter().min(), Some(0))
+    /// ```
+    fn min(self) -> Option<Self::Item> where
+    Self::Item: Ord, 
+    {
+        self.iterator_fold(Iterator::min).reduce(|| None, |a,b| {
+            if a == None{
+                b
+            }else if b == None {
+                a
+            }
+            else {
+                min(a,b)
+            }
+        })
+    }
     /// Fold parallel iterator. Self will be split dynamically. Each part gets folded
     /// independantly. We get back a `ParallelIterator` on all results of all sequential folds.
     ///
@@ -299,49 +317,7 @@ pub trait ParallelIterator: Divisible + Send {
     /// assert!((1u64..25).into_par_iter().all(|x| x > 0));
     /// assert!(!(0u64..25).into_par_iter().all(|x| x > 2));
     /// ```
-    fn all<F>(mut self, f: F) -> bool
-    where
-        F: Fn(Self::Item) -> bool + Sync,
-    {
-        let size_entry = self.base_length().unwrap();
-        let p = rayon::current_num_threads();
-        let sizes_block = self.blocks_sizes();
-        let mut policy = self.policy();
-        policy = match policy {
-            Policy::DefaultPolicy => {
-                // if the user did not explicitely choose a scheduling policy we are going to choose one for him.
-                // this is worthwhile here because this algorithm benefits from adaptive policies.
-                if (((p as f64).log(2.0).ceil() as usize) * p * p * 100) < size_entry {
-                    policy = Policy::Adaptive(((size_entry as f32).log2() * 2.0) as usize, 10_000);
-                    policy
-                } else {
-                    policy // the size is too small for adaptive algorithms which work a little BEFORE dividing.
-                }
-            }
-            _ => policy,
-        };
-
-        self.with_policy(policy)
-            .blocks(sizes_block.chain(successors(Some(10_000usize * 2), |n| n.checked_mul(2))))
-            .all(|block| {
-                let b = AtomicBool::new(true);
-                let i = Interruptible {
-                    iterator: block,
-                    keepexec: &b,
-                };
-                i.iterator_fold(|mut i| {
-                    if !(i.all(&f)) {
-                        b.store(false, Ordering::Relaxed);
-                    }
-                })
-                .reduce(|| (), |_, _| ());
-                b.load(Ordering::Relaxed)
-            })
-    }
-    ///
-    /// Test Function for all using schecule with boolean
-    ///
-    fn allscheduling<F>(self, f: F) -> bool
+    fn all<F>(self, f: F) -> bool
     where
         F: Fn(Self::Item) -> bool + Sync,
     {
@@ -350,7 +326,6 @@ pub trait ParallelIterator: Divisible + Send {
             .iterator_fold(|mut i| if i.all(f_ref) { Ok(()) } else { Err(()) })
             .try_reduce(|| (), |_, _| Ok(()))
         {
-            // TODO
             Ok(_) => true,
             Err(_) => false,
         }
@@ -495,6 +470,22 @@ pub trait IndexedParallelIterator: ParallelIterator {
             a: self,
             b: chain.into_par_iter(),
             p: Default::default(),
+        }
+    }
+    
+    /// Creates an iterator that yields the first n elements.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let mut iter = (0..10u64).into_par_iter().take(4);
+    /// assert_eq!(iter.sum::<u64>(), 6);
+    /// ```
+    fn take(self, n: usize) -> Take<Self> {
+        Take {
+            iter: self,
+            len: n,
         }
     }
 }
