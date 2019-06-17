@@ -5,10 +5,13 @@ use std::iter::empty;
 use std::mem;
 
 /// This is a marker type for specialization
+
 pub struct BasicPower();
 /// This is a marker type for specialization
+
 pub struct BlockedPower();
 /// This is a marker type for specialization
+
 pub struct IndexedPower();
 
 /// To constrain types a little bit all markers need to implement this.

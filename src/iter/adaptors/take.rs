@@ -1,39 +1,41 @@
-
-use std::cmp::{min,max};
 use crate::prelude::*;
+use crate::IndexedPower;
 use crate::Policy;
+use std::cmp::{max, min};
+
 /// iterator adapter  for indexed iterateor used by 'take' function on `ParallelIterator`
 pub struct Take<I> {
-      pub(crate) iter: I,
-      pub(crate) len: usize,
+    pub(crate) iter: I,
+    pub(crate) len: usize,
 }
 
-impl <I> Divisible for Take<I> 
+impl<I> Divisible for Take<I>
 where
-    I: ParallelIterator
-    {
-      type Power = I::Power;
+    I: ParallelIterator,
+{
+    type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
-        if self.iter.base_length() == None { // Infinite Iterator
+        if self.iter.base_length() == None {
+            // Infinite Iterator
             Some(self.len)
         } else {
             min(self.iter.base_length(), Some(self.len))
-        } 
+        }
     }
 
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.iter.divide_at(index);
         let n1 = min(index, self.len);
-        let n2 = max(self.len - index , 0); 
+        let n2 = max(self.len - index, 0);
         (
-           Take {
-               iter: left,
-               len: n1,
-           },
-           Take {
-               iter: right,
-               len: n2,
-           }
+            Take {
+                iter: left,
+                len: n1,
+            },
+            Take {
+                iter: right,
+                len: n2,
+            },
         )
     }
 }
@@ -52,7 +54,6 @@ where
 
     fn to_sequential(self) -> Self::SequentialIterator {
         self.iter.to_sequential().take(self.len)
-
     }
 
     fn policy(&self) -> Policy {

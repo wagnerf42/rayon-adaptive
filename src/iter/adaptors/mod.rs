@@ -26,3 +26,5 @@ mod chain;
 pub use chain::Chain;
 mod take;
 pub use take::Take;
+mod dedup;
+pub use dedup::Dedup;

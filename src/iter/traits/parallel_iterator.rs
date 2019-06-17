@@ -3,18 +3,18 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map,
-    WithPolicy, Zip, Take, Chain
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map,
+    Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
 use crate::schedulers_interruptible::schedule_interruptible;
 use crate::Policy;
-use std::cmp::{max,min};
+use std::cmp::{max, min};
 use std::iter;
 use std::iter::{empty, once, successors, Sum};
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicUsize};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -175,19 +175,22 @@ pub trait ParallelIterator: Divisible + Send {
     /// use rayon_adaptive::prelude::*;
     /// assert_eq!((0u64..1_000_000).into_par_iter().min(), Some(0))
     /// ```
-    fn min(self) -> Option<Self::Item> where
-    Self::Item: Ord, 
+    fn min(self) -> Option<Self::Item>
+    where
+        Self::Item: Ord,
     {
-        self.iterator_fold(Iterator::min).reduce(|| None, |a,b| {
-            if a == None{
-                b
-            }else if b == None {
-                a
-            }
-            else {
-                min(a,b)
-            }
-        })
+        self.iterator_fold(Iterator::min).reduce(
+            || None,
+            |a, b| {
+                if a == None {
+                    b
+                } else if b == None {
+                    a
+                } else {
+                    min(a, b)
+                }
+            },
+        )
     }
     /// Fold parallel iterator. Self will be split dynamically. Each part gets folded
     /// independantly. We get back a `ParallelIterator` on all results of all sequential folds.
@@ -472,7 +475,7 @@ pub trait IndexedParallelIterator: ParallelIterator {
             p: Default::default(),
         }
     }
-    
+
     /// Creates an iterator that yields the first n elements.
     ///
     /// Example:
@@ -483,9 +486,28 @@ pub trait IndexedParallelIterator: ParallelIterator {
     /// assert_eq!(iter.sum::<u64>(), 6);
     /// ```
     fn take(self, n: usize) -> Take<Self> {
-        Take {
+        Take { iter: self, len: n }
+    }
+    /// Remove duplicates from sections of consecutive identical elements. If the iterator is sorted, all elements will be unique
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let data = vec![1u32, 1, 2, 3, 3, 2, 2, 1];
+    /// let result = data.into_par_iter().dedup().map(|e| *e).collect::<Vec<_>>();
+    /// eprintln!("{:?}",result);
+    /// assert_eq!(result,vec![1, 2, 3, 2, 1]);
+    /// ```
+    fn dedup(self) -> Dedup<Self>
+    where
+        Self: Sized,
+        Self::Item: Clone + PartialEq,
+    {
+        Dedup {
+            first: None,
             iter: self,
-            len: n,
+            last: None,
         }
     }
 }
