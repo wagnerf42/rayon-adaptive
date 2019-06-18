@@ -1,12 +1,10 @@
+//! `chain` implementation.
 use crate::prelude::*;
 use crate::Policy;
 use std::cmp::{max, min};
 use std::iter;
 use std::marker::PhantomData;
-///
 /// `Chain` is returned by the `chain` method on parallel iterators
-///
-///
 pub struct Chain<A, B, P>
 where
     A: ParallelIterator,
@@ -26,22 +24,23 @@ where
 {
     type Power = P;
     fn base_length(&self) -> Option<usize> {
-        Some(
-            (self.a.base_length().expect("Infinite iterator") as u64
-                + self.b.base_length().expect("Infinite iterator") as u64) as usize,
-        )
+        // `a` cannot be infinite but `b` can.
+        self.b.base_length().map(|b_len| {
+            b_len
+                + self
+                    .a
+                    .base_length()
+                    .expect("first chained iterator is not finite")
+        })
     }
 
     fn divide_at(self, index: usize) -> (Self, Self) {
+        // we divide both `a` and `b` so that all sequential
+        // iterators are of the same `Chain` type.
         let len = self.a.base_length().expect("Infinite iterator");
         let (a1, a2) = self.a.divide_at(min(len, index));
-        let id;
-        if len > index {
-            id = 0;
-        } else {
-            id = index - len;
-        }
-        let (b1, b2) = self.b.divide_at(max(id as usize, 0));
+        let id = if len > index { 0 } else { index - len };
+        let (b1, b2) = self.b.divide_at(max(id, 0));
         (
             Chain {
                 a: a1,
@@ -67,11 +66,12 @@ where
     type SequentialIterator = iter::Chain<A::SequentialIterator, B::SequentialIterator>;
 
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
-        let remaining_size = max(size - self.a.base_length().expect("Infinite Iterator"), 0);
-        let size_a = min(size, self.a.base_length().expect("Infinite Iterator"));
+        let len_a = self.a.base_length().expect("Infinite Iterator");
+        let size_needed_in_b = max(size - len_a, 0);
+        let size_needed_in_a = min(size, len_a);
         self.a
-            .extract_iter(size_a)
-            .chain(self.b.extract_iter(remaining_size))
+            .extract_iter(size_needed_in_a)
+            .chain(self.b.extract_iter(size_needed_in_b))
     }
 
     fn to_sequential(self) -> Self::SequentialIterator {
@@ -83,7 +83,7 @@ where
             Policy::DefaultPolicy => self.b.policy(),
             _ => match self.b.policy() {
                 Policy::DefaultPolicy => self.a.policy(),
-                _ => panic!("Each iterator have a different policy"),
+                _ => panic!("Chained iterators have a different policy"),
             },
         }
     }

@@ -479,8 +479,8 @@ pub trait IndexedParallelIterator: ParallelIterator {
     ///
     /// ```
     /// use rayon_adaptive::prelude::*;
-    /// let mut iter = (0..10u64).into_par_iter().take(4);
-    /// assert_eq!(iter.sum::<u64>(), 6);
+    /// let mut iter = (0..).into_par_iter().take(4);
+    /// assert_eq!(iter.sum::<usize>(), 6);
     /// ```
     fn take(self, n: usize) -> Take<Self> {
         Take { iter: self, len: n }
