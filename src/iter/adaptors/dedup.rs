@@ -1,3 +1,6 @@
+//! Implement `dedup` in an adaptive way.
+//! This is an interesting example because the extract iter is at lower overhead than the division
+//! (well slightly).
 use crate::prelude::*;
 use crate::IndexedPower;
 use std::cmp::PartialEq;
@@ -12,10 +15,13 @@ pub struct Dedup<I: ParallelIterator> {
 
 /// Sequential Dedup iterator obtained from the parallel one (see `dedup` fn).
 pub struct DedupSeq<I: Iterator> {
+    /// Elements before deduplicating.
+    /// The chain allows us to handle the cloned element.
     iter: Chain<I, std::option::IntoIter<I::Item>>,
+    /// Raw pointer to dispatch last result to the remaining parallel iterator.
     right_first: *mut Option<I::Item>,
-    remaining_iterations: Option<usize>,
-    last_yielded: Option<I::Item>,
+    /// Previous element we compare to.
+    previous_item: Option<I::Item>,
 }
 
 impl<I> Divisible for Dedup<I>
@@ -33,15 +39,17 @@ where
 
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.iter.divide_at(index);
-        let (remaining_left, last_left) = left.divide_at(index - 1);
-        // let (last_left, remaining_right) = right.divide_at(1);
+        // we clone the last element of the left part to put it on both sides
+        // as previous item to compare to on the right side
+        // and as the last item to iterate on (possibly) on the left side.
+        let (all_left_but_last, last_left) = left.divide_at(index - 1);
         let last = last_left.to_sequential().next();
         let first_right = last.clone();
 
         (
             Dedup {
                 first: self.first,
-                iter: remaining_left,
+                iter: all_left_but_last,
                 last,
             },
             Dedup {
@@ -62,24 +70,21 @@ where
     type SequentialIterator = DedupSeq<I::SequentialIterator>;
 
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
-        let iter_final = self.iter.extract_iter(size).chain(None);
+        let duplicated_iter = self.iter.extract_iter(size).chain(None);
 
         DedupSeq {
-            iter: iter_final,
+            iter: duplicated_iter,
             right_first: &mut self.first as *mut Option<I::Item>,
-            remaining_iterations: Some(size),
-            last_yielded: self.first,
+            previous_item: self.first,
         }
     }
 
     fn to_sequential(self) -> Self::SequentialIterator {
-        let iterations = self.base_length();
-        let iter_final = self.iter.to_sequential().chain(self.last);
+        let duplicated_iter = self.iter.to_sequential().chain(self.last);
         DedupSeq {
-            iter: iter_final,
+            iter: duplicated_iter,
             right_first: std::ptr::null_mut(),
-            remaining_iterations: iterations,
-            last_yielded: self.first,
+            previous_item: self.first,
         }
     }
 }
@@ -87,26 +92,21 @@ where
 impl<I> Iterator for DedupSeq<I>
 where
     I: Iterator,
-    I::Item: Clone + PartialEq + Copy,
+    I::Item: Clone + PartialEq,
 {
     type Item = I::Item;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining_iterations.unwrap_or(1) == 0 {
-            // if this is the last iteration we need to propagate the value
-            // to the other side (if any).
+        let next_value = self.iter.next();
+        if next_value.is_none() {
             if !self.right_first.is_null() {
-                unsafe { self.right_first.write(self.last_yielded.clone()) }
+                unsafe { self.right_first.write(self.previous_item.clone()) }
             }
             None
+        } else if self.previous_item == next_value {
+            self.next()
         } else {
-            self.remaining_iterations = self.remaining_iterations.map(|i| i - 1);
-            let returned_value = self.iter.next();
-            if self.last_yielded == returned_value {
-                self.next()
-            } else {
-                self.last_yielded = returned_value;
-                returned_value
-            }
+            self.previous_item = next_value.clone();
+            next_value
         }
     }
 }
