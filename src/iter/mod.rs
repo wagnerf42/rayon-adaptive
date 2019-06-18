@@ -19,8 +19,8 @@ pub use cut::Cut;
 
 mod adaptors;
 pub use adaptors::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold, Map,
-    Take, WithPolicy, Zip,
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Map, Take,
+    WithPolicy, Zip,
 };
 
 // functions
