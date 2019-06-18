@@ -1,3 +1,4 @@
+//! `take` implementation.
 use crate::prelude::*;
 use crate::IndexedPower;
 use crate::Policy;
@@ -25,16 +26,16 @@ where
 
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left, right) = self.iter.divide_at(index);
-        let n1 = min(index, self.len);
-        let n2 = max(self.len - index, 0);
+        let left_len = min(index, self.len);
+        let right_len = max(self.len - index, 0);
         (
             Take {
                 iter: left,
-                len: n1,
+                len: left_len,
             },
             Take {
                 iter: right,
-                len: n2,
+                len: right_len,
             },
         )
     }
@@ -48,7 +49,7 @@ where
     type SequentialIterator = std::iter::Take<I::SequentialIterator>;
 
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
-        self.len -= self.len;
+        self.len -= size;
         self.iter.extract_iter(size).take(size)
     }
 
