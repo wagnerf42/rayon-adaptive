@@ -2,7 +2,7 @@
 //! This is an interesting example because the extract iter is at lower overhead than the division
 //! (well slightly).
 use crate::prelude::*;
-use crate::IndexedPower;
+use crate::{IndexedPower, Policy};
 use std::cmp::PartialEq;
 use std::iter::Chain;
 
@@ -86,6 +86,14 @@ where
             right_first: std::ptr::null_mut(),
             previous_item: self.first,
         }
+    }
+
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.iter.blocks_sizes()
+    }
+
+    fn policy(&self) -> Policy {
+        self.iter.policy()
     }
 }
 
