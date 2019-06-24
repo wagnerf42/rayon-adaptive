@@ -30,3 +30,5 @@ mod levels;
 pub use levels::Levels;
 mod partition;
 pub use partition::Partition;
+mod iterator_fold;
+pub use iterator_fold::IteratorFold;

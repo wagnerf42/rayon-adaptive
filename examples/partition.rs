@@ -4,7 +4,7 @@ use rayon_adaptive::prelude::*;
 use rayon_adaptive::Policy;
 
 fn main() {
-    let mut input = (1..1_000_000).collect::<Vec<u64>>();
+    let input = (1..1_000_000).collect::<Vec<u64>>();
 
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(3)

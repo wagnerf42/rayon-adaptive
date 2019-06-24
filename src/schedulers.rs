@@ -146,17 +146,7 @@ where
             .try_fold((iterator, output), |(mut iterator, output), s| {
                 let checked_size = min(s, iterator.base_length().expect("infinite iterator"));
                 let sequential_iterator = iterator.extract_iter(checked_size);
-                let new_output;
-                #[cfg(feature = "logs")]
-                {
-                    new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
-                        sequential_iterator.fold(output, op)
-                    })
-                }
-                #[cfg(not(feature = "logs"))]
-                {
-                    new_output = sequential_iterator.fold(output, op)
-                }
+                let new_output = sequential_iterator.fold(output, op);
                 if iterator
                     .base_length()
                     .expect("running on infinite iterator")

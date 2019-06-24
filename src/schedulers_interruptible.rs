@@ -258,28 +258,9 @@ where
             .try_fold((iterator, output), |(mut iterator, output), s| {
                 let checked_size = min(s, iterator.base_length().expect("infinite iterator"));
                 let mut sequential_iterator = iterator.extract_iter(checked_size);
-                let new_output;
-                if not_failed.load(Ordering::Relaxed) {
-                    #[cfg(feature = "logs")]
+                let new_output = if not_failed.load(Ordering::Relaxed) {
                     {
-                        new_output = rayon_logs::subgraph("adaptive block", checked_size, || {
-                            match output.into_result() {
-                                Ok(e) => try_fold(&mut sequential_iterator, e, |b, i| {
-                                    match i.into_result() {
-                                        Ok(t) => op(b, t),
-                                        Err(e) => {
-                                            not_failed.store(false, Ordering::Relaxed);
-                                            I::Item::from_error(e)
-                                        }
-                                    }
-                                }),
-                                Err(e) => I::Item::from_error(e),
-                            }
-                        })
-                    }
-                    #[cfg(not(feature = "logs"))]
-                    {
-                        new_output = match output.into_result() {
+                        match output.into_result() {
                             Ok(e) => try_fold(&mut sequential_iterator, e, |b, i| {
                                 match i.into_result() {
                                     Ok(t) => op(b, t),
@@ -293,8 +274,8 @@ where
                         }
                     }
                 } else {
-                    new_output = output // TODO ?
-                }
+                    output
+                };
                 if iterator
                     .base_length()
                     .expect("running on infinite iterator")
