@@ -28,3 +28,5 @@ mod dedup;
 pub use dedup::Dedup;
 mod levels;
 pub use levels::Levels;
+mod iterator_fold;
+pub use iterator_fold::IteratorFold;

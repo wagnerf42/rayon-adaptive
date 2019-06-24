@@ -3,8 +3,8 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Levels, Map, Take,
-    WithPolicy, Zip,
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold,
+    Levels, Map, Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -90,6 +90,20 @@ pub trait ParallelIterator: Divisible + Send {
             iterator: self,
         }
     }
+    /// Fold each sequential iterator into a single value.
+    /// See the max method below as a use case.
+    /// This is useful if the reduction operation costs nothing.
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    where
+        R: Sized + Send,
+        F: Fn(Self::SequentialIterator) -> R + Send + Clone,
+    {
+        IteratorFold {
+            iterator: self,
+            fold: fold_op,
+        }
+    }
+
     /// Reduce with call to scheduler.
     fn reduce<OP, ID>(mut self, identity: ID, op: OP) -> Self::Item
     where
@@ -153,9 +167,7 @@ pub trait ParallelIterator: Divisible + Send {
     where
         Self::Item: Ord,
     {
-        self.cut()
-            .map(|i| i.to_sequential().max())
-            .reduce(|| None, max)
+        self.iterator_fold(Iterator::max).reduce(|| None, max)
     }
     /// Return the min of all elements.
     ///
@@ -169,7 +181,7 @@ pub trait ParallelIterator: Divisible + Send {
     where
         Self::Item: Ord,
     {
-        self.cut().map(|i| i.to_sequential().min()).reduce(
+        self.iterator_fold(Iterator::min).reduce(
             || None,
             |a, b| {
                 if a == None {
@@ -316,14 +328,7 @@ pub trait ParallelIterator: Divisible + Send {
     {
         let f_ref = &f;
         match self
-            .cut()
-            .map(|i| {
-                if i.to_sequential().all(f_ref) {
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            })
+            .iterator_fold(|mut i| if i.all(f_ref) { Ok(()) } else { Err(()) })
             .try_reduce(|| (), |_, _| Ok(()))
         {
             Ok(_) => true,
@@ -360,7 +365,7 @@ pub trait ParallelIterator: Divisible + Send {
     where
         S: Send + Sum<Self::Item> + Sum<S>,
     {
-        self.cut().map(|i| i.to_sequential().sum()).reduce(
+        self.iterator_fold(Iterator::sum).reduce(
             || empty::<S>().sum(),
             |s1, s2| once(s1).chain(once(s2)).sum(),
         )
@@ -540,8 +545,7 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     {
         self.blocks(successors(Some(1), |p| Some(2 * p)))
             .map(|b| {
-                b.cut()
-                    .map(|i| i.to_sequential().find(&predicate))
+                b.iterator_fold(|mut i| i.find(&predicate))
                     .reduce(|| None, Option::or)
             })
             .filter_map(|o| o)
