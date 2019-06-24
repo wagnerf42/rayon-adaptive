@@ -26,3 +26,5 @@ mod take;
 pub use take::Take;
 mod dedup;
 pub use dedup::Dedup;
+mod levels;
+pub use levels::Levels;

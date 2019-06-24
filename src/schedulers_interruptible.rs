@@ -35,7 +35,7 @@ where
                 identity,
                 op,
                 sequential_fallback,
-                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2,
                 &not_failed,
             ),
             Policy::Sequential => schedule_sequential(b, identity, op, &not_failed),
@@ -64,7 +64,7 @@ where
                         identity,
                         op,
                         1,
-                        (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+                        (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2,
                         &not_failed,
                     )
                 }
@@ -200,7 +200,7 @@ where
                         op,
                         sequential_fallback,
                         if c.migrated() {
-                            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1 // the +1 mimics rayon's current behaviour
+                            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2
                         } else {
                             counter - 1
                         },

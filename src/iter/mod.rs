@@ -19,7 +19,7 @@ pub use cut::Cut;
 
 mod adaptors;
 pub use adaptors::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Map, Take,
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Levels, Map, Take,
     WithPolicy, Zip,
 };
 

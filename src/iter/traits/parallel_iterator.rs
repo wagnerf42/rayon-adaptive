@@ -3,7 +3,7 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Map, Take,
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Levels, Map, Take,
     WithPolicy, Zip,
 };
 use crate::prelude::*;
@@ -364,6 +364,21 @@ pub trait ParallelIterator: Divisible + Send {
             || empty::<S>().sum(),
             |s1, s2| once(s1).chain(once(s2)).sum(),
         )
+    }
+
+    ///
+    /// Limits the level of tasks the parallel iterator produces.
+    /// This method works by lying on underlying sizes.
+    /// You need to be careful when combining it with blocks. //TODO: have divide_left and divide_right methods ?
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// use rayon_adaptive::Policy;
+    /// assert_eq!((0u64..100_000).cut().with_policy(Policy::Join(1000)).levels(3).map(|_| 1usize).sum::<usize>(), 8)
+    /// ```
+    fn levels(self, levels: usize) -> Levels<Self> {
+        Levels { iter: self, levels }
     }
 }
 
