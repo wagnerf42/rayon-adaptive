@@ -28,3 +28,5 @@ mod dedup;
 pub use dedup::Dedup;
 mod levels;
 pub use levels::Levels;
+mod partition;
+pub use partition::Partition;

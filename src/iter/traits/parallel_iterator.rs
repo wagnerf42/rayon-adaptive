@@ -3,8 +3,8 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Levels, Map, Take,
-    WithPolicy, Zip,
+    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, Levels, Map,
+    Partition, Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -360,10 +360,14 @@ pub trait ParallelIterator: Divisible + Send {
     where
         S: Send + Sum<Self::Item> + Sum<S>,
     {
-        self.cut().map(|i| i.to_sequential().sum()).reduce(
-            || empty::<S>().sum(),
-            |s1, s2| once(s1).chain(once(s2)).sum(),
-        )
+        let policy = self.policy();
+        self.cut()
+            .map(|i| i.to_sequential().sum())
+            .with_policy(policy)
+            .reduce(
+                || empty::<S>().sum(),
+                |s1, s2| once(s1).chain(once(s2)).sum(),
+            )
     }
 
     ///
@@ -558,6 +562,20 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
             iterator: self,
             help_op: Box::new(help_op),
             phantom: PhantomData,
+        }
+    }
+
+    /// Converts this iterator into a Partition iterator.
+    fn partition(self, degree: usize) -> Partition<Self> {
+        let task_size = self
+            .base_length()
+            .expect("cannot partition an infinite iterator")
+            / degree
+            + 1;
+        Partition {
+            iterator: self,
+            task_size,
+            degree,
         }
     }
 }
