@@ -44,9 +44,7 @@ impl<'a, T: 'a + Sync + Send> ParallelIterator for IterMut<'a, T> {
     type Item = &'a mut T;
     type SequentialIterator = slice::IterMut<'a, T>;
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
-        let mut end = self.slice.borrow_divide_at(size);
-        std::mem::swap(&mut self.slice, &mut end);
-        end.iter_mut()
+        self.slice.divide_on_left_at(size).iter_mut()
     }
     fn to_sequential(self) -> Self::SequentialIterator {
         self.slice.iter_mut()

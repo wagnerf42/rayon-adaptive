@@ -22,9 +22,8 @@ impl<D: Divisible + Send> ParallelIterator for Cut<D> {
     type Item = D;
     type SequentialIterator = Once<D>;
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
-        let mut right = self.input.borrow_divide_at(size);
-        std::mem::swap(&mut right, &mut self.input); // we want the left part
-        once(right)
+        let left = self.input.divide_on_left_at(size);
+        once(left)
     }
     fn to_sequential(self) -> Self::SequentialIterator {
         once(self.input)

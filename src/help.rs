@@ -70,7 +70,7 @@ where
         } else {
             if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
                 // let's split, we have enough for both
-                let his_half = self.iterator.borrow_divide();
+                let his_half = self.iterator.divide_on_right();
                 if his_half.base_length().expect("infinite iterator") > 0 {
                     // TODO: remove this if ?
                     let stolen_node = self.stolen_stuffs.push_front((None, Some(his_half)));
