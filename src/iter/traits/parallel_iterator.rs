@@ -327,13 +327,9 @@ pub trait ParallelIterator: Divisible + Send {
         F: Fn(Self::Item) -> bool + Sync,
     {
         let f_ref = &f;
-        match self
-            .iterator_fold(|mut i| if i.all(f_ref) { Ok(()) } else { Err(()) })
+        self.iterator_fold(|mut i| if i.all(f_ref) { Ok(()) } else { Err(()) })
             .try_reduce(|| (), |_, _| Ok(()))
-        {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+            .is_ok()
     }
 
     ///
@@ -581,14 +577,14 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     }
 
     /// Fully adaptive algorithms where one sequential worker is helped by other threads.
-    fn with_help<C, H>(self, help_op: H) -> Help<Self, C>
+    fn with_help<C, H>(self, help_op: H) -> Help<Self, C, H>
     where
         C: Send,
-        H: Fn(iter::Flatten<Retriever<Self, C>>) -> C + Sync + 'static, // TODO how bad is this 'static ?
+        H: Fn(iter::Flatten<Retriever<Self, C>>) -> C + Sync,
     {
         Help {
             iterator: self,
-            help_op: Box::new(help_op),
+            help_op,
             phantom: PhantomData,
         }
     }

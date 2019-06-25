@@ -23,7 +23,7 @@ struct StealAnswerer<'a, 'c, 'scope, I, C> {
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
     iterator: I,
-    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+    help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
     stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
 }
@@ -36,7 +36,7 @@ where
     fn new(
         scope: &'a Scope<'scope>,
         iterator: I,
-        help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+        help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
         stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
     ) -> Self {
         let policy = iterator.policy();
@@ -97,7 +97,7 @@ pub struct Retriever<'a, 'b, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
     sizes: Box<Iterator<Item = usize>>, // TODO: remove box
-    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+    help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
     node: &'b AtomicLink<(Option<C>, Option<I>)>,
     iterator: Option<I>, // this Option enables us to be retrieved, leaving nothing here. we could eventually avoid it by dividing at the end.
     sender: SmallSender<AtomicLink<(Option<C>, Option<I>)>>,
@@ -110,7 +110,7 @@ where
 {
     fn new(
         scope: &'a Scope<'scope>,
-        help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+        help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
         node: &'b AtomicLink<(Option<C>, Option<I>)>,
     ) -> Self {
         let iterator = node.take().unwrap().1.unwrap();
@@ -177,16 +177,17 @@ where
 }
 
 /// Remember how helper threads are helping us.
-pub struct Help<I, C> {
+pub struct Help<I, C, H> {
     pub(crate) iterator: I,
-    pub(crate) help_op: Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+    pub(crate) help_op: H,
     pub(crate) phantom: PhantomData<C>,
 }
 
-impl<C, I> Help<I, C>
+impl<I, C, H> Help<I, C, H>
 where
     C: Send,
     I: ParallelIterator,
+    H: Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync,
 {
     pub fn fold<B, F, R>(self, initial_value: B, fold_op: F, retrieve_op: R) -> B
     where
@@ -197,7 +198,7 @@ where
         schedule_help(
             self.iterator,
             fold_op,
-            self.help_op,
+            &self.help_op,
             retrieve_op,
             initial_value,
         )
@@ -226,7 +227,7 @@ pub(crate) enum RemainingElement<I, C> {
 pub(crate) fn schedule_help<I, B, C, F, R>(
     mut iterator: I,
     fold_op: F,
-    help_op: Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+    help_op: &(dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
     retrieve_op: R,
     initial_value: B,
 ) -> B
@@ -252,7 +253,7 @@ where
                 ))
             })
             .fold(initial_value, |b, element| match element {
-                RemainingElement::Input(i) => StealAnswerer::new(s, i, &help_op, stolen_stuffs)
+                RemainingElement::Input(i) => StealAnswerer::new(s, i, help_op, stolen_stuffs)
                     .flatten()
                     .fold(b, &fold_op),
                 RemainingElement::Output(c) => retrieve_op(b, c),
@@ -262,7 +263,7 @@ where
 
 fn spawn_stealing_task<'scope, I, C>(
     scope: &Scope<'scope>,
-    help_op: &'scope Box<dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync>,
+    help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
 ) -> SmallSender<AtomicLink<(Option<C>, Option<I>)>>
 where
     C: Send + 'scope,
