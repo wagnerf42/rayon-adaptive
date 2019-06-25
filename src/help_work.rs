@@ -134,7 +134,7 @@ where
         } else {
             if self.sender.receiver_is_waiting() && remaining_length > self.sizes_bounds.0 {
                 // let's split, we have enough for both
-                let his_half = self.input.borrow_divide();
+                let his_half = self.input.divide_on_right();
                 if his_half.base_length().expect("infinite input") > 0 {
                     // TODO: remove this if ?
                     let stolen_node = self.stolen_stuffs.push_front(his_half);
@@ -149,9 +149,8 @@ where
                 next_length,
                 self.input.base_length().expect("infinite input"),
             );
-            let mut remaining_part = self.input.borrow_divide_at(checked_length);
-            std::mem::swap(&mut self.input, &mut remaining_part); // we need the other one
-            Some(remaining_part.into_iter())
+            let starting_part = self.input.divide_on_left_at(checked_length);
+            Some(starting_part.into_iter())
         }
     }
 }
