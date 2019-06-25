@@ -32,3 +32,5 @@ mod partition;
 pub use partition::Partition;
 mod iterator_fold;
 pub use iterator_fold::IteratorFold;
+mod depth_first;
+pub use depth_first::DepthFirst;

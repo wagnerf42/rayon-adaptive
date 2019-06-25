@@ -3,8 +3,8 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Chain, Dedup, Filter, FilterMap, FlatMap, FlatMapSeq, Fold, IteratorFold,
-    Levels, Map, Partition, Take, WithPolicy, Zip,
+    ByBlocks, Cap, Chain, Dedup, DepthFirst, Filter, FilterMap, FlatMap, FlatMapSeq, Fold,
+    IteratorFold, Levels, Map, Partition, Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -384,6 +384,34 @@ pub trait ParallelIterator: Divisible + Send {
     /// ```
     fn levels(self, levels: usize) -> Levels<Self> {
         Levels { iter: self, levels }
+    }
+
+    /// Switches to depth-first scheduling until a given depth.
+    ///
+    /// This is very bad for load-balancing since only one task possesses all the work
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// use std::iter::repeat;
+    /// use rayon_adaptive::Policy;
+    ///
+    /// let mut v : Vec<u64> = (0..100_000).collect();
+    /// v.as_mut_slice()
+    ///    .into_par_iter()
+    ///    .depth_first(8)
+    ///    .with_policy(Policy::Join(1))
+    ///    .all(|e| if *e > 40_000 { false } else { *e = 0; true });
+    ///
+    /// // Assuming we don't have more than 64 threads. At most 1 block per thread is not yet
+    /// // set to 0. Since we have advanced depth-first we touched everyone at the beginning
+    /// // except these blocks.
+    /// // The `400` comes from the 100_000 elements, divided by 2^8 (the depth).
+    /// assert!(v[0..=40_000].iter().filter(|e| **e == 0).count() >= 40_001 - 64 * 400);
+    /// ```
+    fn depth_first(self, depth: usize) -> DepthFirst<Self> {
+        DepthFirst {
+            tasks: vec![(self, depth)],
+        }
     }
 }
 
