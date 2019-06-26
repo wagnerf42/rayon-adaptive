@@ -1,23 +1,13 @@
 //! Implementing an iterator's tasks logger with rayon-logs (not detailed version).
 use crate::prelude::*;
+use crate::Policy;
 use std::ops::Drop;
 
 /// Logging iterator (at task detail) obtained from the `log` method on `ParallelIterator`.
 pub struct Log<I> {
-    iterator: I,
-    tag: &'static str,
-    already_used: usize,
-}
-
-impl<I: ParallelIterator> Log<I> {
-    /// Create a new logger.
-    pub(crate) fn new(iterator: I, tag: &'static str) -> Self {
-        Log {
-            iterator,
-            tag,
-            already_used: 0,
-        }
-    }
+    pub(crate) iterator: I,
+    pub(crate) tag: &'static str,
+    pub(crate) already_used: usize,
 }
 
 impl<I: ParallelIterator> Divisible for Log<I> {
@@ -25,15 +15,25 @@ impl<I: ParallelIterator> Divisible for Log<I> {
     fn base_length(&self) -> Option<usize> {
         self.iterator.base_length()
     }
-    fn divide_at(self, index: usize) -> (Self, Self) {
+    fn divide_at(mut self, index: usize) -> (Self, Self) {
         #[cfg(feature = "logs")]
         {
             if self.already_used != 0 {
                 rayon_logs::end_subgraph(self.tag, self.already_used);
+                self.already_used = 0;
             }
         }
         let (left, right) = self.iterator.divide_at(index);
-        (Log::new(left, self.tag), Log::new(right, self.tag))
+        self.iterator = left;
+        let tag = self.tag;
+        (
+            self,
+            Log {
+                iterator: right,
+                tag,
+                already_used: 0,
+            },
+        )
     }
 }
 
@@ -67,11 +67,17 @@ impl<I: ParallelIterator> ParallelIterator for Log<I> {
     type SequentialIterator = LoggedIterator<I::SequentialIterator>;
     type Item = I::Item;
     fn to_sequential(self) -> Self::SequentialIterator {
+        #[cfg(feature = "logs")]
+        {
+            if self.already_used == 0 {
+                rayon_logs::start_subgraph(self.tag);
+            }
+        }
         let remaining_length = self.iterator.base_length().unwrap_or(1); // TODO: is it ok to default to 1 ?
         LoggedIterator {
             iterator: self.iterator.to_sequential(),
             tag: self.tag,
-            size: remaining_length,
+            size: self.already_used + remaining_length,
             log: true,
         }
     }
@@ -89,5 +95,11 @@ impl<I: ParallelIterator> ParallelIterator for Log<I> {
             size,
             log: false,
         }
+    }
+    fn policy(&self) -> Policy {
+        self.iterator.policy()
+    }
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.iterator.blocks_sizes()
     }
 }

@@ -1,3 +1,4 @@
+to_sequential in interruptible adaptive scheduler + help ?? -> everywhere using checked_lenght
 - cap: default policy + check tasks of sizes 0 are not stolen but discarded immediately
 
 - if we use reduced_iter and then parallel reduction on each block then ByBlocks is asked twice for sizes

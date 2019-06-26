@@ -34,4 +34,5 @@ fn main() {
     });
     assert_eq!(max, Some(999_999));
     log.save_svg("logs.svg").expect("failed saving svg file");
+    log.save("logs.json").expect("failed saving json file");
 }

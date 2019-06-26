@@ -54,7 +54,11 @@ pub trait ParallelIterator: Divisible + Send {
     /// You should look at `fine_log` for more detailed logs (seeing inside tasks)
     /// for adaptive scheduling policies.
     fn log(self, tag: &'static str) -> Log<Self> {
-        Log::new(self, tag)
+        Log {
+            iterator: self,
+            tag,
+            already_used: 0,
+        }
     }
 
     /// Filter iterator with given closure.
