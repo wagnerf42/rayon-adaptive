@@ -4,7 +4,7 @@ use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
     ByBlocks, Cap, Chain, Dedup, DepthFirst, Filter, FilterMap, FineLog, FlatMap, FlatMapSeq, Fold,
-    IteratorFold, Levels, Map, Partition, Take, WithPolicy, Zip,
+    IteratorFold, Levels, Log, Map, Partition, Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -39,11 +39,22 @@ pub trait ParallelIterator: Divisible + Send {
 
     /// Log every sequential iterator with rayon_logs using given tag.
     /// Work will be computed automatically from iterator's length.
+    /// The difference with the `log` method is that the fine_log
+    /// will go at a smaller granularity than tasks enabling you to see
+    /// the adaptive scheduling policy inside the tasks.
     fn fine_log(self, tag: &'static str) -> FineLog<Self> {
         FineLog {
             iterator: self,
             tag,
         }
+    }
+
+    /// Log every task from this iterator with rayon_logs using given tag.
+    /// Work will be computed automatically from task sizes.
+    /// You should look at `fine_log` for more detailed logs (seeing inside tasks)
+    /// for adaptive scheduling policies.
+    fn log(self, tag: &'static str) -> Log<Self> {
+        Log::new(self, tag)
     }
 
     /// Filter iterator with given closure.

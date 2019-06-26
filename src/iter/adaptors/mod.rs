@@ -36,3 +36,5 @@ mod depth_first;
 pub use depth_first::DepthFirst;
 mod fine_log;
 pub use fine_log::FineLog;
+mod log;
+pub use log::Log;

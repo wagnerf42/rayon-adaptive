@@ -3,7 +3,7 @@ use crate::prelude::*;
 use derive_divisible::Divisible;
 use std::ops::Drop;
 
-/// Logging iterator (at fine detail) obtained from the `fine_logs` method on `ParallelIterator`.
+/// Logging iterator (at fine detail) obtained from the `fine_log` method on `ParallelIterator`.
 #[derive(Divisible)]
 #[power(I::Power)]
 #[trait_bounds(I: ParallelIterator)]
