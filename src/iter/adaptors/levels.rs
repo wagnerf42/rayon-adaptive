@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 use crate::Policy;
 
-/// Levels iterator adapter, returning by `levels` function on `ParallelIterator`
+/// Levels iterator adapter, returned by `levels` function on `ParallelIterator`
 pub struct Levels<I> {
     pub(crate) iter: I,
     pub(crate) levels: usize,
@@ -22,6 +22,14 @@ impl<I: ParallelIterator> Divisible for Levels<I> {
                     .expect("levels does not work on infinite iterators"),
                 1,
             ))
+        }
+    }
+
+    fn divide_on_left_at(&mut self, index: usize) -> Self {
+        let left = self.iter.divide_on_left_at(index);
+        Levels {
+            iter: left,
+            levels: self.levels,
         }
     }
 

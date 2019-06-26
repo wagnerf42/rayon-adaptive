@@ -631,11 +631,10 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
         P: Fn(&Self::Item) -> bool + Sync,
     {
         self.blocks(successors(Some(1), |p| Some(2 * p)))
-            .map(|b| {
+            .filter_map(|b| {
                 b.iterator_fold(|mut i| i.find(&predicate))
                     .reduce(|| None, Option::or)
             })
-            .filter_map(|o| o)
             .next()
     }
 
