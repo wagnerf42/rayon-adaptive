@@ -144,16 +144,11 @@ where
         |_| match power_sizes(min_size, max_size)
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((iterator, output), |(mut iterator, output), s| {
-                let checked_size = min(s, iterator.base_length().expect("infinite iterator"));
-                let sequential_iterator = iterator.extract_iter(checked_size);
-                let new_output = sequential_iterator.fold(output, op);
-                if iterator
-                    .base_length()
-                    .expect("running on infinite iterator")
-                    == 0
-                {
-                    Err((iterator, new_output))
+                let full_length = iterator.base_length().expect("infinite iterator");
+                if full_length <= s {
+                    Err(iterator.to_sequential().fold(output, op))
                 } else {
+                    let new_output = iterator.extract_iter(s).fold(output, op);
                     Ok((iterator, new_output))
                 }
             }) {
@@ -170,7 +165,7 @@ where
                     schedule_adaptive(my_half, identity, op, output)
                 }
             }
-            Err((_, output)) => {
+            Err(output) => {
                 sender.send(None);
                 output
             }
