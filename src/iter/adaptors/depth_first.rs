@@ -23,10 +23,14 @@ impl<I: ParallelIterator> Divisible for DepthFirst<I> {
     fn divide_at(mut self, _index: usize) -> (Self, Self) {
         if let Some((mut left, mut depth)) = self.tasks.pop() {
             while depth != 0 {
-                let (new_left, right) = left.divide();
-                left = new_left;
-                depth -= 1;
-                self.tasks.push((right, depth));
+                if left.base_length().expect("infinite not supported") <= 1 {
+                    depth = 0;
+                } else {
+                    let (new_left, right) = left.divide();
+                    left = new_left;
+                    depth -= 1;
+                    self.tasks.push((right, depth));
+                }
             }
 
             (
