@@ -1,5 +1,6 @@
 //! Implementing an iterator's tasks logger with rayon-logs (not detailed version).
 use crate::prelude::*;
+use crate::Policy;
 use std::ops::Drop;
 
 /// Logging iterator (at task detail) obtained from the `log` method on `ParallelIterator`.
@@ -94,5 +95,11 @@ impl<I: ParallelIterator> ParallelIterator for Log<I> {
             size,
             log: false,
         }
+    }
+    fn policy(&self) -> Policy {
+        self.iterator.policy()
+    }
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.iterator.blocks_sizes()
     }
 }

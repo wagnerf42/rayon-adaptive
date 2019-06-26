@@ -3,7 +3,6 @@ use crate::prelude::*;
 use crate::small_channel::small_channel;
 use crate::utils::power_sizes;
 use crate::Policy;
-use std::cmp::min;
 
 /// reduce parallel iterator
 pub(crate) fn schedule<I, ID, OP, B>(

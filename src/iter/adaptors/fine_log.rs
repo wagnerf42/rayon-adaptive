@@ -1,5 +1,6 @@
 //! Implementing a iterator's tasks logger with rayon-logs.
 use crate::prelude::*;
+use crate::Policy;
 use derive_divisible::Divisible;
 use std::ops::Drop;
 
@@ -55,5 +56,11 @@ impl<I: ParallelIterator> ParallelIterator for FineLog<I> {
             tag: self.tag,
             size,
         }
+    }
+    fn policy(&self) -> Policy {
+        self.iterator.policy()
+    }
+    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+        self.iterator.blocks_sizes()
     }
 }
