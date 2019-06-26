@@ -3,7 +3,7 @@ use crate::divisibility::{BasicPower, BlockedPower, BlockedPowerOrMore, IndexedP
 use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
-    ByBlocks, Cap, Chain, Dedup, DepthFirst, Filter, FilterMap, FlatMap, FlatMapSeq, Fold,
+    ByBlocks, Cap, Chain, Dedup, DepthFirst, Filter, FilterMap, FineLog, FlatMap, FlatMapSeq, Fold,
     IteratorFold, Levels, Map, Partition, Take, WithPolicy, Zip,
 };
 use crate::prelude::*;
@@ -35,6 +35,15 @@ pub trait ParallelIterator: Divisible + Send {
     /// Return an iterator on sizes of all macro blocks.
     fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
         Box::new(empty())
+    }
+
+    /// Log every sequential iterator with rayon_logs using given tag.
+    /// Work will be computed automatically from iterator's length.
+    fn fine_log(self, tag: &'static str) -> FineLog<Self> {
+        FineLog {
+            iterator: self,
+            tag,
+        }
     }
 
     /// Filter iterator with given closure.
