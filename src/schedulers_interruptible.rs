@@ -361,7 +361,7 @@ where
     }
 }
 
-fn try_fold<I, B, F, R>(iterator: &mut I, init: B, mut f: F) -> R
+pub(crate) fn try_fold<I, B, F, R>(iterator: &mut I, init: B, mut f: F) -> R
 where
     F: FnMut(B, I::Item) -> R,
     R: Try<Ok = B>,

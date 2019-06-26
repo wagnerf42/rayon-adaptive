@@ -4,7 +4,7 @@ use crate::help::{Help, Retriever};
 use crate::iter::Try;
 use crate::iter::{
     ByBlocks, Cap, Chain, Dedup, DepthFirst, Filter, FilterMap, FineLog, FlatMap, FlatMapSeq, Fold,
-    IteratorFold, Levels, Log, Map, Partition, Take, WithPolicy, Zip,
+    IteratorFold, Levels, Log, Map, Partition, Take, TryFold, WithPolicy, Zip,
 };
 use crate::prelude::*;
 use crate::schedulers::schedule;
@@ -14,7 +14,7 @@ use std::cmp::{max, min};
 use std::iter;
 use std::iter::{empty, once, successors, Sum};
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::Arc;
 
 /// This traits enables to implement all basic methods for all type of iterators.
@@ -427,6 +427,45 @@ pub trait ParallelIterator: Divisible + Send {
     fn depth_first(self, depth: usize) -> DepthFirst<Self> {
         DepthFirst {
             tasks: vec![(self, depth)],
+        }
+    }
+
+    /// Executes a faillibe fold on the iterator.
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = (0..25u64);
+    /// let sum = v.into_par_iter()
+    ///            .try_fold(|| 0u32, |a: u32, b: u64| a.checked_add(b as u32))
+    ///            .try_reduce(|| 0, u32::checked_add);
+    ///
+    /// assert_eq!(sum, Some((24 * 25)/2));
+    ///
+    /// let w = (0..25u64);
+    /// let failure = w.into_par_iter()
+    ///                .try_fold(|| 0u32, |a: u32, b: u64| {
+    ///                    if (b == 10) {
+    ///                        None
+    ///                    } else {
+    ///                        a.checked_add(b as u32)
+    ///                    }
+    ///                 })
+    ///                 .try_reduce(|| 0, u32::checked_add);
+    ///
+    /// assert_eq!(failure, None);
+    /// ```
+    fn try_fold<T, R, ID, F>(self, identity: ID, fold_op: F) -> TryFold<Self, R, ID, F>
+    where
+        F: Fn(T, Self::Item) -> R + Sync + Send + Clone,
+        ID: Fn() -> T + Sync + Send + Clone,
+        R: Try<Ok = T> + Send,
+    {
+        TryFold {
+            iterator: self,
+            current_output: None,
+            identity,
+            fold_op,
+            is_stopped: Arc::new(AtomicBool::new(false)),
         }
     }
 }

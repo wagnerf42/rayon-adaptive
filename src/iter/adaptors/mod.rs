@@ -38,3 +38,5 @@ mod fine_log;
 pub use fine_log::FineLog;
 mod log;
 pub use log::Log;
+mod try_fold;
+pub use try_fold::TryFold;
