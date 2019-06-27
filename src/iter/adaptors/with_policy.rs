@@ -8,9 +8,11 @@ use derive_divisible::Divisible;
 #[power(I::Power)]
 #[trait_bounds(I: ParallelIterator)]
 pub struct WithPolicy<I> {
+    /// scheduling policy
     #[divide_by(clone)]
-    pub(crate) policy: Policy,
-    pub(crate) iterator: I,
+    pub policy: Policy,
+    /// inner iterator
+    pub iterator: I,
 }
 
 impl<I: ParallelIterator> ParallelIterator for WithPolicy<I> {

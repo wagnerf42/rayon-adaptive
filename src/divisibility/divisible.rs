@@ -1,8 +1,6 @@
 use crate::help_work::HelpWork;
 use crate::iter::{Cut, Work};
-use std::cmp::min;
 use std::iter::empty;
-use std::mem;
 
 /// This is a marker type for specialization
 
@@ -177,10 +175,7 @@ pub struct BlocksIterator<I: Divisible, S: Iterator<Item = usize>> {
 impl<I: Divisible, S: Iterator<Item = usize>> Iterator for BlocksIterator<I, S> {
     type Item = I;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining.is_none() {
-            // no input left
-            return None;
-        }
+        self.remaining.as_ref()?;
 
         let remaining_length = self.remaining.as_ref().and_then(I::base_length);
         if let Some(length) = remaining_length {
@@ -192,10 +187,15 @@ impl<I: Divisible, S: Iterator<Item = usize>> Iterator for BlocksIterator<I, S> 
 
         let current_size = self.sizes.next();
         if let Some(size) = current_size {
-            let remaining_input = self.remaining.take().unwrap();
-            let checked_size = remaining_length.map(|r| min(r, size)).unwrap_or(size);
-            let (left, right) = remaining_input.divide_at(checked_size);
-            mem::replace(&mut self.remaining, Some(right));
+            let mut remaining_input = self.remaining.take().unwrap();
+            if let Some(real_remaining_length) = remaining_length {
+                if real_remaining_length <= size {
+                    return Some(remaining_input);
+                }
+            }
+            eprintln!("dividing");
+            let left = remaining_input.divide_on_left_at(size);
+            self.remaining = Some(remaining_input);
             Some(left)
         } else {
             // no sizes left, return everything thats left to process

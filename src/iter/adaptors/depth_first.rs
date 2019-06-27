@@ -4,7 +4,8 @@ use std::iter::FlatMap;
 
 /// Depth first scheduling adaptor
 pub struct DepthFirst<I> {
-    pub(crate) tasks: Vec<(I, usize)>,
+    /// all tasks form a stack from oldest (and largest) task to newest (and smallest)
+    pub tasks: Vec<(I, usize)>,
 }
 
 impl<I: ParallelIterator> Divisible for DepthFirst<I> {
