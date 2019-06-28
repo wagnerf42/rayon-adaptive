@@ -27,7 +27,7 @@ where
                 identity,
                 op,
                 sequential_fallback,
-                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2,
+                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1,
             ),
             Policy::Sequential => schedule_sequential(b, identity, op),
             Policy::Adaptive(_, _) => schedule_adaptive(b, identity, op, identity()),
@@ -36,7 +36,7 @@ where
                 identity,
                 op,
                 1,
-                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2,
+                (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1,
             ),
         })
         .fold(identity(), op)
@@ -110,7 +110,7 @@ where
                         op,
                         sequential_fallback,
                         if c.migrated() {
-                            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 2
+                            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize + 1
                         } else {
                             counter - 1
                         },
