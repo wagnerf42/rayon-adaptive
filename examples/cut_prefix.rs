@@ -1,6 +1,4 @@
-//! Let's compare fine_log vs log.
-//! They will only differ on adaptive scheduling policies, so we force an adaptive policy
-//! in this example.
+//! example for `cut` : prefix algorithm
 
 #[cfg(not(feature = "logs"))]
 fn main() {

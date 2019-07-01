@@ -193,7 +193,6 @@ impl<I: Divisible, S: Iterator<Item = usize>> Iterator for BlocksIterator<I, S> 
                     return Some(remaining_input);
                 }
             }
-            eprintln!("dividing");
             let left = remaining_input.divide_on_left_at(size);
             self.remaining = Some(remaining_input);
             Some(left)
