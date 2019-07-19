@@ -1,6 +1,7 @@
 //! Slices are parallel iterators.
 
 use crate::divisibility::IndexedPower;
+use crate::iter::traits::peekable_iterator::PeekableIterator;
 use crate::prelude::*;
 use derive_divisible::Divisible;
 use std::slice;
@@ -64,5 +65,12 @@ impl<'a, T: 'a + Sync + Send> IntoParallelIterator for &'a mut [T] {
     type Item = &'a mut T;
     fn into_par_iter(self) -> Self::Iter {
         IterMut { slice: self }
+    }
+}
+
+impl<'a, T: 'a + Sync> PeekableIterator for Iter<'a, T> {
+    fn peek(&self, index: usize) -> Option<Self::Item> {
+        debug_assert!(index < self.slice.len());
+        Some(&self.slice[index])
     }
 }

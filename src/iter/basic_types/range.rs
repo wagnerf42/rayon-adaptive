@@ -1,5 +1,6 @@
 //! Range are parallel iterators.
 use crate::divisibility::IndexedPower;
+use crate::iter::traits::peekable_iterator::PeekableIterator;
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -70,5 +71,21 @@ impl IntoParallelIterator for Range<u64> {
     type Item = u64;
     fn into_par_iter(self) -> Self::Iter {
         RangeParIter(self)
+    }
+}
+
+impl PeekableIterator for RangeParIter<usize> {
+    fn peek(&self, index: usize) -> Option<Self::Item> {
+        debug_assert!(self.0.start + index < self.0.end);
+
+        Some(self.0.start + index)
+    }
+}
+
+impl PeekableIterator for RangeParIter<u64> {
+    fn peek(&self, index: usize) -> Option<Self::Item> {
+        debug_assert!(self.0.start + (index as u64) < self.0.end);
+
+        Some(self.0.start + index as u64)
     }
 }

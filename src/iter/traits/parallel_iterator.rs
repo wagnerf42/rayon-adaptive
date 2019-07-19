@@ -614,6 +614,32 @@ pub trait IndexedParallelIterator: ParallelIterator {
             last: None,
         }
     }
+
+    /// Returns the next element of the iterator.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    ///
+    /// let data = vec![1u32, 2];
+    /// let mut iterator = data.into_par_iter();
+    ///
+    /// assert_eq!(iterator.next(), Some(&1));
+    /// assert_eq!(iterator.next(), Some(&2));
+    /// assert_eq!(iterator.next(), None);
+    /// ```
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(size) = self.base_length() {
+            if size > 0 {
+                self.extract_iter(1).next()
+            } else {
+                None
+            }
+        } else {
+            self.extract_iter(1).next()
+        }
+    }
 }
 
 /// Here go all methods specialized for iterators which have a power at least Blocked.
