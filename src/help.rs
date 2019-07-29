@@ -21,7 +21,7 @@ use std::mem;
 struct StealAnswerer<'a, 'c, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
-    sizes: Box<Iterator<Item = usize>>, // TODO: remove box
+    sizes: Box<dyn Iterator<Item = usize>>, // TODO: remove box
     iterator: I,
     help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
     stolen_stuffs: &'c AtomicList<(Option<C>, Option<I>)>,
@@ -96,7 +96,7 @@ where
 pub struct Retriever<'a, 'b, 'scope, I, C> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
-    sizes: Box<Iterator<Item = usize>>, // TODO: remove box
+    sizes: Box<dyn Iterator<Item = usize>>, // TODO: remove box
     help_op: &'scope (dyn Fn(iter::Flatten<Retriever<I, C>>) -> C + Sync),
     node: &'b AtomicLink<(Option<C>, Option<I>)>,
     iterator: Option<I>, // this Option enables us to be retrieved, leaving nothing here. we could eventually avoid it by dividing at the end.

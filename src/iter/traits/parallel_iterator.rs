@@ -33,7 +33,7 @@ pub trait ParallelIterator: Divisible + Send {
     }
 
     /// Return an iterator on sizes of all macro blocks.
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(empty())
     }
 
@@ -54,11 +54,20 @@ pub trait ParallelIterator: Divisible + Send {
     /// You should look at `fine_log` for more detailed logs (seeing inside tasks)
     /// for adaptive scheduling policies.
     fn log(self, tag: &'static str) -> Log<Self> {
-        Log {
-            iterator: self,
-            tag,
-            already_used: 0,
+        let r;
+        #[cfg(feature = "logs")]
+        {
+            r = Log {
+                iterator: self,
+                tag,
+                already_used: 0,
+            }
         }
+        #[cfg(not(feature = "logs"))]
+        {
+            r = Log { iterator: self }
+        }
+        r
     }
 
     /// Filter iterator with given closure.
@@ -159,7 +168,7 @@ pub trait ParallelIterator: Divisible + Send {
     fn reduced_iter(
         mut self,
     ) -> std::iter::FlatMap<
-        crate::divisibility::BlocksIterator<Self, Box<Iterator<Item = usize>>>,
+        crate::divisibility::BlocksIterator<Self, Box<dyn Iterator<Item = usize>>>,
         std::iter::Flatten<std::collections::linked_list::IntoIter<Vec<Self::Item>>>,
         fn(Self) -> std::iter::Flatten<std::collections::linked_list::IntoIter<Vec<Self::Item>>>,
     > {

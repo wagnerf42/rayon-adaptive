@@ -21,7 +21,7 @@ use std::mem;
 pub struct HelpWork<I, H> {
     pub(crate) input: I,
     pub(crate) help_op: H,
-    pub(crate) sizes: Box<Iterator<Item = usize> + Send>,
+    pub(crate) sizes: Box<dyn Iterator<Item = usize> + Send>,
 }
 
 impl<I: Divisible, H: Fn(I, usize) -> I> HelpWork<I, H> {
@@ -89,7 +89,7 @@ impl<I: Divisible + IntoIterator + Send, H: Fn(I, usize) -> I + Sync> HelpWork<I
 struct StealAnswerer<'a, 'c, 'scope, I, H> {
     scope: &'a Scope<'scope>,
     sizes_bounds: (usize, usize),
-    sizes: Box<Iterator<Item = usize>>,
+    sizes: Box<dyn Iterator<Item = usize>>,
     input: I,
     help_op: &'scope H,
     stolen_stuffs: &'c AtomicList<I>,

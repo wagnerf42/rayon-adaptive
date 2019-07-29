@@ -58,7 +58,7 @@ impl<I: ParallelIterator> ParallelIterator for Levels<I> {
         self.iter.to_sequential()
     }
 
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.iter.blocks_sizes()
     }
 

@@ -91,7 +91,7 @@ impl<I: ParallelIterator> ParallelIterator for Cap<I> {
             count: Some(self.count),
         }
     }
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.iterator.blocks_sizes()
     }
     fn policy(&self) -> Policy {

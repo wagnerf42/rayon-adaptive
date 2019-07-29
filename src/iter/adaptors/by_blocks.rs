@@ -9,7 +9,7 @@ use std::iter::empty;
 #[power(I::Power)]
 pub struct ByBlocks<I: ParallelIterator> {
     #[divide_by(default)]
-    pub(crate) sizes_iterator: Option<Box<Iterator<Item = usize> + Send>>,
+    pub(crate) sizes_iterator: Option<Box<dyn Iterator<Item = usize> + Send>>,
     pub(crate) iterator: I,
 }
 
@@ -19,7 +19,7 @@ impl<I: ParallelIterator> ParallelIterator for ByBlocks<I> {
     fn policy(&self) -> Policy {
         self.iterator.policy()
     }
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.sizes_iterator
             .take()
             .unwrap_or_else(|| Box::new(empty()))

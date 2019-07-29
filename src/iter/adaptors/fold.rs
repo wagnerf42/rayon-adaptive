@@ -59,7 +59,7 @@ impl<
     fn policy(&self) -> Policy {
         self.remaining_input.policy()
     }
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.remaining_input.blocks_sizes()
     }
 }

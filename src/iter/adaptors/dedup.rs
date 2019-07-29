@@ -88,7 +88,7 @@ where
         }
     }
 
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.iter.blocks_sizes()
     }
 

@@ -15,10 +15,15 @@ pub struct FineLog<I> {
 }
 
 /// Sequential Logged Iterator.
+#[cfg(feature = "logs")]
 pub struct LoggedIterator<I> {
     iterator: I,
     tag: &'static str,
     size: usize,
+}
+#[cfg(not(feature = "logs"))]
+pub struct LoggedIterator<I> {
+    iterator: I,
 }
 
 impl<I: Iterator> Iterator for LoggedIterator<I> {
@@ -39,28 +44,48 @@ impl<I: ParallelIterator> ParallelIterator for FineLog<I> {
     type SequentialIterator = LoggedIterator<I::SequentialIterator>;
     type Item = I::Item;
     fn to_sequential(self) -> Self::SequentialIterator {
+        let r;
         #[cfg(feature = "logs")]
-        rayon_logs::start_subgraph(self.tag);
-        let remaining_length = self.iterator.base_length().unwrap_or(1); // TODO: is it ok to default to 1 ?
-        LoggedIterator {
-            iterator: self.iterator.to_sequential(),
-            tag: self.tag,
-            size: remaining_length,
+        {
+            rayon_logs::start_subgraph(self.tag);
+            let remaining_length = self.iterator.base_length().unwrap_or(1); // TODO: is it ok to default to 1 ?
+            r = LoggedIterator {
+                iterator: self.iterator.to_sequential(),
+                tag: self.tag,
+                size: remaining_length,
+            };
         }
+        #[cfg(not(feature = "logs"))]
+        {
+            r = LoggedIterator {
+                iterator: self.iterator.to_sequential(),
+            };
+        }
+        r
     }
     fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        let r;
         #[cfg(feature = "logs")]
-        rayon_logs::start_subgraph(self.tag);
-        LoggedIterator {
-            iterator: self.iterator.extract_iter(size),
-            tag: self.tag,
-            size,
+        {
+            rayon_logs::start_subgraph(self.tag);
+            r = LoggedIterator {
+                iterator: self.iterator.extract_iter(size),
+                tag: self.tag,
+                size,
+            };
         }
+        #[cfg(not(feature = "logs"))]
+        {
+            r = LoggedIterator {
+                iterator: self.iterator.extract_iter(size),
+            };
+        }
+        r
     }
     fn policy(&self) -> Policy {
         self.iterator.policy()
     }
-    fn blocks_sizes(&mut self) -> Box<Iterator<Item = usize>> {
+    fn blocks_sizes(&mut self) -> Box<dyn Iterator<Item = usize>> {
         self.iterator.blocks_sizes()
     }
 }
