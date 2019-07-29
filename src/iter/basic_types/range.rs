@@ -111,15 +111,23 @@ impl IntoParallelIterator for Range<u32> {
 impl PeekableIterator for RangeParIter<usize> {
     fn peek(&self, index: usize) -> Self::Item {
         debug_assert!(self.0.start + index < self.0.end);
-
         self.0.start + index
+    }
+    fn next(&mut self) -> Option<Self::Item> {
+        let r = self.0.start;
+        self.0.start += 1;
+        Some(r)
     }
 }
 
 impl PeekableIterator for RangeParIter<u64> {
     fn peek(&self, index: usize) -> Self::Item {
         debug_assert!(self.0.start + (index as u64) < self.0.end);
-
         self.0.start + index as u64
+    }
+    fn next(&mut self) -> Option<Self::Item> {
+        let r = self.0.start;
+        self.0.start += 1;
+        Some(r)
     }
 }

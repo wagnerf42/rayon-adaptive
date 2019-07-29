@@ -73,4 +73,10 @@ impl<'a, T: 'a + Sync> PeekableIterator for Iter<'a, T> {
         debug_assert!(index < self.slice.len());
         &self.slice[index]
     }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.slice.split_first().map(|(e, s)| {
+            self.slice = s;
+            e
+        })
+    }
 }
