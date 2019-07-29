@@ -8,6 +8,8 @@ pub use traits::parallel_iterator::{
     IndexedParallelIterator, ParallelIterator,
 };
 
+pub use traits::peekable_iterator::PeekableIterator;
+
 // basic types are defined here.
 mod basic_types;
 

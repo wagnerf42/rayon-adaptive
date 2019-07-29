@@ -90,10 +90,10 @@ pub trait Divisible: Sized {
     /// Cut the `Divisible` into two parts.
     /// By default we cut at midpoint of base_length.
     fn divide(self) -> (Self, Self) {
-        let mid = self
+        let len = self
             .base_length()
-            .expect("cannot divide by default with no size")
-            / 2;
+            .expect("cannot divide by default with no size");
+        let mid = len / 2 + len % 2;
         self.divide_at(mid)
     }
 

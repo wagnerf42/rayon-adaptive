@@ -69,8 +69,8 @@ impl<'a, T: 'a + Sync + Send> IntoParallelIterator for &'a mut [T] {
 }
 
 impl<'a, T: 'a + Sync> PeekableIterator for Iter<'a, T> {
-    fn peek(&self, index: usize) -> Option<Self::Item> {
+    fn peek(&self, index: usize) -> Self::Item {
         debug_assert!(index < self.slice.len());
-        Some(&self.slice[index])
+        &self.slice[index]
     }
 }

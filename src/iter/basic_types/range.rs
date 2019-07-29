@@ -29,6 +29,17 @@ impl Divisible for RangeParIter<usize> {
     }
 }
 
+impl Divisible for RangeParIter<u32> {
+    type Power = IndexedPower;
+    fn base_length(&self) -> Option<usize> {
+        self.0.base_length()
+    }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right) = self.0.divide_at(index);
+        (RangeParIter(left), RangeParIter(right))
+    }
+}
+
 impl ParallelIterator for RangeParIter<usize> {
     type Item = usize;
     type SequentialIterator = Range<usize>;
@@ -58,6 +69,21 @@ impl ParallelIterator for RangeParIter<u64> {
     }
 }
 
+impl ParallelIterator for RangeParIter<u32> {
+    type Item = u32;
+    type SequentialIterator = Range<u32>;
+    fn extract_iter(&mut self, size: usize) -> Self::SequentialIterator {
+        debug_assert!(self.base_length().map(|l| l >= size).unwrap_or(true));
+        let end = self.0.start + size as u32;
+        let iter = self.0.start..end;
+        self.0.start = end;
+        iter
+    }
+    fn to_sequential(self) -> Self::SequentialIterator {
+        self.0
+    }
+}
+
 impl IntoParallelIterator for Range<usize> {
     type Iter = RangeParIter<usize>;
     type Item = usize;
@@ -74,18 +100,26 @@ impl IntoParallelIterator for Range<u64> {
     }
 }
 
+impl IntoParallelIterator for Range<u32> {
+    type Iter = RangeParIter<u32>;
+    type Item = u32;
+    fn into_par_iter(self) -> Self::Iter {
+        RangeParIter(self)
+    }
+}
+
 impl PeekableIterator for RangeParIter<usize> {
-    fn peek(&self, index: usize) -> Option<Self::Item> {
+    fn peek(&self, index: usize) -> Self::Item {
         debug_assert!(self.0.start + index < self.0.end);
 
-        Some(self.0.start + index)
+        self.0.start + index
     }
 }
 
 impl PeekableIterator for RangeParIter<u64> {
-    fn peek(&self, index: usize) -> Option<Self::Item> {
+    fn peek(&self, index: usize) -> Self::Item {
         debug_assert!(self.0.start + (index as u64) < self.0.end);
 
-        Some(self.0.start + index as u64)
+        self.0.start + index as u64
     }
 }
