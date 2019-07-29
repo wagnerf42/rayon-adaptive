@@ -3,14 +3,24 @@
 use crate::divisibility::IndexedPower;
 use crate::iter::traits::peekable_iterator::PeekableIterator;
 use crate::prelude::*;
-use derive_divisible::Divisible;
 use std::slice;
 
-//TODO: deriving divisible does not work with a tuple struct
-#[derive(Divisible)]
-#[power(IndexedPower)]
 pub struct Iter<'a, T: 'a + Sync> {
     slice: &'a [T],
+}
+
+impl<'a, T: 'a + Sync> Divisible for Iter<'a, T> {
+    type Power = IndexedPower;
+    fn base_length(&self) -> Option<usize> {
+        Some(self.slice.len())
+    }
+    fn is_empty(&self) -> bool {
+        self.slice.is_empty()
+    }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right): (&'a [T], &'a [T]) = self.slice.divide_at(index);
+        (Iter { slice: left }, Iter { slice: right })
+    }
 }
 
 impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
@@ -34,6 +44,9 @@ impl<'a, T: 'a + Sync + Send> Divisible for IterMut<'a, T> {
     type Power = IndexedPower;
     fn base_length(&self) -> Option<usize> {
         Some(self.slice.len())
+    }
+    fn is_empty(&self) -> bool {
+        self.slice.is_empty()
     }
     fn divide_at(self, index: usize) -> (Self, Self) {
         let (left, right): (&'a mut [T], &'a mut [T]) = self.slice.divide_at(index);

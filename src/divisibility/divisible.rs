@@ -81,6 +81,11 @@ pub trait Divisible: Sized {
     /// size 2 being divided into two objects of larger sizes.
     fn base_length(&self) -> Option<usize>;
 
+    /// Do we contain anything ?
+    fn is_empty(&self) -> bool {
+        self.base_length().map(|l| l == 0).unwrap_or(false)
+    }
+
     /// Cut the `Divisible` into two parts, if possible at given index.
     /// You must implement this function even for low-power types (just discard the index).
     /// All algorithms will guarantee you that they will never call with and index > base_length.
