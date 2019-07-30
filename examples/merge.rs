@@ -1,11 +1,20 @@
 //! Merge parallel iterator.
 //! let's compare a lot of versions to figure out what really works best.
+use itertools::Itertools;
 use rayon_adaptive::prelude::*;
 use rayon_adaptive::IndexedPower;
 use std::iter::repeat_with;
 use time::precise_time_ns;
 
-const SIZE: usize = 500_000;
+fn random_vecs(size: usize) -> (Vec<u32>, Vec<u32>) {
+    let (mut v1, mut v2): (Vec<u32>, Vec<u32>) =
+        repeat_with(rand::random::<u32>).tuples().take(size).unzip();
+    v1.sort();
+    v2.sort();
+    (v1, v2)
+}
+
+const SIZE: usize = 2_000_000;
 
 trait ParallelMerge {
     type ParallelMergeIterator;
@@ -125,7 +134,7 @@ where
         let end = precise_time_ns();
         end - start
     })
-    .take(1000)
+    .take(100)
     .sum::<u64>()
         / 1_000_000
 }
@@ -237,5 +246,53 @@ fn main() {
     );
     println!("it took with peek {}", t);
 
-    // let merged:Vec<u32> = v1.parallel_merge(&v2).collect();
+    let t = bench(
+        || {
+            let (v1, v2): (Vec<u32>, Vec<u32>) =
+                (0..((SIZE / 2) as u32)).map(|i| (2 * i, 2 * i + 1)).unzip();
+            (v1, v2)
+        },
+        |(v1, v2)| {
+            let r: Vec<u32> = v1
+                .into_par_iter()
+                .merge(v2.into_par_iter())
+                .map(|e| e.clone())
+                .collect();
+            assert_eq!(r.first(), Some(&0));
+            assert_eq!(r.last(), Some(&((SIZE - 1) as u32)));
+            (r, v1, v2)
+        },
+    );
+    println!("it took with rayon-adaptive parallel merge {}", t);
+
+    let t = bench(
+        || random_vecs(SIZE / 2),
+        |(v1, v2)| {
+            let m = Merge {
+                slices: [v1.as_slice(), v2.as_slice()],
+                indexes: [0, 0],
+            };
+            let r: Vec<u32> = m.copied().collect();
+            assert!(r.first() < r.last());
+            (r, v1, v2)
+        },
+    );
+    println!("it took with the merge iterator on random inputs {}", t);
+
+    let t = bench(
+        || random_vecs(SIZE / 2),
+        |(v1, v2)| {
+            let r: Vec<u32> = v1
+                .into_par_iter()
+                .merge(v2.into_par_iter())
+                .map(|e| e.clone())
+                .collect();
+            assert!(r.first() < r.last());
+            (r, v1, v2)
+        },
+    );
+    println!(
+        "it took with rayon-adaptive parallel merge on random vecs {}",
+        t
+    );
 }

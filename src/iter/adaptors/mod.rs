@@ -40,3 +40,5 @@ mod log;
 pub use log::Log;
 mod try_fold;
 pub use try_fold::TryFold;
+mod merge;
+pub use merge::ParallelMerge;
