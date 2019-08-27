@@ -32,5 +32,8 @@ either = "*"
 [[bench]]
 name = "all"
 harness = false
+[[bench]]
+name = "fold_reduce"
+harness = false
 
 #![feature(try_trait)]
