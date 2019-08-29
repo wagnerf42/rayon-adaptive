@@ -1,8 +1,5 @@
-use std::iter::Take;
-use std::marker::PhantomData;
-
 //mod join;
-//mod map;
+// mod map;
 pub mod prelude;
 mod range;
 //mod rayon;
@@ -20,8 +17,8 @@ use range::ParRange;
 // schedulers
 
 fn find_first_join<
-    I: ParallelIterator,
-    P: Fn(&<I as ParallelIterator>::Item) -> bool + Clone + Sync,
+    I: FiniteParallelIterator,
+    P: Fn(&<I as ItemProducer>::Item) -> bool + Clone + Sync,
 >(
     iter: I,
     predicate: P,
@@ -38,10 +35,10 @@ fn find_first_join<
     }
 }
 
-fn find_first_extract<E, P>(mut input: E, predicate: P) -> Option<<E as ExtractibleItem>::Item>
+fn find_first_extract<I, P>(mut input: I, predicate: P) -> Option<<I as ItemProducer>::Item>
 where
-    E: Extractible,
-    P: Fn(&<E as ExtractibleItem>::Item) -> bool + Sync,
+    I: ParallelIterator,
+    P: Fn(&<I as ItemProducer>::Item) -> bool + Sync,
 {
     let mut found = None;
     let mut current_size = 1;
@@ -53,7 +50,7 @@ where
     found
 }
 
-fn integer_sum<I: ParallelIterator<Item = u32>>(iter: I) -> u32 {
+fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(iter: I) -> u32 {
     if iter.is_divisible() {
         let (left, right) = iter.divide();
         let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));

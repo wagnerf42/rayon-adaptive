@@ -1,41 +1,22 @@
 // new traits
+// use crate::map::Map;
 
 pub trait Divisible: Sized {
     fn is_divisible(&self) -> bool;
     fn divide(self) -> (Self, Self);
 }
 
-pub trait Extractible: Sized
+pub trait ParallelIterator: Divisible + Send
 where
-    Self: for<'extraction> ExtractiblePart<'extraction>,
+    Self: for<'extraction> FinitePart<'extraction>,
 {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as ExtractiblePart<'extraction>>::BorrowedPart;
+    ) -> <Self as FinitePart<'extraction>>::Iter;
     //    fn map<R: Send, F: Fn(I) -> R>(self, op: F) -> Map<I, Self, F> {
-    //        Map {
-    //            op,
-    //            iterator: self,
-    //            phantom: PhantomData,
-    //        }
+    //        Map { op, iterator: self }
     //    }
-}
-
-// This is niko's magic for I guess avoiding the lifetimes in the Extractible trait itself
-pub trait ExtractiblePart<'extraction>: ExtractibleItem {
-    type BorrowedPart: ParallelIterator<Item = <Self as ExtractibleItem>::Item>;
-}
-
-pub trait ExtractibleItem {
-    type Item: Send;
-}
-
-pub trait ParallelIterator: Divisible + Send {
-    type Item: Send;
-    type SequentialIterator: Iterator<Item = Self::Item>;
-    fn len(&self) -> usize; // TODO: this should not be for all iterators
-    fn to_sequential(self) -> Self::SequentialIterator;
     //    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
     //        JoinPolicy {
     //            iterator: self,
@@ -49,4 +30,20 @@ pub trait ParallelIterator: Divisible + Send {
     //            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
     //        }
     //    }
+}
+
+// This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
+pub trait FinitePart<'extraction>: ItemProducer {
+    type Iter: FiniteParallelIterator<Item = <Self as ItemProducer>::Item>;
+}
+
+pub trait ItemProducer {
+    type Item: Send;
+}
+
+pub trait FiniteParallelIterator: ParallelIterator {
+    type SequentialIterator: Iterator<Item = Self::Item>;
+    fn len(&self) -> usize; // TODO: this should not be for all iterators
+    fn to_sequential(self) -> Self::SequentialIterator;
+    // here goes methods which cannot be applied to infinite iterators like sum
 }
