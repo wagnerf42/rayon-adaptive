@@ -1,4 +1,5 @@
 // new traits
+use crate::even_levels::EvenLevels;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
@@ -32,6 +33,12 @@ where
         F: Fn(<Self as ItemProducer>::Item) -> R + Send + Clone,
     {
         Map { op, iterator: self }
+    }
+    fn even_levels(self) -> EvenLevels<Self> {
+        EvenLevels {
+            even: true,
+            iterator: self,
+        }
     }
     fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
         JoinPolicy {

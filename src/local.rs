@@ -14,7 +14,12 @@ impl<I: FiniteParallelIterator> Divisible for DampenLocalDivision<I> {
         let (left, right) = self.iterator.divide();
         let current_thread = rayon::current_thread_index();
         let new_counter = if current_thread == self.created_by {
-            self.counter - 1
+            if self.counter == 0 {
+                // we should not assume counter is not 0
+                0
+            } else {
+                self.counter - 1
+            }
         } else {
             (rayon::current_num_threads() as f64).log(2.0).ceil() as usize
         };

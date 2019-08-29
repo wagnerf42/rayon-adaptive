@@ -1,3 +1,4 @@
+mod even_levels;
 mod join;
 mod local;
 mod map;
@@ -73,6 +74,7 @@ fn main() {
                 .map(|i| 2 * i)
                 .with_join_policy(10)
                 .with_rayon_policy()
+                .even_levels()
         )
     );
 }
