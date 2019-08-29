@@ -1,4 +1,4 @@
-//mod join;
+mod join;
 mod map;
 pub mod prelude;
 mod range;
@@ -69,8 +69,9 @@ fn main() {
     eprintln!(
         "{}",
         integer_sum(
-            ParRange { range: 0..1_000 }.map(|i| 2 * i) //                .with_join_policy(300)
-                                                        //                .with_rayon_policy()
+            ParRange { range: 0..1_000 }
+                .map(|i| 2 * i)
+                .with_join_policy(300) //                .with_rayon_policy()
         )
     );
 }

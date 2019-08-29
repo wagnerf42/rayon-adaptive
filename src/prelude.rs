@@ -1,4 +1,5 @@
 // new traits
+use crate::join::JoinPolicy;
 use crate::map::Map;
 
 pub trait Divisible: Sized {
@@ -21,12 +22,12 @@ where
     {
         Map { op, iterator: self }
     }
-    //    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
-    //        JoinPolicy {
-    //            iterator: self,
-    //            fallback,
-    //        }
-    //    }
+    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
+        JoinPolicy {
+            iterator: self,
+            fallback,
+        }
+    }
     //    fn with_rayon_policy(self) -> RayonPolicy<Self> {
     //        RayonPolicy {
     //            iterator: self,

@@ -1,11 +1,12 @@
-struct JoinPolicy<I> {
-    iterator: I,
-    fallback: usize,
+use crate::prelude::*;
+
+pub struct JoinPolicy<I> {
+    pub(crate) iterator: I,
+    pub(crate) fallback: usize,
 }
 
-impl<I: ParallelIterator> Divisible for JoinPolicy<I> {
+impl<I: FiniteParallelIterator> Divisible for JoinPolicy<I> {
     fn is_divisible(&self) -> bool {
-        // TODO: check if divisible ??
         self.iterator.is_divisible() && self.iterator.len() > self.fallback
     }
     fn divide(self) -> (Self, Self) {
@@ -23,8 +24,7 @@ impl<I: ParallelIterator> Divisible for JoinPolicy<I> {
     }
 }
 
-impl<I: ParallelIterator> ParallelIterator for JoinPolicy<I> {
-    type Item = I::Item;
+impl<I: FiniteParallelIterator> FiniteParallelIterator for JoinPolicy<I> {
     type SequentialIterator = I::SequentialIterator;
     fn len(&self) -> usize {
         self.iterator.len()
@@ -32,4 +32,27 @@ impl<I: ParallelIterator> ParallelIterator for JoinPolicy<I> {
     fn to_sequential(self) -> Self::SequentialIterator {
         self.iterator.to_sequential()
     }
+}
+
+impl<I> ParallelIterator for JoinPolicy<I>
+where
+    I: FiniteParallelIterator,
+{
+    fn borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::Iter {
+        JoinPolicy {
+            iterator: self.iterator.borrow_on_left_for(size),
+            fallback: self.fallback,
+        }
+    }
+}
+
+impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for JoinPolicy<I> {
+    type Iter = JoinPolicy<<I as FinitePart<'extraction>>::Iter>;
+}
+
+impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {
+    type Item = I::Item;
 }
