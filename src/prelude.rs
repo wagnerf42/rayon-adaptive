@@ -15,7 +15,13 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::Iter;
+    ) -> <Self as FinitePart<'extraction>>::ParIter;
+
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter;
+
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
         R: Send,
@@ -40,7 +46,8 @@ where
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
 pub trait FinitePart<'extraction>: ItemProducer {
-    type Iter: FiniteParallelIterator<Item = <Self as ItemProducer>::Item>;
+    type ParIter: FiniteParallelIterator<Item = Self::Item>;
+    type SeqIter: Iterator<Item = Self::Item>;
 }
 
 pub trait ItemProducer {
@@ -48,8 +55,8 @@ pub trait ItemProducer {
 }
 
 pub trait FiniteParallelIterator: ParallelIterator {
-    type SequentialIterator: Iterator<Item = Self::Item>;
+    type Iter: Iterator<Item = Self::Item>;
     fn len(&self) -> usize; // TODO: this should not be for all iterators
-    fn to_sequential(self) -> Self::SequentialIterator;
+    fn to_sequential(self) -> Self::Iter;
     // here goes methods which cannot be applied to infinite iterators like sum
 }

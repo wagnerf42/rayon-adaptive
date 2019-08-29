@@ -23,11 +23,11 @@ impl Divisible for ParRange {
 }
 
 impl FiniteParallelIterator for ParRange {
-    type SequentialIterator = Range<u32>;
+    type Iter = Range<u32>;
     fn len(&self) -> usize {
         self.range.len()
     }
-    fn to_sequential(self) -> Self::SequentialIterator {
+    fn to_sequential(self) -> Self::Iter {
         self.range
     }
 }
@@ -40,10 +40,16 @@ impl ParallelIterator for ParRange {
             range: start..self.range.start,
         }
     }
+    fn sequential_borrow_on_left_for<'extraction>(&mut self, size: usize) -> Range<u32> {
+        let start = self.range.start;
+        self.range.start += size as u32;
+        start..self.range.start
+    }
 }
 
 impl<'extraction> FinitePart<'extraction> for ParRange {
-    type Iter = ParRange;
+    type ParIter = ParRange;
+    type SeqIter = Range<u32>;
 }
 
 impl ItemProducer for ParRange {

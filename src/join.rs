@@ -25,11 +25,11 @@ impl<I: FiniteParallelIterator> Divisible for JoinPolicy<I> {
 }
 
 impl<I: FiniteParallelIterator> FiniteParallelIterator for JoinPolicy<I> {
-    type SequentialIterator = I::SequentialIterator;
+    type Iter = I::Iter;
     fn len(&self) -> usize {
         self.iterator.len()
     }
-    fn to_sequential(self) -> Self::SequentialIterator {
+    fn to_sequential(self) -> Self::Iter {
         self.iterator.to_sequential()
     }
 }
@@ -41,16 +41,23 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::Iter {
+    ) -> <Self as FinitePart<'extraction>>::ParIter {
         JoinPolicy {
             iterator: self.iterator.borrow_on_left_for(size),
             fallback: self.fallback,
         }
     }
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+        unimplemented!()
+    }
 }
 
 impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for JoinPolicy<I> {
-    type Iter = JoinPolicy<<I as FinitePart<'extraction>>::Iter>;
+    type ParIter = JoinPolicy<<I as FinitePart<'extraction>>::ParIter>;
+    type SeqIter = <I as FinitePart<'extraction>>::SeqIter;
 }
 
 impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {

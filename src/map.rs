@@ -35,11 +35,11 @@ where
     R: Send,
     F: Fn(I::Item) -> R + Clone + Send,
 {
-    type SequentialIterator = std::iter::Map<I::SequentialIterator, F>;
+    type Iter = std::iter::Map<I::Iter, F>;
     fn len(&self) -> usize {
         self.iterator.len()
     }
-    fn to_sequential(self) -> Self::SequentialIterator {
+    fn to_sequential(self) -> Self::Iter {
         self.iterator.to_sequential().map(self.op)
     }
 }
@@ -53,8 +53,14 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::Iter {
+    ) -> <Self as FinitePart<'extraction>>::ParIter {
         self.iterator.borrow_on_left_for(size).map(self.op.clone())
+    }
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+        unimplemented!()
     }
 }
 
@@ -64,7 +70,8 @@ where
     R: Send,
     F: Fn(<I as ItemProducer>::Item) -> R + Clone + Send,
 {
-    type Iter = Map<<I as FinitePart<'extraction>>::Iter, F>;
+    type ParIter = Map<<I as FinitePart<'extraction>>::ParIter, F>;
+    type SeqIter = std::iter::Map<<I as FinitePart<'extraction>>::SeqIter, F>;
 }
 
 impl<R, I, F> ItemProducer for Map<I, F>
