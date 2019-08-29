@@ -1,5 +1,6 @@
 // new traits
 use crate::join::JoinPolicy;
+use crate::local::DampenLocalDivision;
 use crate::map::Map;
 
 pub trait Divisible: Sized {
@@ -28,13 +29,13 @@ where
             fallback,
         }
     }
-    //    fn with_rayon_policy(self) -> RayonPolicy<Self> {
-    //        RayonPolicy {
-    //            iterator: self,
-    //            created_by: rayon::current_thread_index(),
-    //            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
-    //        }
-    //    }
+    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
+        DampenLocalDivision {
+            iterator: self,
+            created_by: rayon::current_thread_index(),
+            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+        }
+    }
 }
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself

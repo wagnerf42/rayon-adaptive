@@ -1,8 +1,8 @@
 mod join;
+mod local;
 mod map;
 pub mod prelude;
 mod range;
-//mod rayon;
 //mod successors;
 use crate::prelude::*;
 use range::ParRange;
@@ -71,7 +71,8 @@ fn main() {
         integer_sum(
             ParRange { range: 0..1_000 }
                 .map(|i| 2 * i)
-                .with_join_policy(300) //                .with_rayon_policy()
+                .with_join_policy(10)
+                .with_rayon_policy()
         )
     );
 }
