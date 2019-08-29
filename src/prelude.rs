@@ -1,5 +1,5 @@
 // new traits
-// use crate::map::Map;
+use crate::map::Map;
 
 pub trait Divisible: Sized {
     fn is_divisible(&self) -> bool;
@@ -14,9 +14,13 @@ where
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::Iter;
-    //    fn map<R: Send, F: Fn(I) -> R>(self, op: F) -> Map<I, Self, F> {
-    //        Map { op, iterator: self }
-    //    }
+    fn map<F, R>(self, op: F) -> Map<Self, F>
+    where
+        R: Send,
+        F: Fn(<Self as ItemProducer>::Item) -> R + Send + Clone,
+    {
+        Map { op, iterator: self }
+    }
     //    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
     //        JoinPolicy {
     //            iterator: self,

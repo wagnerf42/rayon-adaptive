@@ -2,8 +2,8 @@
 use crate::prelude::*;
 
 pub struct Map<I, F> {
-    op: F,
-    iterator: I,
+    pub(crate) op: F,
+    pub(crate) iterator: I,
 }
 
 impl<I, F> Divisible for Map<I, F>
@@ -29,13 +29,12 @@ where
     }
 }
 
-impl<R, I, F> ParallelIterator for Map<I, F>
+impl<R, I, F> FiniteParallelIterator for Map<I, F>
 where
-    I: ParallelIterator,
+    I: FiniteParallelIterator,
     R: Send,
     F: Fn(I::Item) -> R + Clone + Send,
 {
-    type Item = R;
     type SequentialIterator = std::iter::Map<I::SequentialIterator, F>;
     fn len(&self) -> usize {
         self.iterator.len()
@@ -45,32 +44,34 @@ where
     }
 }
 
-impl<R, I, F> Extractible for Map<I, F>
+impl<R, I, F> ParallelIterator for Map<I, F>
 where
-    I: Extractible,
+    I: ParallelIterator,
     R: Send,
-    F: Fn(<I as ExtractibleItem>::Item) -> R + Clone + Send,
+    F: Fn(<I as ItemProducer>::Item) -> R + Clone + Send,
 {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as ExtractiblePart<'extraction>>::BorrowedPart {
-        self.iterator.borrow_on_left_for(size).map(&self.op)
+    ) -> <Self as FinitePart<'extraction>>::Iter {
+        self.iterator.borrow_on_left_for(size).map(self.op.clone())
     }
 }
 
-impl<'extraction, R, I, F> ExtractiblePart<'extraction> for Map<I, F>
+impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
 where
-    I: Extractible,
+    I: ParallelIterator,
     R: Send,
-    F: Fn(<I as ExtractibleItem>::Item) -> R + Clone + Send,
+    F: Fn(<I as ItemProducer>::Item) -> R + Clone + Send,
 {
-    type BorrowedPart = Map<<I as ExtractiblePart<'extraction>>::BorrowedPart, F>;
+    type Iter = Map<<I as FinitePart<'extraction>>::Iter, F>;
 }
 
-impl<R, I, F> ExtractibleItem for Map<I, F>
+impl<R, I, F> ItemProducer for Map<I, F>
 where
-    F: Fn(<I as ExtractibleItem>::Item) -> R,
+    I: ParallelIterator,
+    R: Send,
+    F: Fn(<I as ItemProducer>::Item) -> R,
 {
     type Item = R;
 }

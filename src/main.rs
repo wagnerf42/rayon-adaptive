@@ -1,5 +1,5 @@
 //mod join;
-// mod map;
+mod map;
 pub mod prelude;
 mod range;
 //mod rayon;
@@ -8,11 +8,9 @@ use crate::prelude::*;
 use range::ParRange;
 
 // TODO: will I need two extractible traits ?
-// TODO: what happens when I map infinite iterators
 // TODO: where goes the power ?
 // TODO: what about even_levels
 // TODO: by_blocks
-// TODO: what about policies on infinite iterators ?
 
 // schedulers
 
@@ -71,8 +69,8 @@ fn main() {
     eprintln!(
         "{}",
         integer_sum(
-            ParRange { range: 0..1_000 } //.map(|i| 2 * i) //                .with_join_policy(300)
-                                         //                .with_rayon_policy()
+            ParRange { range: 0..1_000 }.map(|i| 2 * i) //                .with_join_policy(300)
+                                                        //                .with_rayon_policy()
         )
     );
 }
