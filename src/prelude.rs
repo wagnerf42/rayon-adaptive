@@ -8,7 +8,7 @@ pub trait Divisible: Sized {
     fn divide(self) -> (Self, Self);
 }
 
-pub trait ParallelIterator: Divisible + Send
+pub trait ParallelIterator: Send + Sized
 where
     Self: for<'extraction> FinitePart<'extraction>,
 {
@@ -54,7 +54,7 @@ pub trait ItemProducer {
     type Item: Send;
 }
 
-pub trait FiniteParallelIterator: ParallelIterator {
+pub trait FiniteParallelIterator: ParallelIterator + Divisible {
     type Iter: Iterator<Item = Self::Item>;
     fn len(&self) -> usize; // TODO: this should not be for all iterators
     fn to_sequential(self) -> Self::Iter;

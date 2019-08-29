@@ -3,9 +3,10 @@ mod local;
 mod map;
 pub mod prelude;
 mod range;
-//mod successors;
+mod successors;
 use crate::prelude::*;
 use range::ParRange;
+use successors::ParSuccessors;
 
 // TODO: will I need two extractible traits ?
 // TODO: where goes the power ?
@@ -59,12 +60,12 @@ fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(iter: I) ->
 }
 
 fn main() {
-    //    let s = ParSuccessors {
-    //        next: 2u32,
-    //        succ: |i: u32| i + 2u32,
-    //        skip_op: |i: u32, n: usize| i + (n as u32) * 2,
-    //    };
-    //    assert_eq!(find_first_extract(s, |&e| e % 100 == 0), Some(100));
+    let s = ParSuccessors {
+        next: 2u32,
+        succ: |i: u32| i + 2u32,
+        skip_op: |i: u32, n: usize| i + (n as u32) * 2,
+    };
+    assert_eq!(find_first_extract(s, |&e| e % 100 == 0), Some(100));
 
     eprintln!(
         "{}",

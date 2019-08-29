@@ -1,10 +1,13 @@
-struct ParSuccessors<T, F, S> {
-    next: T,
-    succ: F,
-    skip_op: S,
+use crate::prelude::*;
+use std::iter::Take;
+
+pub struct ParSuccessors<T, F, S> {
+    pub(crate) next: T,
+    pub(crate) succ: F,
+    pub(crate) skip_op: S,
 }
 
-struct BoundedParSuccessors<'a, T, F, S> {
+pub struct BoundedParSuccessors<'a, T, F, S> {
     next: T,
     remaining_iterations: usize,
     succ: F,
@@ -12,10 +15,15 @@ struct BoundedParSuccessors<'a, T, F, S> {
     real_iterator_next: Option<&'a mut T>,
 }
 
-struct SeqSuccessors<'a, T: Clone, F> {
+pub struct BorrowedSeqSuccessors<'a, T: Clone, F> {
     next: T,
     succ: F,
-    real_iterator_next: Option<&'a mut T>,
+    real_iterator_next: &'a mut T,
+}
+
+pub struct SeqSuccessors<T: Clone, F> {
+    next: T,
+    succ: F,
 }
 
 impl<
@@ -23,12 +31,39 @@ impl<
         T: 'static + Send + Clone,
         F: Fn(T) -> T + Clone + Send,
         S: Send + Clone + Fn(T, usize) -> T,
-    > ExtractiblePart<'extraction, T> for ParSuccessors<T, F, S>
+    > FinitePart<'extraction> for ParSuccessors<T, F, S>
 {
-    type BorrowedPart = BoundedParSuccessors<'extraction, T, F, S>;
+    type ParIter = BoundedParSuccessors<'extraction, T, F, S>;
+    type SeqIter = Take<BorrowedSeqSuccessors<'extraction, T, F>>;
 }
 
-impl<T, F, S> Extractible<T> for ParSuccessors<T, F, S>
+impl<
+        'a,
+        'extraction,
+        T: 'static + Send + Clone,
+        F: Fn(T) -> T + Clone + Send,
+        S: Send + Clone + Fn(T, usize) -> T,
+    > FinitePart<'extraction> for BoundedParSuccessors<'a, T, F, S>
+{
+    type ParIter = BoundedParSuccessors<'extraction, T, F, S>;
+    type SeqIter = Take<BorrowedSeqSuccessors<'extraction, T, F>>;
+}
+
+impl<T, F, S> ItemProducer for ParSuccessors<T, F, S>
+where
+    T: Send,
+{
+    type Item = T;
+}
+
+impl<'a, T, F, S> ItemProducer for BoundedParSuccessors<'a, T, F, S>
+where
+    T: Send,
+{
+    type Item = T;
+}
+
+impl<T, F, S> ParallelIterator for ParSuccessors<T, F, S>
 where
     T: Clone + 'static + Send,
     F: Fn(T) -> T + Clone + Send,
@@ -37,7 +72,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as ExtractiblePart<'extraction, T>>::BorrowedPart {
+    ) -> <Self as FinitePart<'extraction>>::ParIter {
         BoundedParSuccessors {
             next: self.next.clone(),
             remaining_iterations: size,
@@ -46,9 +81,43 @@ where
             real_iterator_next: Some(&mut self.next),
         }
     }
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+        unimplemented!()
+    }
 }
 
-impl<'a, T, F> Iterator for SeqSuccessors<'a, T, F>
+impl<'a, T, F, S> ParallelIterator for BoundedParSuccessors<'a, T, F, S>
+where
+    T: Clone + 'static + Send,
+    F: Fn(T) -> T + Clone + Send,
+    S: Fn(T, usize) -> T + Clone + Send,
+{
+    fn borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::ParIter {
+        BoundedParSuccessors {
+            next: self.next.clone(),
+            remaining_iterations: size,
+            succ: self.succ.clone(),
+            skip_op: self.skip_op.clone(),
+            real_iterator_next: Some(&mut self.next),
+        }
+    }
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+        unimplemented!()
+    }
+}
+
+// Note that it's just for the example, we could use a BorrowedSeqSuccessors with an option set to
+// None.
+impl<T, F> Iterator for SeqSuccessors<T, F>
 where
     T: Clone,
     F: Fn(T) -> T + Clone,
@@ -61,33 +130,42 @@ where
     }
 }
 
-impl<'a, T, F> Drop for SeqSuccessors<'a, T, F>
+impl<'a, T, F> Iterator for BorrowedSeqSuccessors<'a, T, F>
+where
+    T: Clone,
+    F: Fn(T) -> T + Clone,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_next = (self.succ)(self.next.clone());
+        let current_next = std::mem::replace(&mut self.next, next_next);
+        Some(current_next)
+    }
+}
+
+impl<'a, T, F> Drop for BorrowedSeqSuccessors<'a, T, F>
 where
     T: Clone,
 {
     fn drop(&mut self) {
-        if let Some(real_next) = &mut self.real_iterator_next {
-            **real_next = self.next.clone()
-        }
+        *self.real_iterator_next = self.next.clone()
     }
 }
 
-impl<'a, T, F, S> ParallelIterator for BoundedParSuccessors<'a, T, F, S>
+impl<'a, T, F, S> FiniteParallelIterator for BoundedParSuccessors<'a, T, F, S>
 where
-    T: Clone + Send,
+    T: Clone + Send + 'static, //TODO: remove this static everywhere (with second lifetime ?)
     F: Fn(T) -> T + Clone + Send,
     S: Fn(T, usize) -> T + Clone + Send,
 {
-    type Item = T;
-    type SequentialIterator = Take<SeqSuccessors<'a, T, F>>;
+    type Iter = Take<SeqSuccessors<T, F>>;
     fn len(&self) -> usize {
         self.remaining_iterations
     }
-    fn to_sequential(self) -> Self::SequentialIterator {
+    fn to_sequential(self) -> Self::Iter {
         SeqSuccessors {
             next: self.next,
             succ: self.succ,
-            real_iterator_next: self.real_iterator_next,
         }
         .take(self.remaining_iterations)
     }
@@ -116,5 +194,3 @@ where
         (self, right)
     }
 }
-
-
