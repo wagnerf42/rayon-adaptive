@@ -8,10 +8,9 @@ use crate::prelude::*;
 use range::ParRange;
 use successors::ParSuccessors;
 
-// TODO: will I need two extractible traits ?
 // TODO: where goes the power ?
 // TODO: what about even_levels
-// TODO: by_blocks
+// TODO: by_blocks -> we need a method giving the blocks sizes
 
 // schedulers
 

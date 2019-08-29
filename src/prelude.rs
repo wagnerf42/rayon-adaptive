@@ -8,6 +8,10 @@ pub trait Divisible: Sized {
     fn divide(self) -> (Self, Self);
 }
 
+//TODO: there is a pb with rayon's "split"
+// because it's infinite but we can't borrow on left.
+// we also can't borrow sequentially.
+// tree iterator CAN be borrowed sequentially be cannot be borrowed in //
 pub trait ParallelIterator: Send + Sized
 where
     Self: for<'extraction> FinitePart<'extraction>,
