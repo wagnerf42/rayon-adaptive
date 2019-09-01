@@ -3,11 +3,7 @@ extern crate criterion;
 extern crate rayon_adaptive;
 
 use criterion::{Criterion, ParameterizedBenchmark};
-use rand::Rng;
-use rayon_adaptive::iter::IteratorFold;
 use rayon_adaptive::prelude::*;
-use rayon_adaptive::Policy;
-use std::iter::once;
 
 fn fold_reduce(c: &mut Criterion) {
     let sizes = vec![
@@ -36,9 +32,7 @@ fn fold_reduce(c: &mut Criterion) {
                     .iterator_fold(|some_iter| Some(some_iter.sum::<u64>()))
                     .try_reduce(|| 0, |left_val, right_val| Some(left_val + right_val))
             })
-        }), //.with_function("Adaptive normal", |b, size|{
-            //    b.iter(|| (0u64..*size).
-            //}
+        }),
     );
 }
 
