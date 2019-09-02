@@ -77,7 +77,7 @@ fn find_first_join<
     I: FiniteParallelIterator,
     P: Fn(&<I as ItemProducer>::Item) -> bool + Clone + Sync,
 >(
-    iter: I,
+    mut iter: I,
     predicate: P,
 ) -> Option<I::Item> {
     if iter.is_divisible() {
@@ -88,7 +88,8 @@ fn find_first_join<
         );
         left_answer.or(right_answer)
     } else {
-        iter.to_sequential().find(predicate)
+        iter.sequential_borrow_on_left_for(iter.len())
+            .find(predicate)
     }
 }
 
@@ -107,13 +108,13 @@ where
     found
 }
 
-fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(iter: I) -> u32 {
+fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(mut iter: I) -> u32 {
     if iter.is_divisible() {
         let (left, right) = iter.divide();
         let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));
         left_answer + right_answer
     } else {
-        iter.to_sequential().sum()
+        iter.sequential_borrow_on_left_for(iter.len()).sum()
     }
 }
 

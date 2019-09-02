@@ -23,12 +23,8 @@ impl Divisible for ParRange {
 }
 
 impl FiniteParallelIterator for ParRange {
-    type Iter = Range<u32>;
     fn len(&self) -> usize {
         self.range.len()
-    }
-    fn to_sequential(self) -> Self::Iter {
-        self.range
     }
 }
 

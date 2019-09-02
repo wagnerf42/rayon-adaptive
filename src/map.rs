@@ -28,20 +28,23 @@ where
         )
     }
 }
-
-impl<R, I, F> FiniteParallelIterator for Map<I, F>
+impl<R, I, F> ItemProducer for Map<I, F>
 where
-    I: FiniteParallelIterator,
+    I: ParallelIterator,
     R: Send,
-    F: Fn(I::Item) -> R + Clone + Send,
+    F: Fn(I::Item) -> R,
 {
-    type Iter = std::iter::Map<I::Iter, F>;
-    fn len(&self) -> usize {
-        self.iterator.len()
-    }
-    fn to_sequential(self) -> Self::Iter {
-        self.iterator.to_sequential().map(self.op)
-    }
+    type Item = R;
+}
+
+impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
+where
+    I: ParallelIterator,
+    R: Send,
+    F: Fn(<I as ItemProducer>::Item) -> R + Clone + Send,
+{
+    type ParIter = Map<<I as FinitePart<'extraction>>::ParIter, F>;
+    type SeqIter = std::iter::Map<<I as FinitePart<'extraction>>::SeqIter, F>;
 }
 
 impl<R, I, F> ParallelIterator for Map<I, F>
@@ -60,25 +63,19 @@ where
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-        unimplemented!()
+        self.iterator
+            .sequential_borrow_on_left_for(size)
+            .map(self.op.clone())
     }
 }
 
-impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
+impl<R, I, F> FiniteParallelIterator for Map<I, F>
 where
-    I: ParallelIterator,
+    I: FiniteParallelIterator,
     R: Send,
-    F: Fn(<I as ItemProducer>::Item) -> R + Clone + Send,
+    F: Fn(I::Item) -> R + Clone + Send,
 {
-    type ParIter = Map<<I as FinitePart<'extraction>>::ParIter, F>;
-    type SeqIter = std::iter::Map<<I as FinitePart<'extraction>>::SeqIter, F>;
-}
-
-impl<R, I, F> ItemProducer for Map<I, F>
-where
-    I: ParallelIterator,
-    R: Send,
-    F: Fn(<I as ItemProducer>::Item) -> R,
-{
-    type Item = R;
+    fn len(&self) -> usize {
+        self.iterator.len()
+    }
 }

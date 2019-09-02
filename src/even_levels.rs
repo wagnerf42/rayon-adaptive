@@ -71,11 +71,7 @@ impl<I: ParallelIterator> ParallelIterator for EvenLevels<I> {
 // last step, let's implement FiniteParallelIterator
 
 impl<I: FiniteParallelIterator> FiniteParallelIterator for EvenLevels<I> {
-    type Iter = I::Iter;
     fn len(&self) -> usize {
         self.iterator.len()
-    }
-    fn to_sequential(self) -> Self::Iter {
-        self.iterator.to_sequential()
     }
 }

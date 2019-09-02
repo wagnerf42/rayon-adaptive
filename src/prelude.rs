@@ -28,12 +28,12 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter;
+    ) -> <Self as FinitePart<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
 
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
         R: Send,
-        F: Fn(<Self as ItemProducer>::Item) -> R + Send + Clone,
+        F: Fn(Self::Item) -> R + Send + Clone,
     {
         Map { op, iterator: self }
     }
@@ -65,7 +65,7 @@ where
     fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
     where
         R: Sized + Send,
-        F: for<'e> Fn(<<Self as crate::prelude::FinitePart<'e>>::ParIter as crate::prelude::FiniteParallelIterator>::Iter) -> R + Send + Clone,
+        F: for<'e> Fn(<Self as FinitePart<'e>>::SeqIter) -> R + Sync,
     {
         IteratorFold {
             iterator: self,
@@ -96,16 +96,14 @@ pub trait ItemProducer {
 }
 
 pub trait FiniteParallelIterator: ParallelIterator + Divisible {
-    type Iter: Iterator<Item = Self::Item>;
     fn len(&self) -> usize; // TODO: this should not be for all iterators
-    fn to_sequential(self) -> Self::Iter;
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         let upper_bound = (self.len() as f64).sqrt().ceil() as usize;
         Box::new(successors(Some(1), move |s| {
             Some(std::cmp::min(s * 2, upper_bound))
         }))
     }
-    fn reduce<ID, OP>(self, identity: ID, op: OP) -> Self::Item
+    fn reduce<ID, OP>(mut self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
         ID: Fn() -> Self::Item + Sync,
@@ -119,7 +117,8 @@ pub trait FiniteParallelIterator: ParallelIterator + Divisible {
             );
             op(left_answer, right_answer)
         } else {
-            self.to_sequential().fold(identity(), op)
+            self.sequential_borrow_on_left_for(self.len())
+                .fold(identity(), op)
         }
     }
     // here goes methods which cannot be applied to infinite iterators like sum

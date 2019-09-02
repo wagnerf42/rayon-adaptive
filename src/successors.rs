@@ -21,11 +21,6 @@ pub struct BorrowedSeqSuccessors<'a, T: Clone, F> {
     real_iterator_next: &'a mut T,
 }
 
-pub struct SeqSuccessors<T: Clone, F> {
-    next: T,
-    succ: F,
-}
-
 impl<
         'extraction,
         T: 'static + Send + Clone,
@@ -85,7 +80,12 @@ where
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-        unimplemented!()
+        BorrowedSeqSuccessors {
+            next: self.next.clone(),
+            succ: self.succ.clone(),
+            real_iterator_next: &mut self.next,
+        }
+        .take(size)
     }
 }
 
@@ -111,22 +111,12 @@ where
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-        unimplemented!()
-    }
-}
-
-// Note that it's just for the example, we could use a BorrowedSeqSuccessors with an option set to
-// None.
-impl<T, F> Iterator for SeqSuccessors<T, F>
-where
-    T: Clone,
-    F: Fn(T) -> T + Clone,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        let next_next = (self.succ)(self.next.clone());
-        let current_next = std::mem::replace(&mut self.next, next_next);
-        Some(current_next)
+        BorrowedSeqSuccessors {
+            next: self.next.clone(),
+            succ: self.succ.clone(),
+            real_iterator_next: &mut self.next,
+        }
+        .take(size)
     }
 }
 
@@ -158,16 +148,8 @@ where
     F: Fn(T) -> T + Clone + Send,
     S: Fn(T, usize) -> T + Clone + Send,
 {
-    type Iter = Take<SeqSuccessors<T, F>>;
     fn len(&self) -> usize {
         self.remaining_iterations
-    }
-    fn to_sequential(self) -> Self::Iter {
-        SeqSuccessors {
-            next: self.next,
-            succ: self.succ,
-        }
-        .take(self.remaining_iterations)
     }
 }
 

@@ -38,14 +38,13 @@ impl<I: FiniteParallelIterator> Divisible for DampenLocalDivision<I> {
     }
 }
 
-impl<I: FiniteParallelIterator> FiniteParallelIterator for DampenLocalDivision<I> {
-    type Iter = I::Iter;
-    fn len(&self) -> usize {
-        self.iterator.len()
-    }
-    fn to_sequential(self) -> Self::Iter {
-        self.iterator.to_sequential()
-    }
+impl<I: ParallelIterator> ItemProducer for DampenLocalDivision<I> {
+    type Item = I::Item;
+}
+
+impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for DampenLocalDivision<I> {
+    type ParIter = DampenLocalDivision<<I as FinitePart<'extraction>>::ParIter>;
+    type SeqIter = <I as FinitePart<'extraction>>::SeqIter;
 }
 
 impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
@@ -63,15 +62,12 @@ impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-        unimplemented!()
+        self.iterator.sequential_borrow_on_left_for(size)
     }
 }
 
-impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for DampenLocalDivision<I> {
-    type ParIter = DampenLocalDivision<<I as FinitePart<'extraction>>::ParIter>;
-    type SeqIter = <I as FinitePart<'extraction>>::SeqIter;
-}
-
-impl<I: ParallelIterator> ItemProducer for DampenLocalDivision<I> {
-    type Item = <I as ItemProducer>::Item;
+impl<I: FiniteParallelIterator> FiniteParallelIterator for DampenLocalDivision<I> {
+    fn len(&self) -> usize {
+        self.iterator.len()
+    }
 }
