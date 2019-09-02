@@ -2,9 +2,10 @@ mod even_levels;
 mod iterator_fold;
 mod join;
 mod local;
-mod map;
+// mod map;
 pub mod prelude;
 mod range;
+mod slice;
 mod successors;
 use crate::prelude::*;
 use range::ParRange;
@@ -74,7 +75,7 @@ mod private_try {
 // schedulers
 
 fn find_first_join<
-    I: FiniteParallelIterator,
+    I: FiniteParallelIterator + Divisible,
     P: Fn(&<I as ItemProducer>::Item) -> bool + Clone + Sync,
 >(
     mut iter: I,
@@ -108,7 +109,9 @@ where
     found
 }
 
-fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(mut iter: I) -> u32 {
+fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32> + Divisible>(
+    mut iter: I,
+) -> u32 {
     if iter.is_divisible() {
         let (left, right) = iter.divide();
         let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));
@@ -119,6 +122,11 @@ fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(mut iter: I
 }
 
 fn main() {
+    let mut v = vec![1, 4, 8];
+    let i = crate::slice::IterMut {
+        slice: Some(&mut v[..]),
+    };
+
     let s = ParSuccessors {
         next: 2u32,
         succ: |i: u32| i + 2u32,
@@ -130,7 +138,7 @@ fn main() {
         "{}",
         integer_sum(
             ParRange { range: 0..1_000 }
-                .map(|i| 2 * i)
+                //                 .map(|i| 2 * i)
                 .with_join_policy(10)
                 .with_rayon_policy()
                 .even_levels()

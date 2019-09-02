@@ -6,7 +6,7 @@ pub struct DampenLocalDivision<I> {
     pub(crate) created_by: Option<usize>,
 }
 
-impl<I: FiniteParallelIterator> Divisible for DampenLocalDivision<I> {
+impl<I: FiniteParallelIterator + Divisible> Divisible for DampenLocalDivision<I> {
     fn is_divisible(&self) -> bool {
         self.iterator.is_divisible() && self.counter != 0
     }

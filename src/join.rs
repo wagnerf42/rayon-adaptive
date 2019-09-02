@@ -5,7 +5,7 @@ pub struct JoinPolicy<I> {
     pub(crate) fallback: usize,
 }
 
-impl<I: FiniteParallelIterator> Divisible for JoinPolicy<I> {
+impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
     fn is_divisible(&self) -> bool {
         self.iterator.is_divisible() && self.iterator.len() > self.fallback
     }

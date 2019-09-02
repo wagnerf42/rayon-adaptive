@@ -3,13 +3,17 @@ use crate::even_levels::EvenLevels;
 use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
-use crate::map::Map;
+// use crate::map::Map;
 use crate::Try;
 use std::iter::successors;
 
 pub trait Divisible: Sized {
     fn is_divisible(&self) -> bool;
     fn divide(self) -> (Self, Self);
+}
+
+pub trait ItemProducer {
+    type Item: Send + Sized;
 }
 
 //TODO: there is a pb with rayon's "split"
@@ -30,13 +34,13 @@ where
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
 
-    fn map<F, R>(self, op: F) -> Map<Self, F>
-    where
-        R: Send,
-        F: Fn(Self::Item) -> R + Send + Clone,
-    {
-        Map { op, iterator: self }
-    }
+    //    fn map<F, R>(self, op: F) -> Map<Self, F>
+    //    where
+    //        R: Send,
+    //        F: Fn(Self::Item) -> R + Send + Clone,
+    //    {
+    //        Map { op, iterator: self }
+    //    }
     fn even_levels(self) -> EvenLevels<Self> {
         EvenLevels {
             even: true,
@@ -87,15 +91,11 @@ where
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
 pub trait FinitePart<'extraction>: ItemProducer {
-    type ParIter: FiniteParallelIterator<Item = Self::Item>;
+    type ParIter: FiniteParallelIterator<Item = Self::Item> + Divisible;
     type SeqIter: Iterator<Item = Self::Item>;
 }
 
-pub trait ItemProducer {
-    type Item: Send;
-}
-
-pub trait FiniteParallelIterator: ParallelIterator + Divisible {
+pub trait FiniteParallelIterator: ParallelIterator {
     fn len(&self) -> usize; // TODO: this should not be for all iterators
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         let upper_bound = (self.len() as f64).sqrt().ceil() as usize;
@@ -109,16 +109,17 @@ pub trait FiniteParallelIterator: ParallelIterator + Divisible {
         ID: Fn() -> Self::Item + Sync,
     {
         // for now just a non adaptive version
-        if self.is_divisible() {
-            let (left, right) = self.divide();
+        let len = self.len();
+        let mut i = self.borrow_on_left_for(len);
+        if i.is_divisible() {
+            let (left, right) = i.divide();
             let (left_answer, right_answer) = rayon::join(
                 || left.reduce(&identity, &op),
                 || right.reduce(&identity, &op),
             );
             op(left_answer, right_answer)
         } else {
-            self.sequential_borrow_on_left_for(self.len())
-                .fold(identity(), op)
+            i.sequential_borrow_on_left_for(len).fold(identity(), op)
         }
     }
     // here goes methods which cannot be applied to infinite iterators like sum
