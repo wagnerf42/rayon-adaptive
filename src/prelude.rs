@@ -1,8 +1,11 @@
 // new traits
 use crate::even_levels::EvenLevels;
+use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
+use crate::Try;
+use std::iter::successors;
 
 pub trait Divisible: Sized {
     fn is_divisible(&self) -> bool;
@@ -53,6 +56,33 @@ where
             counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
         }
     }
+    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
+        // TODO: should we go for a generic iterator type instead ?
+        Box::new(successors(Some(rayon::current_num_threads()), |s| {
+            Some(s * 2)
+        }))
+    }
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    where
+        R: Sized + Send,
+        F: for<'e> Fn(<<Self as crate::prelude::FinitePart<'e>>::ParIter as crate::prelude::FiniteParallelIterator>::Iter) -> R + Send + Clone,
+    {
+        IteratorFold {
+            iterator: self,
+            fold_op,
+        }
+    }
+    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    where
+        OP: Fn(T, T) -> Self::Item + Sync + Send,
+        ID: Fn() -> T + Sync + Send,
+        Self::Item: Try<Ok = T>,
+    {
+        // loop on macro blocks until none are left or size is too small
+        // create tasks until we cannot divide anymore
+        // end with adaptive part using the micro blocks sizes iterator
+        unimplemented!()
+    }
 }
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
@@ -69,5 +99,28 @@ pub trait FiniteParallelIterator: ParallelIterator + Divisible {
     type Iter: Iterator<Item = Self::Item>;
     fn len(&self) -> usize; // TODO: this should not be for all iterators
     fn to_sequential(self) -> Self::Iter;
+    fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
+        let upper_bound = (self.len() as f64).sqrt().ceil() as usize;
+        Box::new(successors(Some(1), move |s| {
+            Some(std::cmp::min(s * 2, upper_bound))
+        }))
+    }
+    fn reduce<ID, OP>(self, identity: ID, op: OP) -> Self::Item
+    where
+        OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
+        ID: Fn() -> Self::Item + Sync,
+    {
+        // for now just a non adaptive version
+        if self.is_divisible() {
+            let (left, right) = self.divide();
+            let (left_answer, right_answer) = rayon::join(
+                || left.reduce(&identity, &op),
+                || right.reduce(&identity, &op),
+            );
+            op(left_answer, right_answer)
+        } else {
+            self.to_sequential().fold(identity(), op)
+        }
+    }
     // here goes methods which cannot be applied to infinite iterators like sum
 }
