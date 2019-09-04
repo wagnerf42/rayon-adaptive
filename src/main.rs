@@ -2,7 +2,7 @@ mod even_levels;
 mod iterator_fold;
 mod join;
 mod local;
-// mod map;
+mod map;
 pub mod prelude;
 mod range;
 mod slice;
@@ -138,7 +138,7 @@ fn main() {
         "{}",
         integer_sum(
             ParRange { range: 0..1_000 }
-                //                 .map(|i| 2 * i)
+                .map(|i| 2 * i)
                 .with_join_policy(10)
                 .with_rayon_policy()
                 .even_levels()

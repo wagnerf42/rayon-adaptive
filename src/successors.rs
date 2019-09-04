@@ -23,7 +23,7 @@ pub struct BorrowedSeqSuccessors<'a, T: Clone, F> {
 
 impl<
         'extraction,
-        T: 'static + Send + Clone,
+        T: 'static + Send + Clone, // this 'static saves the day
         F: Fn(T) -> T + Clone + Send,
         S: Send + Clone + Fn(T, usize) -> T,
     > FinitePart<'extraction> for ParSuccessors<T, F, S>

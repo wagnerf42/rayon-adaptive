@@ -1,65 +1,66 @@
 // map
 use crate::prelude::*;
 
-// pub struct Map<I, F> {
-//     pub(crate) op: F,
-//     pub(crate) iterator: I,
-// }
-//
-// impl<R, I, F> ItemProducer for Map<I, F>
-// where
-//     I: ParallelIterator,
-//     R: Send,
-//     F: Fn(I::Item) -> R,
-// {
-//     type Item = R;
-// }
-//
-// impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
-// where
-//     I: ParallelIterator,
-//     R: Send,
-//     F: Fn(<I as ItemProducer>::Item) -> R + Send + Sync + 'extraction,
-// {
-//     type ParIter = BorrowingMap<'extraction, <I as FinitePart<'extraction>>::ParIter, F>;
-//     type SeqIter = std::iter::Map<<I as FinitePart<'extraction>>::SeqIter, F>;
-// }
-//
-// impl<R, I, F> ParallelIterator for Map<I, F>
-// where
-//     I: ParallelIterator,
-//     R: Send,
-//     F: Fn(<I as ItemProducer>::Item) -> R + Send + Sync,
-// {
-//     fn borrow_on_left_for<'extraction>(
-//         &'extraction mut self,
-//         size: usize,
-//     ) -> <Self as FinitePart<'extraction>>::ParIter {
-//         BorrowingMap {
-//             iterator: self.iterator.borrow_on_left_for(size),
-//             op: &self.op,
-//         }
-//     }
-//     fn sequential_borrow_on_left_for<'extraction>(
-//         &'extraction mut self,
-//         size: usize,
-//     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-//         self.iterator
-//             .sequential_borrow_on_left_for(size)
-//             .map(self.op)
-//     }
-// }
-//
-// impl<R, I, F> FiniteParallelIterator for Map<I, F>
-// where
-//     I: FiniteParallelIterator,
-//     R: Send,
-//     F: Fn(I::Item) -> R + Send + Sync,
-// {
-//     fn len(&self) -> usize {
-//         self.iterator.len()
-//     }
-// }
+pub struct Map<I, F> {
+    pub(crate) op: F,
+    pub(crate) iterator: I,
+}
+
+impl<R, I, F> ItemProducer for Map<I, F>
+where
+    I: ParallelIterator,
+    R: Send,
+    F: Fn(I::Item) -> R,
+{
+    type Item = R;
+}
+
+impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
+where
+    I: ParallelIterator,
+    R: Send,
+    F: Fn(I::Item) -> R + Send + Sync,
+{
+    type ParIter = BorrowingMap<'extraction, <I as FinitePart<'extraction>>::ParIter, F>;
+    type SeqIter = SeqBorrowingMap<'extraction, <I as FinitePart<'extraction>>::SeqIter, F>;
+}
+
+impl<R, I, F> ParallelIterator for Map<I, F>
+where
+    I: ParallelIterator,
+    R: Send,
+    F: Fn(I::Item) -> R + Send + Sync,
+{
+    fn borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::ParIter {
+        BorrowingMap {
+            iterator: self.iterator.borrow_on_left_for(size),
+            op: &self.op,
+        }
+    }
+    fn sequential_borrow_on_left_for<'extraction>(
+        &'extraction mut self,
+        size: usize,
+    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+        SeqBorrowingMap {
+            iterator: self.iterator.sequential_borrow_on_left_for(size),
+            op: &self.op,
+        }
+    }
+}
+
+impl<R, I, F> FiniteParallelIterator for Map<I, F>
+where
+    I: FiniteParallelIterator,
+    R: Send,
+    F: Fn(I::Item) -> R + Send + Sync,
+{
+    fn len(&self) -> usize {
+        self.iterator.len()
+    }
+}
 
 pub struct BorrowingMap<'e, I, F> {
     op: &'e F,
@@ -105,8 +106,8 @@ where
     I: ParallelIterator,
     F: Fn(I::Item) -> R + Sync,
 {
-    type ParIter = BorrowingMap<'extraction, <I as FinitePart<'extraction>>::ParIter, F>;
-    type SeqIter = std::iter::Map<<I as FinitePart<'extraction>>::SeqIter, F>;
+    type ParIter = BorrowingMap<'e, <I as FinitePart<'extraction>>::ParIter, F>;
+    type SeqIter = SeqBorrowingMap<'e, <I as FinitePart<'extraction>>::SeqIter, F>;
 }
 
 impl<'e, R, I, F> ParallelIterator for BorrowingMap<'e, I, F>
@@ -128,9 +129,10 @@ where
         &'extraction mut self,
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
-        self.iterator
-            .sequential_borrow_on_left_for(size)
-            .map(*self.op)
+        SeqBorrowingMap {
+            iterator: self.iterator.sequential_borrow_on_left_for(size),
+            op: self.op,
+        }
     }
 }
 
@@ -142,5 +144,21 @@ where
 {
     fn len(&self) -> usize {
         self.iterator.len()
+    }
+}
+
+pub struct SeqBorrowingMap<'e, I, F> {
+    iterator: I,
+    op: &'e F,
+}
+
+impl<'e, R, I, F> Iterator for SeqBorrowingMap<'e, I, F>
+where
+    I: Iterator,
+    F: Fn(I::Item) -> R,
+{
+    type Item = R;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next().map(|e| (*self.op)(e))
     }
 }

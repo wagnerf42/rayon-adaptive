@@ -3,7 +3,7 @@ use crate::even_levels::EvenLevels;
 use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
-// use crate::map::Map;
+use crate::map::Map;
 use crate::Try;
 use std::iter::successors;
 
@@ -34,13 +34,13 @@ where
         size: usize,
     ) -> <Self as FinitePart<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
 
-    //    fn map<F, R>(self, op: F) -> Map<Self, F>
-    //    where
-    //        R: Send,
-    //        F: Fn(Self::Item) -> R + Send + Clone,
-    //    {
-    //        Map { op, iterator: self }
-    //    }
+    fn map<F, R>(self, op: F) -> Map<Self, F>
+    where
+        R: Send,
+        F: Fn(Self::Item) -> R + Send + Clone,
+    {
+        Map { op, iterator: self }
+    }
     fn even_levels(self) -> EvenLevels<Self> {
         EvenLevels {
             even: true,
