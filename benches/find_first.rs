@@ -25,7 +25,8 @@ fn find_first_adaptive(c: &mut Criterion) {
                 )
             },
             sizes,
-        ).with_function("adaptive", |b, input_size| {
+        )
+        .with_function("adaptive", |b, input_size| {
             b.iter_with_setup(
                 || (0..*input_size).collect::<Vec<u32>>(),
                 |v| {
@@ -39,7 +40,8 @@ fn find_first_adaptive(c: &mut Criterion) {
                     )
                 },
             )
-        }).with_function("rayon", |b, input_size| {
+        })
+        .with_function("rayon", |b, input_size| {
             b.iter_with_setup(
                 || (0..*input_size).collect::<Vec<u32>>(),
                 |v| {
