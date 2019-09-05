@@ -1,4 +1,5 @@
 // map
+use crate::dislocated::Dislocated;
 use crate::prelude::*;
 
 pub struct Map<I, F> {
@@ -37,7 +38,7 @@ where
     ) -> <Self as FinitePart<'extraction>>::ParIter {
         BorrowingMap {
             iterator: self.iterator.borrow_on_left_for(size),
-            op: &self.op,
+            op: Dislocated::new(&self.op),
         }
     }
     fn sequential_borrow_on_left_for<'extraction>(
@@ -46,7 +47,7 @@ where
     ) -> <Self as FinitePart<'extraction>>::SeqIter {
         SeqBorrowingMap {
             iterator: self.iterator.sequential_borrow_on_left_for(size),
-            op: &self.op,
+            op: Dislocated::new(&self.op),
         }
     }
 }
@@ -62,8 +63,8 @@ where
     }
 }
 
-pub struct BorrowingMap<'e, I, F> {
-    op: &'e F,
+pub struct BorrowingMap<'e, I, F: Sync> {
+    op: Dislocated<'e, F>,
     iterator: I,
 }
 
@@ -94,7 +95,7 @@ impl<'e, R, I, F> ItemProducer for BorrowingMap<'e, I, F>
 where
     R: Send,
     I: ParallelIterator,
-    F: Fn(I::Item) -> R,
+    F: Fn(I::Item) -> R + Sync,
 {
     type Item = R;
 }
@@ -147,15 +148,15 @@ where
     }
 }
 
-pub struct SeqBorrowingMap<'e, I, F> {
+pub struct SeqBorrowingMap<'e, I, F: Sync> {
     iterator: I,
-    op: &'e F,
+    op: Dislocated<'e, F>,
 }
 
 impl<'e, R, I, F> Iterator for SeqBorrowingMap<'e, I, F>
 where
     I: Iterator,
-    F: Fn(I::Item) -> R,
+    F: Fn(I::Item) -> R + Sync,
 {
     type Item = R;
     fn next(&mut self) -> Option<Self::Item> {

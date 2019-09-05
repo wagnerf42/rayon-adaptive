@@ -1,3 +1,4 @@
+mod dislocated;
 mod even_levels;
 mod iterator_fold;
 mod join;
@@ -109,16 +110,15 @@ where
     found
 }
 
-fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32> + Divisible>(
-    mut iter: I,
-) -> u32 {
-    if iter.is_divisible() {
-        let (left, right) = iter.divide();
-        let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));
-        left_answer + right_answer
-    } else {
-        iter.sequential_borrow_on_left_for(iter.len()).sum()
-    }
+fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(mut iter: I) -> u32 {
+    unimplemented!()
+    //    if iter.is_divisible() {
+    //        let (left, right) = iter.divide();
+    //        let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));
+    //        left_answer + right_answer
+    //    } else {
+    //        iter.sequential_borrow_on_left_for(iter.len()).sum()
+    //    }
 }
 
 fn main() {
