@@ -6,6 +6,7 @@ mod local;
 mod map;
 pub mod prelude;
 mod range;
+mod scheduler;
 mod slice;
 mod successors;
 use crate::prelude::*;
@@ -110,17 +111,6 @@ where
     found
 }
 
-fn integer_sum<I: FiniteParallelIterator + ItemProducer<Item = u32>>(mut iter: I) -> u32 {
-    unimplemented!()
-    //    if iter.is_divisible() {
-    //        let (left, right) = iter.divide();
-    //        let (left_answer, right_answer) = rayon::join(|| integer_sum(left), || integer_sum(right));
-    //        left_answer + right_answer
-    //    } else {
-    //        iter.sequential_borrow_on_left_for(iter.len()).sum()
-    //    }
-}
-
 fn main() {
     let mut v = vec![1, 4, 8];
     let i = crate::slice::IterMut {
@@ -136,12 +126,11 @@ fn main() {
 
     eprintln!(
         "{}",
-        integer_sum(
-            ParRange { range: 0..1_000 }
-                .map(|i| 2 * i)
-                .with_join_policy(10)
-                .with_rayon_policy()
-                .even_levels()
-        )
+        ParRange { range: 0..1_000 }
+            .map(|i| 2 * i)
+            .with_join_policy(10)
+            .with_rayon_policy()
+            .even_levels()
+            .reduce(|| 0, |a, b| a + b)
     );
 }

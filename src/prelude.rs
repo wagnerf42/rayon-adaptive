@@ -4,6 +4,7 @@ use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
+use crate::scheduler::schedule_reduce;
 use crate::Try;
 use std::iter::successors;
 
@@ -108,19 +109,9 @@ pub trait FiniteParallelIterator: ParallelIterator {
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
         ID: Fn() -> Self::Item + Sync,
     {
-        // for now just a non adaptive version
         let len = self.len();
-        let mut i = self.borrow_on_left_for(len);
-        if i.is_divisible() {
-            let (left, right) = i.divide();
-            let (left_answer, right_answer) = rayon::join(
-                || left.reduce(&identity, &op),
-                || right.reduce(&identity, &op),
-            );
-            op(left_answer, right_answer)
-        } else {
-            i.sequential_borrow_on_left_for(len).fold(identity(), op)
-        }
+        let i = self.borrow_on_left_for(len);
+        schedule_reduce(i, &identity, &op)
     }
     // here goes methods which cannot be applied to infinite iterators like sum
 }

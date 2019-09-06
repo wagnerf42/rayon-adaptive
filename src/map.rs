@@ -102,7 +102,6 @@ where
 
 impl<'e, 'extraction, R, I, F> FinitePart<'extraction> for BorrowingMap<'e, I, F>
 where
-    //'e: 'extraction,
     R: Send,
     I: ParallelIterator,
     F: Fn(I::Item) -> R + Sync,
