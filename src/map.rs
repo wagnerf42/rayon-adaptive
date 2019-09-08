@@ -16,14 +16,14 @@ where
     type Item = R;
 }
 
-impl<'extraction, R, I, F> FinitePart<'extraction> for Map<I, F>
+impl<'extraction, R, I, F> Borrowed<'extraction> for Map<I, F>
 where
     I: ParallelIterator,
     R: Send,
     F: Fn(I::Item) -> R + Send + Sync,
 {
-    type ParIter = BorrowingMap<'extraction, <I as FinitePart<'extraction>>::ParIter, F>;
-    type SeqIter = SeqBorrowingMap<'extraction, <I as FinitePart<'extraction>>::SeqIter, F>;
+    type ParIter = BorrowingMap<'extraction, <I as Borrowed<'extraction>>::ParIter, F>;
+    type SeqIter = SeqBorrowingMap<'extraction, <I as Borrowed<'extraction>>::SeqIter, F>;
 }
 
 impl<R, I, F> ParallelIterator for Map<I, F>
@@ -35,7 +35,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         BorrowingMap {
             iterator: self.iterator.borrow_on_left_for(size),
             op: Dislocated::new(&self.op),
@@ -44,7 +44,7 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         SeqBorrowingMap {
             iterator: self.iterator.sequential_borrow_on_left_for(size),
             op: Dislocated::new(&self.op),
@@ -100,14 +100,14 @@ where
     type Item = R;
 }
 
-impl<'e, 'extraction, R, I, F> FinitePart<'extraction> for BorrowingMap<'e, I, F>
+impl<'e, 'extraction, R, I, F> Borrowed<'extraction> for BorrowingMap<'e, I, F>
 where
     R: Send,
     I: ParallelIterator,
     F: Fn(I::Item) -> R + Sync,
 {
-    type ParIter = BorrowingMap<'e, <I as FinitePart<'extraction>>::ParIter, F>;
-    type SeqIter = SeqBorrowingMap<'e, <I as FinitePart<'extraction>>::SeqIter, F>;
+    type ParIter = BorrowingMap<'e, <I as Borrowed<'extraction>>::ParIter, F>;
+    type SeqIter = SeqBorrowingMap<'e, <I as Borrowed<'extraction>>::SeqIter, F>;
 }
 
 impl<'e, R, I, F> ParallelIterator for BorrowingMap<'e, I, F>
@@ -119,7 +119,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         BorrowingMap {
             iterator: self.iterator.borrow_on_left_for(size),
             op: self.op,
@@ -128,7 +128,7 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         SeqBorrowingMap {
             iterator: self.iterator.sequential_borrow_on_left_for(size),
             op: self.op,

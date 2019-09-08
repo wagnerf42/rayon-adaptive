@@ -43,7 +43,7 @@ impl ParallelIterator for ParRange {
     }
 }
 
-impl<'extraction> FinitePart<'extraction> for ParRange {
+impl<'extraction> Borrowed<'extraction> for ParRange {
     type ParIter = ParRange;
     type SeqIter = Range<u32>;
 }

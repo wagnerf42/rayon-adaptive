@@ -26,7 +26,7 @@ impl<
         T: 'static + Send + Clone, // this 'static saves the day
         F: Fn(T) -> T + Clone + Send,
         S: Send + Clone + Fn(T, usize) -> T,
-    > FinitePart<'extraction> for ParSuccessors<T, F, S>
+    > Borrowed<'extraction> for ParSuccessors<T, F, S>
 {
     type ParIter = BoundedParSuccessors<'extraction, T, F, S>;
     type SeqIter = Take<BorrowedSeqSuccessors<'extraction, T, F>>;
@@ -38,7 +38,7 @@ impl<
         T: 'static + Send + Clone,
         F: Fn(T) -> T + Clone + Send,
         S: Send + Clone + Fn(T, usize) -> T,
-    > FinitePart<'extraction> for BoundedParSuccessors<'a, T, F, S>
+    > Borrowed<'extraction> for BoundedParSuccessors<'a, T, F, S>
 {
     type ParIter = BoundedParSuccessors<'extraction, T, F, S>;
     type SeqIter = Take<BorrowedSeqSuccessors<'extraction, T, F>>;
@@ -67,7 +67,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         BoundedParSuccessors {
             next: self.next.clone(),
             remaining_iterations: size,
@@ -79,7 +79,7 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
             succ: self.succ.clone(),
@@ -98,7 +98,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         BoundedParSuccessors {
             next: self.next.clone(),
             remaining_iterations: size,
@@ -110,7 +110,7 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
             succ: self.succ.clone(),

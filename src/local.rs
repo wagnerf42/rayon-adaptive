@@ -42,16 +42,16 @@ impl<I: ParallelIterator> ItemProducer for DampenLocalDivision<I> {
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for DampenLocalDivision<I> {
-    type ParIter = DampenLocalDivision<<I as FinitePart<'extraction>>::ParIter>;
-    type SeqIter = <I as FinitePart<'extraction>>::SeqIter;
+impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for DampenLocalDivision<I> {
+    type ParIter = DampenLocalDivision<<I as Borrowed<'extraction>>::ParIter>;
+    type SeqIter = <I as Borrowed<'extraction>>::SeqIter;
 }
 
 impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         DampenLocalDivision {
             iterator: self.iterator.borrow_on_left_for(size),
             counter: self.counter,
@@ -61,7 +61,7 @@ impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         self.iterator.sequential_borrow_on_left_for(size)
     }
 }

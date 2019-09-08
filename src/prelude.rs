@@ -1,6 +1,6 @@
 // new traits
 use crate::even_levels::EvenLevels;
-use crate::iterator_fold::IteratorFold;
+//use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
@@ -23,22 +23,22 @@ pub trait ItemProducer {
 // tree iterator CAN be borrowed sequentially be cannot be borrowed in //
 pub trait ParallelIterator: Send + Sized
 where
-    Self: for<'extraction> FinitePart<'extraction>,
+    Self: for<'extraction> Borrowed<'extraction>,
 {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter;
+    ) -> <Self as Borrowed<'extraction>>::ParIter;
 
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
+    ) -> <Self as Borrowed<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
 
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
         R: Send,
-        F: Fn(Self::Item) -> R + Send + Clone,
+        F: Fn(Self::Item) -> R + Send,
     {
         Map { op, iterator: self }
     }
@@ -67,16 +67,16 @@ where
             Some(s * 2)
         }))
     }
-    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
-    where
-        R: Sized + Send,
-        F: for<'e> Fn(<Self as FinitePart<'e>>::SeqIter) -> R + Sync,
-    {
-        IteratorFold {
-            iterator: self,
-            fold_op,
-        }
-    }
+    //    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    //    where
+    //        R: Sized + Send,
+    //        F: for<'e> Fn(<Self as Borrowed<'e>>::SeqIter) -> R + Sync,
+    //    {
+    //        IteratorFold {
+    //            iterator: self,
+    //            fold_op,
+    //        }
+    //    }
     fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(T, T) -> Self::Item + Sync + Send,
@@ -91,8 +91,10 @@ where
 }
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
-pub trait FinitePart<'extraction>: ItemProducer {
-    type ParIter: FiniteParallelIterator<Item = Self::Item> + Divisible;
+pub trait Borrowed<'extraction>: ItemProducer {
+    type ParIter: FiniteParallelIterator<
+            Item = Self::Item, //ParIter = Self::ParIter,//TODO: get this to work
+        > + Divisible;
     type SeqIter: Iterator<Item = Self::Item>;
 }
 

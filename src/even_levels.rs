@@ -42,9 +42,9 @@ impl<I: ParallelIterator> ItemProducer for EvenLevels<I> {
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> FinitePart<'extraction> for EvenLevels<I> {
-    type ParIter = EvenLevels<<I as FinitePart<'extraction>>::ParIter>;
-    type SeqIter = <I as FinitePart<'extraction>>::SeqIter;
+impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for EvenLevels<I> {
+    type ParIter = EvenLevels<<I as Borrowed<'extraction>>::ParIter>;
+    type SeqIter = <I as Borrowed<'extraction>>::SeqIter;
 }
 
 // step four, let's implement ParallelIterator
@@ -53,7 +53,7 @@ impl<I: ParallelIterator> ParallelIterator for EvenLevels<I> {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::ParIter {
+    ) -> <Self as Borrowed<'extraction>>::ParIter {
         EvenLevels {
             even: self.even,
             iterator: self.iterator.borrow_on_left_for(size),
@@ -63,7 +63,7 @@ impl<I: ParallelIterator> ParallelIterator for EvenLevels<I> {
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as FinitePart<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'extraction>>::SeqIter {
         self.iterator.sequential_borrow_on_left_for(size)
     }
 }
