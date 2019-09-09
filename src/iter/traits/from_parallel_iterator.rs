@@ -1,4 +1,5 @@
 //! we implement parallel collects here.
+use crate::divisibility::{IndexedPower, Power};
 use crate::prelude::*;
 
 /// Types which can be collected into from a parallel iterator should implement this.
