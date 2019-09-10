@@ -1,6 +1,6 @@
 mod dislocated;
 mod even_levels;
-mod iterator_fold;
+// mod iterator_fold;
 mod join;
 mod local;
 mod map;
@@ -78,7 +78,7 @@ mod private_try {
 
 fn find_first_join<
     I: FiniteParallelIterator + Divisible,
-    P: Fn(&<I as ItemProducer>::Item) -> bool + Clone + Sync,
+    P: Fn(&I::Item) -> bool + Clone + Sync,
 >(
     mut iter: I,
     predicate: P,
@@ -96,7 +96,7 @@ fn find_first_join<
     }
 }
 
-fn find_first_extract<I, P>(mut input: I, predicate: P) -> Option<<I as ItemProducer>::Item>
+fn find_first_extract<I, P>(mut input: I, predicate: P) -> Option<I::Item>
 where
     I: ParallelIterator,
     P: Fn(&<I as ItemProducer>::Item) -> bool + Sync,
@@ -112,11 +112,6 @@ where
 }
 
 fn main() {
-    let mut v = vec![1, 4, 8];
-    let i = crate::slice::IterMut {
-        slice: Some(&mut v[..]),
-    };
-
     let s = ParSuccessors {
         next: 2u32,
         succ: |i: u32| i + 2u32,

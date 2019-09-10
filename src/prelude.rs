@@ -1,6 +1,6 @@
 // new traits
 use crate::even_levels::EvenLevels;
-//use crate::iterator_fold::IteratorFold;
+// //use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
@@ -13,8 +13,8 @@ pub trait Divisible: Sized {
     fn divide(self) -> (Self, Self);
 }
 
-pub trait ItemProducer {
-    type Owner: ParallelIterator;
+pub trait ItemProducer: Sized {
+    type Owner: ItemProducer<Item = Self::Item> + ParallelIterator;
     type Item: Send + Sized;
 }
 
@@ -29,12 +29,12 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::ParIter;
+    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter;
 
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::SeqIter; // TODO: should we have a special method for last extraction ?
+    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter;
 
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
@@ -78,23 +78,24 @@ where
     //            fold_op,
     //        }
     //    }
-    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
-    where
-        OP: Fn(T, T) -> Self::Item + Sync + Send,
-        ID: Fn() -> T + Sync + Send,
-        Self::Item: Try<Ok = T>,
-    {
-        // loop on macro blocks until none are left or size is too small
-        // create tasks until we cannot divide anymore
-        // end with adaptive part using the micro blocks sizes iterator
-        unimplemented!()
-    }
+    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    //    where
+    //        OP: Fn(T, T) -> Self::Item + Sync + Send,
+    //        ID: Fn() -> T + Sync + Send,
+    //        Self::Item: Try<Ok = T>,
+    //    {
+    //        // loop on macro blocks until none are left or size is too small
+    //        // create tasks until we cannot divide anymore
+    //        // end with adaptive part using the micro blocks sizes iterator
+    //        unimplemented!()
+    //    }
 }
 
 // This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
 pub trait Borrowed<'extraction>: ItemProducer {
     type ParIter: FiniteParallelIterator<
             Item = Self::Item, //ParIter = Self::ParIter,//TODO: get this to work
+                               // Owner = Self::Owner,
         > + Divisible;
     type SeqIter: Iterator<Item = Self::Item>;
 }
