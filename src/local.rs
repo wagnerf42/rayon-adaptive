@@ -39,6 +39,7 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for DampenLocalDivision<I>
 }
 
 impl<I: ParallelIterator> ItemProducer for DampenLocalDivision<I> {
+    type Owner = Self;
     type Item = I::Item;
 }
 

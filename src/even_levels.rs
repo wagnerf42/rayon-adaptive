@@ -39,6 +39,7 @@ impl<I: Divisible> Divisible for EvenLevels<I> {
 // we implement "ItemProducer" and "FinitePart".
 
 impl<I: ParallelIterator> ItemProducer for EvenLevels<I> {
+    type Owner = Self;
     type Item = I::Item;
 }
 

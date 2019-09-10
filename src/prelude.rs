@@ -14,6 +14,7 @@ pub trait Divisible: Sized {
 }
 
 pub trait ItemProducer {
+    type Owner: ParallelIterator;
     type Item: Send + Sized;
 }
 

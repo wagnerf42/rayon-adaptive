@@ -46,15 +46,21 @@ impl<
 
 impl<T, F, S> ItemProducer for ParSuccessors<T, F, S>
 where
-    T: Send,
+    T: Clone + 'static + Send,
+    F: Fn(T) -> T + Clone + Send,
+    S: Fn(T, usize) -> T + Clone + Send,
 {
+    type Owner = Self;
     type Item = T;
 }
 
 impl<'a, T, F, S> ItemProducer for BoundedParSuccessors<'a, T, F, S>
 where
-    T: Send,
+    T: Clone + 'static + Send,
+    F: Fn(T) -> T + Clone + Send,
+    S: Fn(T, usize) -> T + Clone + Send,
 {
+    type Owner = ParSuccessors<T, F, S>;
     type Item = T;
 }
 
@@ -98,7 +104,7 @@ where
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::ParIter {
+    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
         BoundedParSuccessors {
             next: self.next.clone(),
             remaining_iterations: size,
@@ -110,7 +116,7 @@ where
     fn sequential_borrow_on_left_for<'extraction>(
         &'extraction mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
             succ: self.succ.clone(),

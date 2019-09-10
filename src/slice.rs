@@ -20,6 +20,7 @@ impl<'a, T: 'a> Divisible for IterMut<'a, T> {
 }
 
 impl<'a, T: 'a + Send> ItemProducer for IterMut<'a, T> {
+    type Owner = Self;
     type Item = &'a mut T;
 }
 

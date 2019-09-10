@@ -24,11 +24,12 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
     }
 }
 
-impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {
+impl<I: FiniteParallelIterator> ItemProducer for JoinPolicy<I> {
+    type Owner = Self;
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for JoinPolicy<I> {
+impl<'extraction, I: FiniteParallelIterator> Borrowed<'extraction> for JoinPolicy<I> {
     type ParIter = JoinPolicy<<I as Borrowed<'extraction>>::ParIter>;
     type SeqIter = <I as Borrowed<'extraction>>::SeqIter;
 }

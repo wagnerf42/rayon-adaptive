@@ -11,8 +11,9 @@ impl<R, I, F> ItemProducer for Map<I, F>
 where
     I: ParallelIterator,
     R: Send,
-    F: Fn(I::Item) -> R,
+    F: Fn(I::Item) -> R + Send + Sync,
 {
+    type Owner = Self;
     type Item = R;
 }
 
@@ -95,8 +96,9 @@ impl<'e, R, I, F> ItemProducer for BorrowingMap<'e, I, F>
 where
     R: Send,
     I: ParallelIterator,
-    F: Fn(I::Item) -> R + Sync,
+    F: Fn(I::Item) -> R + Send + Sync,
 {
+    type Owner = Map<I, F>;
     type Item = R;
 }
 
@@ -104,7 +106,7 @@ impl<'e, 'extraction, R, I, F> Borrowed<'extraction> for BorrowingMap<'e, I, F>
 where
     R: Send,
     I: ParallelIterator,
-    F: Fn(I::Item) -> R + Sync,
+    F: Fn(I::Item) -> R + Sync + Send,
 {
     type ParIter = BorrowingMap<'e, <I as Borrowed<'extraction>>::ParIter, F>;
     type SeqIter = SeqBorrowingMap<'e, <I as Borrowed<'extraction>>::SeqIter, F>;
@@ -114,7 +116,7 @@ impl<'e, R, I, F> ParallelIterator for BorrowingMap<'e, I, F>
 where
     I: ParallelIterator,
     R: Send,
-    F: Fn(I::Item) -> R + Sync,
+    F: Fn(I::Item) -> R + Sync + Send,
 {
     fn borrow_on_left_for<'extraction>(
         &'extraction mut self,
@@ -140,7 +142,7 @@ impl<'e, R, I, F> FiniteParallelIterator for BorrowingMap<'e, I, F>
 where
     I: FiniteParallelIterator,
     R: Send,
-    F: Fn(I::Item) -> R + Sync,
+    F: Fn(I::Item) -> R + Send + Sync,
 {
     fn len(&self) -> usize {
         self.iterator.len()

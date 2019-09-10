@@ -49,5 +49,6 @@ impl<'extraction> Borrowed<'extraction> for ParRange {
 }
 
 impl ItemProducer for ParRange {
+    type Owner = Self;
     type Item = u32;
 }
