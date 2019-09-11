@@ -29,14 +29,14 @@ impl FiniteParallelIterator for ParRange {
 }
 
 impl ParallelIterator for ParRange {
-    fn borrow_on_left_for<'extraction>(&mut self, size: usize) -> ParRange {
+    fn borrow_on_left_for<'e>(&mut self, size: usize) -> ParRange {
         let start = self.range.start;
         self.range.start += size as u32;
         ParRange {
             range: start..self.range.start,
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(&mut self, size: usize) -> Range<u32> {
+    fn sequential_borrow_on_left_for<'e>(&mut self, size: usize) -> Range<u32> {
         let start = self.range.start;
         self.range.start += size as u32;
         start..self.range.start

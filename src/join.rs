@@ -25,32 +25,29 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
 }
 
 impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {
-    type Owner = Self;
+    type Owner = JoinPolicy<I::Owner>;
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for JoinPolicy<I> {
-    type ParIter = JoinPolicy<<I::Owner as Borrowed<'extraction>>::ParIter>;
-    type SeqIter = <I::Owner as Borrowed<'extraction>>::SeqIter;
+impl<'e, I: ParallelIterator> Borrowed<'e> for JoinPolicy<I> {
+    type ParIter = JoinPolicy<<I::Owner as Borrowed<'e>>::ParIter>;
+    type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
 }
 
 impl<I> ParallelIterator for JoinPolicy<I>
 where
     I: ParallelIterator,
 {
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         JoinPolicy {
             iterator: self.iterator.borrow_on_left_for(size),
             fallback: self.fallback,
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         self.iterator.sequential_borrow_on_left_for(size)
     }
 }

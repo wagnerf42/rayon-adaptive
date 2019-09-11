@@ -67,10 +67,10 @@ where
             real_iterator_next: Some(DislocatedMut::new(&mut self.next)),
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'e>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
             succ: Dislocated::new(&self.succ),
@@ -95,10 +95,10 @@ where
             real_iterator_next: Some(DislocatedMut::new(&mut self.next)),
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
             succ: self.succ.reborrow(),

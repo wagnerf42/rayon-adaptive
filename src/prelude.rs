@@ -1,8 +1,8 @@
 // new traits
-//use crate::even_levels::EvenLevels;
+use crate::even_levels::EvenLevels;
 use crate::iterator_fold::IteratorFold;
-//use crate::join::JoinPolicy;
-//use crate::local::DampenLocalDivision;
+use crate::join::JoinPolicy;
+use crate::local::DampenLocalDivision;
 use crate::map::Map;
 use crate::scheduler::schedule_reduce;
 //use crate::Try;
@@ -46,31 +46,31 @@ pub trait ParallelIterator: Send + ItemProducer {
     {
         Map { op, iterator: self }
     }
-    //    fn even_levels(self) -> EvenLevels<Self> {
-    //        EvenLevels {
-    //            even: true,
-    //            iterator: self,
-    //        }
-    //    }
-    //    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
-    //        JoinPolicy {
-    //            iterator: self,
-    //            fallback,
-    //        }
-    //    }
-    //    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
-    //        DampenLocalDivision {
-    //            iterator: self,
-    //            created_by: rayon::current_thread_index(),
-    //            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
-    //        }
-    //    }
-    //    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
-    //        // TODO: should we go for a generic iterator type instead ?
-    //        Box::new(successors(Some(rayon::current_num_threads()), |s| {
-    //            Some(s * 2)
-    //        }))
-    //    }
+    fn even_levels(self) -> EvenLevels<Self> {
+        EvenLevels {
+            even: true,
+            iterator: self,
+        }
+    }
+    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
+        JoinPolicy {
+            iterator: self,
+            fallback,
+        }
+    }
+    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
+        DampenLocalDivision {
+            iterator: self,
+            created_by: rayon::current_thread_index(),
+            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+        }
+    }
+    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
+        // TODO: should we go for a generic iterator type instead ?
+        Box::new(successors(Some(rayon::current_num_threads()), |s| {
+            Some(s * 2)
+        }))
+    }
     fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
     where
         R: Sized + Send,

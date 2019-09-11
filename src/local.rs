@@ -39,30 +39,27 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for DampenLocalDivision<I>
 }
 
 impl<I: ParallelIterator> ItemProducer for DampenLocalDivision<I> {
-    type Owner = Self;
+    type Owner = DampenLocalDivision<I::Owner>;
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for DampenLocalDivision<I> {
-    type ParIter = DampenLocalDivision<<I::Owner as Borrowed<'extraction>>::ParIter>;
-    type SeqIter = <I::Owner as Borrowed<'extraction>>::SeqIter;
+impl<'e, I: ParallelIterator> Borrowed<'e> for DampenLocalDivision<I> {
+    type ParIter = DampenLocalDivision<<I::Owner as Borrowed<'e>>::ParIter>;
+    type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
 }
 
 impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         DampenLocalDivision {
             iterator: self.iterator.borrow_on_left_for(size),
             counter: self.counter,
             created_by: self.created_by,
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         self.iterator.sequential_borrow_on_left_for(size)
     }
 }

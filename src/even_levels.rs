@@ -39,32 +39,29 @@ impl<I: Divisible> Divisible for EvenLevels<I> {
 // we implement "ItemProducer" and "FinitePart".
 
 impl<I: ParallelIterator> ItemProducer for EvenLevels<I> {
-    type Owner = Self;
+    type Owner = EvenLevels<I::Owner>;
     type Item = I::Item;
 }
 
-impl<'extraction, I: ParallelIterator> Borrowed<'extraction> for EvenLevels<I> {
-    type ParIter = EvenLevels<<I::Owner as Borrowed<'extraction>>::ParIter>;
-    type SeqIter = <I::Owner as Borrowed<'extraction>>::SeqIter;
+impl<'e, I: ParallelIterator> Borrowed<'e> for EvenLevels<I> {
+    type ParIter = EvenLevels<<I::Owner as Borrowed<'e>>::ParIter>;
+    type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
 }
 
 // step four, let's implement ParallelIterator
 
 impl<I: ParallelIterator> ParallelIterator for EvenLevels<I> {
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         EvenLevels {
             even: self.even,
             iterator: self.iterator.borrow_on_left_for(size),
         }
     }
 
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         self.iterator.sequential_borrow_on_left_for(size)
     }
 }

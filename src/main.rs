@@ -1,8 +1,8 @@
 mod dislocated;
-// mod even_levels;
+mod even_levels;
 mod iterator_fold;
-// mod join;
-// mod local;
+mod join;
+mod local;
 mod map;
 pub mod prelude;
 mod range;
@@ -13,8 +13,6 @@ use crate::prelude::*;
 use range::ParRange;
 use successors::ParSuccessors;
 
-// TODO: where goes the power ?
-// TODO: what about even_levels
 // TODO: by_blocks -> we need a method giving the blocks sizes
 //
 //
@@ -123,10 +121,10 @@ fn main() {
         "{}",
         ParRange { range: 0..1_000 }
             .map(|i| 2 * i)
-            //.iterator_fold(|i| i.sum::<u32>())
-            //            .with_join_policy(10)
-            //            .with_rayon_policy()
-            //            .even_levels()
+            //.iterator_fold(|i| i.sum::<u32>()) // TODO: this is ICE
+            .with_join_policy(10)
+            .with_rayon_policy()
+            .even_levels()
             .reduce(|| 0, |a, b| a + b)
     );
 }
