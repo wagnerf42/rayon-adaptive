@@ -1,4 +1,5 @@
 // new traits
+use crate::cloned::Cloned;
 use crate::even_levels::EvenLevels;
 use crate::filter::Filter;
 use crate::iterator_fold::IteratorFold;
@@ -39,6 +40,14 @@ pub trait ParallelIterator: Send + ItemProducer {
         &'e mut self,
         size: usize,
     ) -> <Self::Owner as Borrowed<'e>>::SeqIter;
+
+    fn cloned<'a, T>(self) -> Cloned<Self>
+    where
+        T: 'a + Clone + Send + Sync, // TODO I need Sync here but rayon does not
+        Self: ParallelIterator<Item = &'a T>,
+    {
+        Cloned { iterator: self }
+    }
 
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
