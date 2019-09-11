@@ -13,18 +13,36 @@ where
     R: Send,
     F: Fn(I::Item) -> R + Send + Sync,
 {
-    type Owner = Self;
+    type Owner = Map<I::Owner, F>;
     type Item = R;
 }
 
-impl<'extraction, R, I, F> Borrowed<'extraction> for Map<I, F>
+// il comprend pas que  l'owner du ParIter est bien Self
+// qui est l'owner du ParIter ?
+// BMAP<I::Owner::ParIter>::Owner
+// I est un iterateur parallele mais on ne sait pas de quel niveau
+// supposons dans un premier temps qu'il est un owner
+// on a donc I::Owner est I
+// BMAP<I::Owner::ParIter> est donc BMAP<I::ParIter>
+// l'owner de BMAP<x> est par def MAP<x::Owner>
+// donc l'owner de BMAP<I::Owner::ParIter>
+// est MAP<I::ParIter::Owner>
+// l'owner d'un ParIter etant contraint a etre l'owner de son pere on a:
+// MAP<I::ParIter::Owner> est MAP<I::Owner>
+//
+// supposons maintenant que I est deja emprunte
+// BMAP<I::Owner::ParIter>::Owner
+// est MAP<I::Owner::ParIter::Owner>
+// donc MAP<I::Owner::Owner>
+// donc MAP<I::Owner> d'apres la ligne 18 du prelude ?
+impl<'e, R, I, F> Borrowed<'e> for Map<I, F>
 where
     I: ParallelIterator,
     R: Send,
     F: Fn(I::Item) -> R + Send + Sync,
 {
-    type ParIter = BorrowingMap<'extraction, <I::Owner as Borrowed<'extraction>>::ParIter, F>;
-    type SeqIter = SeqBorrowingMap<'extraction, <I::Owner as Borrowed<'extraction>>::SeqIter, F>;
+    type ParIter = BorrowingMap<'e, <I::Owner as Borrowed<'e>>::ParIter, F>;
+    type SeqIter = SeqBorrowingMap<'e, <I::Owner as Borrowed<'e>>::SeqIter, F>;
 }
 
 impl<R, I, F> ParallelIterator for Map<I, F>
@@ -33,19 +51,16 @@ where
     R: Send,
     F: Fn(I::Item) -> R + Send + Sync,
 {
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self as Borrowed<'e>>::ParIter {
         BorrowingMap {
             iterator: self.iterator.borrow_on_left_for(size),
             op: Dislocated::new(&self.op),
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'e>>::SeqIter {
         SeqBorrowingMap {
             iterator: self.iterator.sequential_borrow_on_left_for(size),
             op: Dislocated::new(&self.op),
@@ -92,45 +107,32 @@ where
     }
 }
 
-impl<'e, R, I, F> ItemProducer for BorrowingMap<'e, I, F>
+impl<'a, R, I, F> ItemProducer for BorrowingMap<'a, I, F>
 where
     R: Send,
     I: ParallelIterator,
     F: Fn(I::Item) -> R + Send + Sync,
 {
-    type Owner = Map<I, F>;
+    type Owner = Map<I::Owner, F>;
     type Item = R;
 }
 
-impl<'e, 'extraction, R, I, F> Borrowed<'extraction> for BorrowingMap<'e, I, F>
-where
-    R: Send,
-    I: ParallelIterator,
-    F: Fn(I::Item) -> R + Sync + Send,
-{
-    type ParIter = BorrowingMap<'e, <I as Borrowed<'extraction>>::ParIter, F>;
-    type SeqIter = SeqBorrowingMap<'e, <I as Borrowed<'extraction>>::SeqIter, F>;
-}
-
-impl<'e, R, I, F> ParallelIterator for BorrowingMap<'e, I, F>
+impl<'a, R, I, F> ParallelIterator for BorrowingMap<'a, I, F>
 where
     I: ParallelIterator,
     R: Send,
     F: Fn(I::Item) -> R + Sync + Send,
 {
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         BorrowingMap {
             iterator: self.iterator.borrow_on_left_for(size),
             op: self.op,
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         SeqBorrowingMap {
             iterator: self.iterator.sequential_borrow_on_left_for(size),
             op: self.op,

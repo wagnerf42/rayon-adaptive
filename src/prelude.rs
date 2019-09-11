@@ -1,11 +1,11 @@
 // new traits
-use crate::even_levels::EvenLevels;
-// //use crate::iterator_fold::IteratorFold;
-use crate::join::JoinPolicy;
-use crate::local::DampenLocalDivision;
+//use crate::even_levels::EvenLevels;
+//// //use crate::iterator_fold::IteratorFold;
+//use crate::join::JoinPolicy;
+//use crate::local::DampenLocalDivision;
 use crate::map::Map;
 use crate::scheduler::schedule_reduce;
-use crate::Try;
+//use crate::Try;
 use std::iter::successors;
 
 pub trait Divisible: Sized {
@@ -14,27 +14,30 @@ pub trait Divisible: Sized {
 }
 
 pub trait ItemProducer: Sized {
-    type Owner: ItemProducer<Item = Self::Item> + ParallelIterator;
+    type Owner: for<'e> Borrowed<'e>
+        + ItemProducer<Item = Self::Item, Owner = Self::Owner>
+        + ParallelIterator;
     type Item: Send + Sized;
+}
+
+pub trait Borrowed<'e>: ItemProducer {
+    type ParIter: FiniteParallelIterator
+        + Divisible
+        + ItemProducer<Item = Self::Item, Owner = Self::Owner>;
+    type SeqIter: Iterator<Item = Self::Item>;
 }
 
 //TODO: there is a pb with rayon's "split"
 // because it's infinite but we can't borrow on left.
 // we also can't borrow sequentially.
 // tree iterator CAN be borrowed sequentially be cannot be borrowed in //
-pub trait ParallelIterator: Send + Sized
-where
-    Self: for<'extraction> Borrowed<'extraction>,
-{
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter;
+pub trait ParallelIterator: Send + ItemProducer {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter;
 
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter;
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter;
 
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
@@ -43,61 +46,52 @@ where
     {
         Map { op, iterator: self }
     }
-    fn even_levels(self) -> EvenLevels<Self> {
-        EvenLevels {
-            even: true,
-            iterator: self,
-        }
-    }
-    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
-        JoinPolicy {
-            iterator: self,
-            fallback,
-        }
-    }
-    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
-        DampenLocalDivision {
-            iterator: self,
-            created_by: rayon::current_thread_index(),
-            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
-        }
-    }
-    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
-        // TODO: should we go for a generic iterator type instead ?
-        Box::new(successors(Some(rayon::current_num_threads()), |s| {
-            Some(s * 2)
-        }))
-    }
-    //    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
-    //    where
-    //        R: Sized + Send,
-    //        F: for<'e> Fn(<Self as Borrowed<'e>>::SeqIter) -> R + Sync,
-    //    {
-    //        IteratorFold {
+    //    fn even_levels(self) -> EvenLevels<Self> {
+    //        EvenLevels {
+    //            even: true,
     //            iterator: self,
-    //            fold_op,
     //        }
     //    }
-    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
-    //    where
-    //        OP: Fn(T, T) -> Self::Item + Sync + Send,
-    //        ID: Fn() -> T + Sync + Send,
-    //        Self::Item: Try<Ok = T>,
-    //    {
-    //        // loop on macro blocks until none are left or size is too small
-    //        // create tasks until we cannot divide anymore
-    //        // end with adaptive part using the micro blocks sizes iterator
-    //        unimplemented!()
+    //    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
+    //        JoinPolicy {
+    //            iterator: self,
+    //            fallback,
+    //        }
     //    }
-}
-
-// This is niko's magic for I guess avoiding the lifetimes in the ParallelIterator trait itself
-pub trait Borrowed<'extraction>: ItemProducer {
-    type ParIter: FiniteParallelIterator<
-            Item = Self::Item, //ParIter = Self::ParIter,//TODO: get this to work
-                               // Owner = Self::Owner,
-        > + Divisible;
-    type SeqIter: Iterator<Item = Self::Item>;
+    //    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
+    //        DampenLocalDivision {
+    //            iterator: self,
+    //            created_by: rayon::current_thread_index(),
+    //            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+    //        }
+    //    }
+    //    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
+    //        // TODO: should we go for a generic iterator type instead ?
+    //        Box::new(successors(Some(rayon::current_num_threads()), |s| {
+    //            Some(s * 2)
+    //        }))
+    //    }
+    //    //    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    //    //    where
+    //    //        R: Sized + Send,
+    //    //        F: for<'e> Fn(<Self as Borrowed<'e>>::SeqIter) -> R + Sync,
+    //    //    {
+    //    //        IteratorFold {
+    //    //            iterator: self,
+    //    //            fold_op,
+    //    //        }
+    //    //    }
+    //    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    //    //    where
+    //    //        OP: Fn(T, T) -> Self::Item + Sync + Send,
+    //    //        ID: Fn() -> T + Sync + Send,
+    //    //        Self::Item: Try<Ok = T>,
+    //    //    {
+    //    //        // loop on macro blocks until none are left or size is too small
+    //    //        // create tasks until we cannot divide anymore
+    //    //        // end with adaptive part using the micro blocks sizes iterator
+    //    //        unimplemented!()
+    //    //    }
 }
 
 pub trait FiniteParallelIterator: ParallelIterator {

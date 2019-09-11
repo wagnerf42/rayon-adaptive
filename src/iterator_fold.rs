@@ -25,7 +25,7 @@ where
 impl<'extraction, R, I, F> Borrowed<'extraction> for IteratorFold<I, F>
 where
     R: Send,
-    I: ParallelIterator,
+    I: ParallelIterator<Owner = <I::Owner as Borrowed>::ParIter::Owner>,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
     type ParIter =
