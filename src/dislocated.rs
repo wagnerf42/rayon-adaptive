@@ -37,6 +37,9 @@ impl<'a, I: Sync> Dislocated<'a, I> {
             phantom: PhantomData,
         }
     }
+    pub(crate) fn reborrow<'b>(&'b self) -> Dislocated<'b, I> {
+        Dislocated::new(&unsafe { self.raw.as_ref() }.unwrap())
+    }
 }
 
 unsafe impl<'a, I: Sync> Send for Dislocated<'a, I> {}

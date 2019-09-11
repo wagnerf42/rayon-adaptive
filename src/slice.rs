@@ -24,22 +24,22 @@ impl<'a, T: 'a + Send> ItemProducer for IterMut<'a, T> {
     type Item = &'a mut T;
 }
 
-impl<'extraction, 'a, T: 'a + Send> Borrowed<'extraction> for IterMut<'a, T> {
+impl<'e, 'a, T: 'a + Send> Borrowed<'e> for IterMut<'a, T> {
     type ParIter = IterMut<'a, T>;
     type SeqIter = std::slice::IterMut<'a, T>;
 }
 
 impl<'a, T: 'a + Send> ParallelIterator for IterMut<'a, T> {
-    fn borrow_on_left_for<'extraction>(&'extraction mut self, size: usize) -> IterMut<'a, T> {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> IterMut<'a, T> {
         let (left, right) = self.slice.take().unwrap().split_at_mut(size);
         self.slice = Some(right);
         IterMut { slice: Some(left) }
     }
 
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self as Borrowed<'e>>::SeqIter {
         let (left, right) = self.slice.take().unwrap().split_at_mut(size);
         self.slice = Some(right);
         left.iter_mut()
