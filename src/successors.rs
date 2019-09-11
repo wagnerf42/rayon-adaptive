@@ -101,7 +101,7 @@ where
     ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
-            succ: self.succ.reborrow(),
+            succ: self.succ.clone(),
             real_iterator_next: DislocatedMut::new(&mut self.next),
         }
         .take(size)

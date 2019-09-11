@@ -1,5 +1,6 @@
 mod dislocated;
 mod even_levels;
+mod filter;
 mod iterator_fold;
 mod join;
 mod local;
@@ -120,6 +121,7 @@ fn main() {
     eprintln!(
         "{}",
         ParRange { range: 0..1_000 }
+            .filter(|&i| i % 2 == 0)
             .map(|i| 2 * i)
             //.iterator_fold(|i| i.sum::<u32>()) // TODO: this is ICE
             .with_join_policy(10)

@@ -1,5 +1,6 @@
 // new traits
 use crate::even_levels::EvenLevels;
+use crate::filter::Filter;
 use crate::iterator_fold::IteratorFold;
 use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
@@ -45,6 +46,15 @@ pub trait ParallelIterator: Send + ItemProducer {
         F: Fn(Self::Item) -> R + Send,
     {
         Map { op, iterator: self }
+    }
+    fn filter<P>(self, filter_op: P) -> Filter<Self, P>
+    where
+        P: Fn(&Self::Item) -> bool + Send + Sync,
+    {
+        Filter {
+            iterator: self,
+            filter_op,
+        }
     }
     fn even_levels(self) -> EvenLevels<Self> {
         EvenLevels {
