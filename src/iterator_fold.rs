@@ -18,18 +18,17 @@ where
     I: ParallelIterator,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
-    type Owner = Self;
+    type Owner = IteratorFold<I::Owner, F>;
     type Item = R;
 }
 
-impl<'extraction, R, I, F> Borrowed<'extraction> for IteratorFold<I, F>
+impl<'e, R, I, F> Borrowed<'e> for IteratorFold<I, F>
 where
     R: Send,
-    I: ParallelIterator<Owner = <I::Owner as Borrowed>::ParIter::Owner>,
+    I: ParallelIterator,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
-    type ParIter =
-        BorrowedIteratorFold<'extraction, <I::Owner as Borrowed<'extraction>>::ParIter, F>;
+    type ParIter = BorrowedIteratorFold<'e, <I::Owner as Borrowed<'e>>::ParIter, F>;
     type SeqIter = Once<R>;
 }
 
@@ -39,17 +38,19 @@ where
     I: ParallelIterator,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
-    fn borrow_on_left_for<'extraction>(
-        &mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
-        unimplemented!()
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
+        BorrowedIteratorFold {
+            iterator: self.iterator.borrow_on_left_for(size),
+            fold_op: Dislocated::new(&self.fold_op),
+        }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
-        unimplemented!()
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
+        let i = self.iterator.sequential_borrow_on_left_for(size);
+        let r = (self.fold_op)(i);
+        once(r)
     }
 }
 
@@ -60,17 +61,17 @@ pub struct BorrowedIteratorFold<'e, I, F: Sync> {
     fold_op: Dislocated<'e, F>,
 }
 
-impl<'e, R, I, F> ItemProducer for BorrowedIteratorFold<'e, I, F>
+impl<'a, R, I, F> ItemProducer for BorrowedIteratorFold<'a, I, F>
 where
     R: Send,
     I: ParallelIterator,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
-    type Owner = IteratorFold<I, F>;
+    type Owner = IteratorFold<I::Owner, F>;
     type Item = R;
 }
 
-impl<'e, R, I, F> Divisible for BorrowedIteratorFold<'e, I, F>
+impl<'a, R, I, F> Divisible for BorrowedIteratorFold<'a, I, F>
 where
     R: Send,
     I: FiniteParallelIterator + Divisible,
@@ -94,46 +95,44 @@ where
     }
 }
 
-impl<'extraction, 'e, R, I, F> Borrowed<'extraction> for BorrowedIteratorFold<'e, I, F>
+impl<'a, R, I, F> ParallelIterator for BorrowedIteratorFold<'a, I, F>
 where
     R: Send,
     I: FiniteParallelIterator + Divisible,
     F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
-    type ParIter = BorrowedIteratorFold<'e, <I::Owner as Borrowed<'extraction>>::ParIter, F>;
-    type SeqIter = Once<R>;
-}
-
-impl<'e, R, I, F> ParallelIterator for BorrowedIteratorFold<'e, I, F>
-where
-    R: Send,
-    I: FiniteParallelIterator + Divisible,
-    F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
-{
-    fn borrow_on_left_for<'extraction>(
-        &'extraction mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::ParIter {
+    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         BorrowedIteratorFold {
             iterator: self.iterator.borrow_on_left_for(size),
             fold_op: self.fold_op,
         }
     }
-    fn sequential_borrow_on_left_for<'extraction>(
-        &'extraction mut self,
+    fn sequential_borrow_on_left_for<'e>(
+        &'e mut self,
         size: usize,
-    ) -> <Self::Owner as Borrowed<'extraction>>::SeqIter {
+    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
         let i = self.iterator.sequential_borrow_on_left_for(size);
         let r = (self.fold_op)(i);
         once(r)
     }
 }
 
-impl<'e, R, I, F> FiniteParallelIterator for BorrowedIteratorFold<'e, I, F>
+impl<'a, R, I, F> FiniteParallelIterator for BorrowedIteratorFold<'a, I, F>
 where
     R: Send,
     I: FiniteParallelIterator + Divisible,
-    F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Sync,
+    F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
+{
+    fn len(&self) -> usize {
+        self.iterator.len()
+    }
+}
+
+impl<R, I, F> FiniteParallelIterator for IteratorFold<I, F>
+where
+    R: Send,
+    I: FiniteParallelIterator + Divisible,
+    F: Fn(<I::Owner as Borrowed>::SeqIter) -> R + Send + Sync,
 {
     fn len(&self) -> usize {
         self.iterator.len()

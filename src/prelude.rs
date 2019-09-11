@@ -1,6 +1,6 @@
 // new traits
 //use crate::even_levels::EvenLevels;
-//// //use crate::iterator_fold::IteratorFold;
+use crate::iterator_fold::IteratorFold;
 //use crate::join::JoinPolicy;
 //use crate::local::DampenLocalDivision;
 use crate::map::Map;
@@ -71,16 +71,16 @@ pub trait ParallelIterator: Send + ItemProducer {
     //            Some(s * 2)
     //        }))
     //    }
-    //    //    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
-    //    //    where
-    //    //        R: Sized + Send,
-    //    //        F: for<'e> Fn(<Self as Borrowed<'e>>::SeqIter) -> R + Sync,
-    //    //    {
-    //    //        IteratorFold {
-    //    //            iterator: self,
-    //    //            fold_op,
-    //    //        }
-    //    //    }
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    where
+        R: Sized + Send,
+        F: for<'e> Fn(<Self as Borrowed<'e>>::SeqIter) -> R + Sync,
+    {
+        IteratorFold {
+            iterator: self,
+            fold_op,
+        }
+    }
     //    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
     //    //    where
     //    //        OP: Fn(T, T) -> Self::Item + Sync + Send,

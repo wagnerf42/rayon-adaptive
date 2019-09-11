@@ -1,6 +1,6 @@
 mod dislocated;
 // mod even_levels;
-// mod iterator_fold;
+mod iterator_fold;
 // mod join;
 // mod local;
 mod map;
@@ -122,7 +122,8 @@ fn main() {
     eprintln!(
         "{}",
         ParRange { range: 0..1_000 }
-            .map(|i| 2 * i)
+            //            .map(|i| 2 * i)
+            .iterator_fold(|i| i.sum::<u32>())
             //            .with_join_policy(10)
             //            .with_rayon_policy()
             //            .even_levels()
