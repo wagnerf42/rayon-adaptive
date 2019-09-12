@@ -22,6 +22,7 @@ impl<'a, T: 'a> Divisible for IterMut<'a, T> {
 impl<'a, T: 'a + Send> ItemProducer for IterMut<'a, T> {
     type Owner = Self;
     type Item = &'a mut T;
+    type Power = Indexed;
 }
 
 impl<'e, 'a, T: 'a + Send> Borrowed<'e> for IterMut<'a, T> {
@@ -51,5 +52,3 @@ impl<'a, T: 'a + Send> FiniteParallelIterator for IterMut<'a, T> {
         self.slice.as_ref().unwrap().len()
     }
 }
-
-impl<'a, T: 'a + Send> IndexedParallelIterator for IterMut<'a, T> {}

@@ -27,6 +27,7 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
 impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {
     type Owner = JoinPolicy<I::Owner>;
     type Item = I::Item;
+    type Power = I::Power;
 }
 
 impl<'e, I: ParallelIterator> Borrowed<'e> for JoinPolicy<I> {

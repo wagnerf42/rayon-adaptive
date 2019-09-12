@@ -41,6 +41,7 @@ impl<I: Divisible> Divisible for EvenLevels<I> {
 impl<I: ParallelIterator> ItemProducer for EvenLevels<I> {
     type Owner = EvenLevels<I::Owner>;
     type Item = I::Item;
+    type Power = I::Power;
 }
 
 impl<'e, I: ParallelIterator> Borrowed<'e> for EvenLevels<I> {

@@ -40,6 +40,7 @@ where
 {
     type Owner = Self;
     type Item = T;
+    type Power = Indexed;
 }
 
 impl<'a, T, F, S> ItemProducer for BoundedParSuccessors<'a, T, F, S>
@@ -50,6 +51,7 @@ where
 {
     type Owner = ParSuccessors<T, F, S>;
     type Item = T;
+    type Power = Indexed;
 }
 
 impl<T, F, S> ParallelIterator for ParSuccessors<T, F, S>

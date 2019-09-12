@@ -46,6 +46,7 @@ where
 {
     type Owner = Filter<I::Owner, P>;
     type Item = I::Item;
+    type Power = NotIndexed;
 }
 
 impl<'a, I, P> ItemProducer for BorrowingFilter<'a, I, P>
@@ -55,6 +56,7 @@ where
 {
     type Owner = Filter<I::Owner, P>;
     type Item = I::Item;
+    type Power = NotIndexed;
 }
 
 impl<'e, I, P> Borrowed<'e> for Filter<I, P>

@@ -51,6 +51,5 @@ impl<'e> Borrowed<'e> for ParRange {
 impl ItemProducer for ParRange {
     type Owner = Self;
     type Item = u32;
+    type Power = Indexed;
 }
-
-impl IndexedParallelIterator for ParRange {}

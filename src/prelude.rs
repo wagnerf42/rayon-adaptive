@@ -1,32 +1,33 @@
 // new traits
-use crate::cloned::Cloned;
-use crate::even_levels::EvenLevels;
-use crate::filter::Filter;
-use crate::iterator_fold::IteratorFold;
-use crate::join::JoinPolicy;
-use crate::local::DampenLocalDivision;
-use crate::map::Map;
-use crate::scheduler::schedule_reduce;
-use crate::take::Take;
 //use crate::Try;
+use crate::iter::*;
+use crate::scheduler::schedule_reduce;
 use std::iter::successors;
+
+pub struct NotIndexed();
+pub struct Indexed();
 
 pub trait Divisible: Sized {
     fn is_divisible(&self) -> bool;
+    /// Divide Self into two parts.
+    /// It's better if the two parts contain roughly an equivalent amount of work.
+    /// For Indexed iterators we REQUIRE an object of size n to be cut into two objects of size
+    /// floor(n/2), ceil(n/2).
     fn divide(self) -> (Self, Self);
 }
 
 pub trait ItemProducer: Sized {
     type Owner: for<'e> Borrowed<'e>
-        + ItemProducer<Item = Self::Item, Owner = Self::Owner>
+        + ItemProducer<Item = Self::Item, Owner = Self::Owner, Power = Self::Power>
         + ParallelIterator;
     type Item: Send + Sized;
+    type Power;
 }
 
 pub trait Borrowed<'e>: ItemProducer {
     type ParIter: FiniteParallelIterator
         + Divisible
-        + ItemProducer<Item = Self::Item, Owner = Self::Owner>;
+        + ItemProducer<Item = Self::Item, Owner = Self::Owner, Power = Self::Power>;
     type SeqIter: Iterator<Item = Self::Item>;
 }
 
@@ -114,12 +115,6 @@ pub trait ParallelIterator: Send + ItemProducer {
     //    //    }
 }
 
-pub trait IndexedParallelIterator: ParallelIterator {
-    fn take(self, n: usize) -> Take<Self> {
-        Take { iterator: self, n }
-    }
-}
-
 pub trait FiniteParallelIterator: ParallelIterator {
     fn len(&self) -> usize; // TODO: this should not be for all iterators
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
@@ -139,3 +134,11 @@ pub trait FiniteParallelIterator: ParallelIterator {
     }
     // here goes methods which cannot be applied to infinite iterators like sum
 }
+
+pub trait IndexedParallelIterator: ParallelIterator<Power = Indexed> {
+    fn take(self, n: usize) -> Take<Self> {
+        Take { iterator: self, n }
+    }
+}
+
+impl<I> IndexedParallelIterator for I where I: ParallelIterator<Power = Indexed> {}

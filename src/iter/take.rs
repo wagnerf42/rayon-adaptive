@@ -5,17 +5,18 @@ pub struct Take<I> {
     pub(crate) n: usize,
 }
 
-impl<I: ParallelIterator> ItemProducer for Take<I> {
+impl<I: ParallelIterator<Power = Indexed>> ItemProducer for Take<I> {
     type Owner = I::Owner;
     type Item = I::Item;
+    type Power = Indexed;
 }
 
-impl<'e, I: ParallelIterator> Borrowed<'e> for Take<I> {
+impl<'e, I: ParallelIterator<Power = Indexed>> Borrowed<'e> for Take<I> {
     type ParIter = <I::Owner as Borrowed<'e>>::ParIter;
     type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
 }
 
-impl<I: ParallelIterator> ParallelIterator for Take<I> {
+impl<I: ParallelIterator<Power = Indexed>> ParallelIterator for Take<I> {
     fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
         let real_size = std::cmp::min(size, self.n);
         self.n -= real_size;
@@ -31,10 +32,8 @@ impl<I: ParallelIterator> ParallelIterator for Take<I> {
     }
 }
 
-impl<I: FiniteParallelIterator> FiniteParallelIterator for Take<I> {
+impl<I: FiniteParallelIterator<Power = Indexed>> FiniteParallelIterator for Take<I> {
     fn len(&self) -> usize {
         std::cmp::min(self.n, self.iterator.len())
     }
 }
-
-impl<I: ParallelIterator> IndexedParallelIterator for Take<I> {}

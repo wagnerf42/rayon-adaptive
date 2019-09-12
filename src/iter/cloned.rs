@@ -21,6 +21,7 @@ where
 {
     type Owner = Cloned<I::Owner>;
     type Item = T;
+    type Power = I::Power;
 }
 
 impl<'e, 'a, T, I> Borrowed<'e> for Cloned<I>

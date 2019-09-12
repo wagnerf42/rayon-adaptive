@@ -20,6 +20,7 @@ where
 {
     type Owner = IteratorFold<I::Owner, F>;
     type Item = R;
+    type Power = NotIndexed;
 }
 
 impl<'e, R, I, F> Borrowed<'e> for IteratorFold<I, F>
@@ -69,6 +70,7 @@ where
 {
     type Owner = IteratorFold<I::Owner, F>;
     type Item = R;
+    type Power = NotIndexed;
 }
 
 impl<'a, R, I, F> Divisible for BorrowedIteratorFold<'a, I, F>

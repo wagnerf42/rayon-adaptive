@@ -1,17 +1,10 @@
-mod cloned;
 mod dislocated;
-mod even_levels;
-mod filter;
-mod iterator_fold;
-mod join;
-mod local;
-mod map;
+mod iter;
 pub mod prelude;
 mod range;
 mod scheduler;
 mod slice;
 mod successors;
-mod take;
 use crate::prelude::*;
 use range::ParRange;
 use successors::ParSuccessors;

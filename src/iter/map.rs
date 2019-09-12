@@ -15,6 +15,7 @@ where
 {
     type Owner = Map<I::Owner, F>;
     type Item = R;
+    type Power = I::Power;
 }
 
 // il comprend pas que  l'owner du ParIter est bien Self
@@ -115,6 +116,7 @@ where
 {
     type Owner = Map<I::Owner, F>;
     type Item = R;
+    type Power = I::Power;
 }
 
 impl<'a, R, I, F> ParallelIterator for BorrowingMap<'a, I, F>
@@ -165,12 +167,4 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator.next().map(|e| (*self.op)(e))
     }
-}
-
-impl<R, I, F> IndexedParallelIterator for Map<I, F>
-where
-    I: IndexedParallelIterator,
-    R: Send,
-    F: Fn(I::Item) -> R + Send + Sync,
-{
 }
