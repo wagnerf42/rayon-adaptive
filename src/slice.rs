@@ -51,3 +51,5 @@ impl<'a, T: 'a + Send> FiniteParallelIterator for IterMut<'a, T> {
         self.slice.as_ref().unwrap().len()
     }
 }
+
+impl<'a, T: 'a + Send> IndexedParallelIterator for IterMut<'a, T> {}

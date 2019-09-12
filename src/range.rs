@@ -52,3 +52,5 @@ impl ItemProducer for ParRange {
     type Owner = Self;
     type Item = u32;
 }
+
+impl IndexedParallelIterator for ParRange {}

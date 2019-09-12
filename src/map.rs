@@ -166,3 +166,11 @@ where
         self.iterator.next().map(|e| (*self.op)(e))
     }
 }
+
+impl<R, I, F> IndexedParallelIterator for Map<I, F>
+where
+    I: IndexedParallelIterator,
+    R: Send,
+    F: Fn(I::Item) -> R + Send + Sync,
+{
+}

@@ -11,6 +11,7 @@ mod range;
 mod scheduler;
 mod slice;
 mod successors;
+mod take;
 use crate::prelude::*;
 use range::ParRange;
 use successors::ParSuccessors;
@@ -122,12 +123,13 @@ fn main() {
     eprintln!(
         "{}",
         ParRange { range: 0..1_000 }
-            .filter(|&i| i % 2 == 0)
+            //            .filter(|&i| i % 2 == 0)
             .map(|i| 2 * i)
+            .take(5)
             //.iterator_fold(|i| i.sum::<u32>()) // TODO: this is ICE
-            .with_join_policy(10)
-            .with_rayon_policy()
-            .even_levels()
+            //            .with_join_policy(10)
+            //            .with_rayon_policy()
+            //            .even_levels()
             .reduce(|| 0, |a, b| a + b)
     );
 }

@@ -7,6 +7,7 @@ use crate::join::JoinPolicy;
 use crate::local::DampenLocalDivision;
 use crate::map::Map;
 use crate::scheduler::schedule_reduce;
+use crate::take::Take;
 //use crate::Try;
 use std::iter::successors;
 
@@ -111,6 +112,12 @@ pub trait ParallelIterator: Send + ItemProducer {
     //    //        // end with adaptive part using the micro blocks sizes iterator
     //    //        unimplemented!()
     //    //    }
+}
+
+pub trait IndexedParallelIterator: ParallelIterator {
+    fn take(self, n: usize) -> Take<Self> {
+        Take { iterator: self, n }
+    }
 }
 
 pub trait FiniteParallelIterator: ParallelIterator {
