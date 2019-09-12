@@ -5,6 +5,7 @@ mod range;
 mod scheduler;
 mod slice;
 mod successors;
+mod traits;
 use crate::prelude::*;
 use range::ParRange;
 use successors::ParSuccessors;
