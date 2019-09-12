@@ -125,4 +125,12 @@ fn main() {
             //            .even_levels()
             .reduce(|| 0, |a, b| a + b)
     );
+
+    let mut v = vec![1, 2, 3];
+    let i = slice::IterMut {
+        slice: Some(v.as_mut_slice()),
+    };
+    let r = ParRange { range: 0..2 };
+    i.zip(r).for_each(|(a, b)| *a = b);
+    eprintln!("v: {:?}", v);
 }

@@ -36,6 +36,11 @@ pub trait Borrowed<'e>: ItemProducer {
 // we also can't borrow sequentially.
 // tree iterator CAN be borrowed sequentially be cannot be borrowed in //
 pub trait ParallelIterator: Send + ItemProducer {
+    /// This function is used by scheduler before asking a borrow.
+    /// It asks you how much it would like and you reply how much you can give.
+    fn bound_size(&self, size: usize) -> usize {
+        size // this is the default for infinite iterators
+    }
     fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter;
 
     fn sequential_borrow_on_left_for<'e>(
@@ -117,6 +122,9 @@ pub trait ParallelIterator: Send + ItemProducer {
 
 pub trait FiniteParallelIterator: ParallelIterator {
     fn len(&self) -> usize; // TODO: this should not be for all iterators
+    fn bound_size(&self, size: usize) -> usize {
+        std::cmp::min(self.len(), size) // this is the default for finite iterators
+    }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         let upper_bound = (self.len() as f64).sqrt().ceil() as usize;
         Box::new(successors(Some(1), move |s| {
@@ -132,12 +140,22 @@ pub trait FiniteParallelIterator: ParallelIterator {
         let i = self.borrow_on_left_for(len);
         schedule_reduce(i, &identity, &op)
     }
+    fn for_each<OP>(self, op: OP)
+    where
+        OP: Fn(Self::Item) + Sync + Send,
+    {
+        self.map(op).reduce(|| (), |(), ()| ())
+    }
     // here goes methods which cannot be applied to infinite iterators like sum
 }
 
 pub trait IndexedParallelIterator: ParallelIterator<Power = Indexed> {
     fn take(self, n: usize) -> Take<Self> {
         Take { iterator: self, n }
+    }
+    //TODO: use IntoParallelIterator
+    fn zip<B: IndexedParallelIterator>(self, zip_op: B) -> Zip<Self, B> {
+        Zip { a: self, b: zip_op }
     }
 }
 
