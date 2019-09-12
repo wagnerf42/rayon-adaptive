@@ -52,3 +52,11 @@ impl<'a, T: 'a + Send> FiniteParallelIterator for IterMut<'a, T> {
         self.slice.as_ref().unwrap().len()
     }
 }
+
+impl<'a, T: 'a + Send> IntoParallelIterator for &'a mut [T] {
+    type Iter = IterMut<'a, T>;
+    type Item = &'a mut T;
+    fn into_par_iter(self) -> Self::Iter {
+        IterMut { slice: Some(self) }
+    }
+}

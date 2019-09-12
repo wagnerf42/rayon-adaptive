@@ -128,10 +128,9 @@ fn main() {
     );
 
     let mut v = vec![1, 2, 3];
-    let i = slice::IterMut {
-        slice: Some(v.as_mut_slice()),
-    };
-    let r = ParRange { range: 0..2 };
-    i.zip(r).for_each(|(a, b)| *a = b);
+    v.as_mut_slice()
+        .into_par_iter()
+        .zip(0..2)
+        .for_each(|(a, b)| *a = b);
     eprintln!("v: {:?}", v);
 }
