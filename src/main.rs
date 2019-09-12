@@ -2,6 +2,7 @@ mod dislocated;
 mod iter;
 pub mod prelude;
 mod range;
+mod rangefrom;
 mod scheduler;
 mod slice;
 mod successors;
@@ -133,4 +134,9 @@ fn main() {
         .zip(0..2)
         .for_each(|(a, b)| *a = b);
     eprintln!("v: {:?}", v);
+
+    assert_eq!(
+        find_first_extract((1u32..).into_par_iter(), |&x| x == 1000),
+        Some(1000)
+    );
 }
