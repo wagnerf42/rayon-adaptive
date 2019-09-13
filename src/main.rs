@@ -3,12 +3,14 @@ mod iter;
 pub mod prelude;
 mod range;
 mod rangefrom;
+mod repeat;
 mod scheduler;
 mod slice;
 mod successors;
 mod traits;
 use crate::prelude::*;
 use range::ParRange;
+pub use repeat::repeat;
 use successors::ParSuccessors;
 
 // TODO: by_blocks -> we need a method giving the blocks sizes
