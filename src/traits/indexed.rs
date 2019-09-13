@@ -1,6 +1,6 @@
+use crate::base::rangefrom::RangeFrom;
 use crate::iter::*;
 use crate::prelude::*;
-use crate::rangefrom::RangeFrom;
 
 type Enumerate<I> = Zip<RangeFrom<usize>, I>;
 

@@ -1,5 +1,5 @@
 [package]
-name = "rayon-3"
+name = "rayon_adaptive"
 version = "0.1.0"
 authors = ["frederic wagner <frederic.wagner@univ-grenoble-alpes.fr>"]
 edition = "2018"

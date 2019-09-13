@@ -13,6 +13,24 @@ pub trait FiniteParallelIterator: ParallelIterator {
             Some(std::cmp::min(s * 2, upper_bound))
         }))
     }
+    /// Sums all content of the iterator.
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = vec![1u32, 2, 3];
+    /// assert_eq!(v.as_slice().into_par_iter().sum::<u32>(), 6);
+    /// assert_eq!((0u32..3).into_par_iter().sum::<u32>(), 3);
+    /// ```
+    fn sum<S>(self) -> S
+    where
+        S: Send + core::iter::Sum<S> + core::iter::Sum<Self::Item>,
+    {
+        //TODO: we are stuck with that until iterator_fold kicks in
+        self.map(|e| std::iter::once(e).sum::<S>()).reduce(
+            || std::iter::empty::<S>().sum::<S>(),
+            |a, b| std::iter::once(a).chain(std::iter::once(b)).sum::<S>(),
+        )
+    }
     fn reduce<ID, OP>(mut self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,

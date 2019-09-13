@@ -167,3 +167,16 @@ where
         (self, right)
     }
 }
+
+pub fn successors<'a, T, F, S>(next: T, succ: F, skip_op: S) -> ParSuccessors<T, F, S>
+where
+    T: Clone + Sync,
+    F: Fn(T) -> T + Send + Sync,
+    S: Fn(T, usize) -> T + Send + Sync,
+{
+    ParSuccessors {
+        next,
+        succ,
+        skip_op,
+    }
+}
