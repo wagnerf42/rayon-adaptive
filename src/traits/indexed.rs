@@ -1,5 +1,8 @@
 use crate::iter::*;
 use crate::prelude::*;
+use crate::rangefrom::RangeFrom;
+
+type Enumerate<I> = Zip<RangeFrom<usize>, I>;
 
 pub trait IndexedParallelIterator: ParallelIterator<Power = Indexed> {
     fn take(self, n: usize) -> Take<Self> {
@@ -14,6 +17,9 @@ pub trait IndexedParallelIterator: ParallelIterator<Power = Indexed> {
             a: self,
             b: zip_op.into_par_iter(),
         }
+    }
+    fn enumerate(self) -> Enumerate<Self> {
+        (0usize..).into_par_iter().zip(self)
     }
 }
 
