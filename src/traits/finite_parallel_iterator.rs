@@ -4,9 +4,6 @@ use std::iter::successors;
 
 pub trait FiniteParallelIterator: ParallelIterator {
     fn len(&self) -> usize; // TODO: this should not be for all iterators
-    fn bound_size(&self, size: usize) -> usize {
-        std::cmp::min(self.len(), size) // this is the default for finite iterators
-    }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         let upper_bound = (self.len() as f64).sqrt().ceil() as usize;
         Box::new(successors(Some(1), move |s| {
@@ -38,7 +35,7 @@ pub trait FiniteParallelIterator: ParallelIterator {
     {
         let len = self.len();
         let i = self.borrow_on_left_for(len);
-        schedule_reduce(i, &identity, &op)
+        schedule_reduce(i, &identity, &op, identity())
     }
     fn for_each<OP>(self, op: OP)
     where
