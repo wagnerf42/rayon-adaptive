@@ -1,0 +1,2 @@
+- should we have a "to_sequential" for BorrowedParIters ?
+this way we would not have to have two borrowing functions

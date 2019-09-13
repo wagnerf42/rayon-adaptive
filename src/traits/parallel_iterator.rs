@@ -19,6 +19,13 @@ pub trait ParallelIterator: Send + ItemProducer {
         size: usize,
     ) -> <Self::Owner as Borrowed<'e>>::SeqIter;
 
+    fn fine_log(self, tag: &'static str) -> FineLog<Self> {
+        FineLog {
+            iterator: self,
+            tag,
+        }
+    }
+
     fn cloned<'a, T>(self) -> Cloned<Self>
     where
         T: 'a + Clone + Send + Sync, // TODO I need Sync here but rayon does not

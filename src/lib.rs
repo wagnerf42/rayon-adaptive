@@ -1,3 +1,5 @@
+#[cfg(feature = "logs")]
+extern crate rayon_logs as rayon;
 mod base;
 mod dislocated;
 mod iter;
