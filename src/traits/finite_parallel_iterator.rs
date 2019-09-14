@@ -15,7 +15,7 @@ pub trait FiniteParallelIterator: ParallelIterator {
     /// ```
     /// use rayon_adaptive::prelude::*;
     /// let v = vec![1u32, 2, 3];
-    /// assert_eq!(v.as_slice().into_par_iter().sum::<u32>(), 6);
+    /// assert_eq!(v.par_iter().sum::<u32>(), 6);
     /// assert_eq!((0u32..3).into_par_iter().sum::<u32>(), 3);
     /// ```
     fn sum<S>(self) -> S
