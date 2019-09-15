@@ -318,17 +318,6 @@ pub trait ParallelIterator: Divisible + Send {
         }
     }
 
-    /// Turn a parallel iterator into a collection.
-    ///
-    /// Example:
-    /// ```
-    /// use rayon_adaptive::prelude::*;
-    /// assert_eq!((1u64..4).into_par_iter().collect::<Vec<_>>(), vec![1,2,3])
-    /// ```
-    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C {
-        C::from_par_iter(self)
-    }
-
     /// Apply closure to each element.
     ///
     /// Example:
@@ -508,6 +497,15 @@ pub trait BasicParallelIterator: ParallelIterator {
             p: Default::default(),
         }
     }
+
+    /// Turn a parallel iterator into a collection.
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((1u64..4).into_par_iter().collect::<Vec<_>>(), vec![1,2,3])
+    /// ```
+    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C;
 }
 
 /// Here go all methods for blocked power only.
@@ -542,6 +540,9 @@ pub trait BlockedParallelIterator: ParallelIterator {
             p: Default::default(),
         }
     }
+
+    /// collect into a container from an iterator
+    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C;
 }
 
 /// Here go all methods for indexed.
@@ -623,6 +624,17 @@ pub trait IndexedParallelIterator: ParallelIterator {
             last: None,
         }
     }
+
+    /// Turn a parallel iterator into a collection.
+    ///
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((1u64..4).into_par_iter().collect::<Vec<_>>(), vec![1,2,3])
+    /// ```
+    fn collect<C: FromIndexedParallelIterator<Self::Item>>(self) -> C
+    where
+        Self::Item: Send + Sync;
 }
 
 /// Here go all methods specialized for iterators which have a power at least Blocked.
@@ -675,7 +687,22 @@ pub trait BlockedOrMoreParallelIterator: ParallelIterator {
     }
 }
 
-impl<I: ParallelIterator<Power = BasicPower>> BasicParallelIterator for I {}
-impl<I: ParallelIterator<Power = BlockedPower>> BlockedParallelIterator for I {}
-impl<I: ParallelIterator<Power = IndexedPower>> IndexedParallelIterator for I {}
+impl<I: ParallelIterator<Power = BasicPower>> BasicParallelIterator for I {
+    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C {
+        C::from_par_iter(self)
+    }
+}
+impl<I: ParallelIterator<Power = BlockedPower>> BlockedParallelIterator for I {
+    fn collect<C: FromParallelIterator<Self::Item>>(self) -> C {
+        C::from_par_iter(self)
+    }
+}
+impl<I: ParallelIterator<Power = IndexedPower>> IndexedParallelIterator for I {
+    fn collect<C: FromIndexedParallelIterator<Self::Item>>(self) -> C
+    where
+        Self::Item: Send + Sync,
+    {
+        C::from_indexed_par_iter(self)
+    }
+}
 impl<P: BlockedPowerOrMore, I: ParallelIterator<Power = P>> BlockedOrMoreParallelIterator for I {}
