@@ -38,6 +38,9 @@ impl<'a, T: 'a + Sync> BorrowingParallelIterator for Iter<'a, T> {
         self.slice = right;
         left.into_iter()
     }
+    fn len(&self) -> usize {
+        self.slice.len()
+    }
 }
 
 impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
@@ -46,6 +49,14 @@ impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
         let (left, right) = self.slice.split_at(size);
         self.slice = right;
         Iter { slice: left }
+    }
+}
+
+impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
+    type Iter = Iter<'a, T>;
+    type Item = &'a T;
+    fn into_par_iter(self) -> Self::Iter {
+        Iter { slice: self }
     }
 }
 
@@ -91,6 +102,9 @@ impl<'a, T: 'a + Send> BorrowingParallelIterator for IterMut<'a, T> {
         self.slice = Some(right);
         left.iter_mut()
     }
+    fn len(&self) -> usize {
+        self.slice.as_ref().unwrap().len()
+    }
 }
 
 impl<'a, T: 'a + Send> ParallelIterator for IterMut<'a, T> {
@@ -102,10 +116,10 @@ impl<'a, T: 'a + Send> ParallelIterator for IterMut<'a, T> {
     }
 }
 
-// impl<'a, T: 'a + Send> IntoParallelIterator for &'a mut [T] {
-//     type Iter = IterMut<'a, T>;
-//     type Item = &'a mut T;
-//     fn into_par_iter(self) -> Self::Iter {
-//         IterMut { slice: Some(self) }
-//     }
-// }
+impl<'a, T: 'a + Send> IntoParallelIterator for &'a mut [T] {
+    type Iter = IterMut<'a, T>;
+    type Item = &'a mut T;
+    fn into_par_iter(self) -> Self::Iter {
+        IterMut { slice: Some(self) }
+    }
+}

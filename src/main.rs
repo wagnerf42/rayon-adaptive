@@ -1,4 +1,4 @@
-// use rayon_adaptive::prelude::*;
+use rayon_adaptive::prelude::*;
 // use rayon_adaptive::successors;
 //
 // // schedulers
@@ -73,4 +73,6 @@
 //     );
 // }
 //
-fn main() {}
+fn main() {
+    assert_eq!((0u32..10).into_par_iter().reduce(|| 0, |a, b| a + b), 45);
+}

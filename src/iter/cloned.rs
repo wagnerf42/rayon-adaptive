@@ -50,6 +50,9 @@ where
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.base.seq_borrow(size).cloned()
     }
+    fn len(&self) -> usize {
+        self.base.len()
+    }
 }
 
 impl<'a, T, I> ParallelIterator for Cloned<I>

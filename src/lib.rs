@@ -7,7 +7,7 @@ mod base;
 mod dislocated;
 mod iter;
 pub mod prelude;
-// mod scheduler;
+mod scheduler;
 pub(crate) mod small_channel;
 mod traits;
 // pub use base::repeat::repeat;

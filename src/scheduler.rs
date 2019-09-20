@@ -11,12 +11,12 @@ pub(crate) fn schedule_reduce<I, ID, OP>(
     output: I::Item,
 ) -> I::Item
 where
-    I: FiniteParallelIterator + Divisible,
+    I: BorrowingParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
     // for now just a non adaptive version
-    if iterator.is_divisible() {
+    if iterator.should_be_divided() {
         let (left, right) = iterator.divide();
         let (left_answer, right_answer) = rayon::join(
             || schedule_reduce(left, identity, op, output),
@@ -35,7 +35,7 @@ pub(crate) fn schedule_adaptive<I, ID, OP>(
     output: I::Item,
 ) -> I::Item
 where
-    I: FiniteParallelIterator + Divisible,
+    I: BorrowingParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
     ID: Fn() -> I::Item + Sync,
 {
@@ -47,7 +47,7 @@ where
             .try_fold((iterator, output), |(mut iterator, output), s| {
                 let size = std::cmp::min(s, iterator.len());
                 let new_output = {
-                    let sequential_iterator = iterator.sequential_borrow_on_left_for(size);
+                    let sequential_iterator = iterator.seq_borrow(size);
                     sequential_iterator.fold(output, op)
                 };
                 if iterator.len() == 0 {

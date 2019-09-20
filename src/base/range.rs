@@ -38,6 +38,9 @@ macro_rules! implement_traits {
                 self.range.start = mid;
                 left
             }
+            fn len(&self) -> usize {
+                self.range.len()
+            }
         }
         impl ParallelIterator for Range<$x> {
             type IsFinite = True;
@@ -48,6 +51,14 @@ macro_rules! implement_traits {
                 };
                 self.range.start = mid;
                 left
+            }
+        }
+
+        impl IntoParallelIterator for std::ops::Range<$x> {
+            type Iter = Range<$x>;
+            type Item = $x;
+            fn into_par_iter(self) -> Self::Iter {
+                Range { range: self }
             }
         }
     };

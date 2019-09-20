@@ -1,3 +1,3 @@
-- should we have a "to_sequential" for BorrowedParIters ?
-this way we would not have to have two borrowing functions
-- bound_size is currently useless
+- how to avoid the name collision on reduce ? just have an hidden name ?
+- try zip again
+- do we actually need borrowingpariter's len anywhere ?
