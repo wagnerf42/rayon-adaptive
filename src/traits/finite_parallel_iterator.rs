@@ -45,3 +45,5 @@ pub trait FiniteParallelIterator: ParallelIterator {
     }
     // here goes methods which cannot be applied to infinite iterators like sum
 }
+
+marked!(FiniteParallelIterator, ImplementsFiniteParallelIterator);

@@ -1,5 +1,8 @@
 #[cfg(feature = "logs")]
 extern crate rayon_logs as rayon;
+
+#[macro_use]
+pub mod boolean_types;
 mod base;
 mod dislocated;
 mod iter;
