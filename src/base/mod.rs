@@ -1,7 +1,7 @@
 //! We contain all basic iterator types.
 
 // pub(crate) mod either_iter;
-// pub(crate) mod range;
+pub(crate) mod range;
 // pub(crate) mod rangefrom;
 // pub(crate) mod repeat;
 pub(crate) mod slice;

@@ -1,66 +1,53 @@
 use crate::prelude::*;
-use std::ops::Range;
 
-pub struct ParRange<Idx> {
-    pub range: Range<Idx>,
+pub struct Range<Idx> {
+    pub range: std::ops::Range<Idx>,
 }
 
 macro_rules! implement_traits {
     ($x: ty) => {
-        impl Divisible for ParRange<$x> {
-            fn is_divisible(&self) -> bool {
+        impl ItemProducer for Range<$x> {
+            type Item = $x;
+        }
+        impl MaybeIndexed for Range<$x> {
+            type IsIndexed = True;
+        }
+        impl<'e> ParBorrowed<'e> for Range<$x> {
+            type Iter = Range<$x>;
+        }
+        impl<'e> SeqBorrowed<'e> for Range<$x> {
+            type Iter = std::ops::Range<$x>;
+        }
+        impl Divisible for Range<$x> {
+            fn should_be_divided(&self) -> bool {
                 self.range.len() > 1
             }
-            fn divide(self) -> (Self, Self) {
-                let mid = (self.range.start + self.range.end) / 2;
-                (
-                    ParRange {
-                        range: self.range.start..mid,
-                    },
-                    ParRange {
-                        range: mid..self.range.end,
-                    },
-                )
+            fn divide(mut self) -> (Self, Self) {
+                let mid = ((self.range.start + self.range.end) / 2) as $x;
+                let right = Range {
+                    range: mid..self.range.end,
+                };
+                self.range.end = mid;
+                (self, right)
             }
         }
-
-        impl FiniteParallelIterator for ParRange<$x> where {
-            fn len(&self) -> usize {
-                self.range.len()
+        impl BorrowingParallelIterator for Range<$x> {
+            fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
+                let mid = self.range.start + size as $x;
+                let left = self.range.start..mid;
+                self.range.start = mid;
+                left
             }
         }
-
-        impl ParallelIterator for ParRange<$x> {
-            fn borrow_on_left_for<'e>(&mut self, size: usize) -> ParRange<$x> {
-                let start = self.range.start;
-                self.range.start += size as $x;
-                ParRange {
-                    range: start..self.range.start,
-                }
-            }
-            fn sequential_borrow_on_left_for<'e>(&mut self, size: usize) -> Range<$x> {
-                let start = self.range.start;
-                self.range.start += size as $x;
-                start..self.range.start
-            }
-        }
-
-        impl<'e> Borrowed<'e> for ParRange<$x> {
-            type ParIter = ParRange<$x>;
-            type SeqIter = Range<$x>;
-        }
-
-        impl ItemProducer for ParRange<$x> {
-            type Owner = Self;
-            type Item = $x;
-            type Power = Indexed;
-        }
-
-        impl IntoParallelIterator for Range<$x> {
-            type Iter = ParRange<$x>;
-            type Item = $x;
-            fn into_par_iter(self) -> Self::Iter {
-                ParRange { range: self }
+        impl ParallelIterator for Range<$x> {
+            type IsFinite = True;
+            fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
+                let mid = self.range.start + size as $x;
+                let left = Range {
+                    range: self.range.start..mid,
+                };
+                self.range.start = mid;
+                left
             }
         }
     };
