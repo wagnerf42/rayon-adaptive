@@ -12,10 +12,6 @@ where
     type Item = T;
 }
 
-impl<I: MaybeIndexed> MaybeIndexed for Cloned<I> {
-    type IsIndexed = I::IsIndexed;
-}
-
 impl<'e, 'a, I, T> ParBorrowed<'e> for Cloned<I>
 where
     T: Clone + Send + Sync + 'a,
@@ -66,4 +62,11 @@ where
             base: self.base.par_borrow(size),
         }
     }
+}
+
+impl<'a, T, I> IndexedParallelIterator for Cloned<I>
+where
+    T: Clone + Send + Sync + 'a,
+    I: IndexedParallelIterator<Item = &'a T>,
+{
 }

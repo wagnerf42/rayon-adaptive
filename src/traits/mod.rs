@@ -1,7 +1,7 @@
 use crate::scheduler::schedule_reduce;
 mod divisible;
 // mod finite_parallel_iterator;
-// mod indexed;
+mod indexed;
 mod into_iterator;
 mod into_parallel_ref;
 // mod parallel_iterator;
@@ -9,7 +9,7 @@ mod into_parallel_ref;
 //
 pub use divisible::Divisible;
 // pub use finite_parallel_iterator::FiniteParallelIterator;
-// pub use indexed::IndexedParallelIterator;
+pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
 pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
@@ -22,12 +22,8 @@ pub trait ItemProducer {
     type Item: Send + Sized;
 }
 
-pub trait MaybeIndexed {
-    type IsIndexed;
-}
-
-pub trait ParBorrowed<'e>: ItemProducer + MaybeIndexed {
-    type Iter: BorrowingParallelIterator<Item = Self::Item, IsIndexed = Self::IsIndexed>;
+pub trait ParBorrowed<'e>: ItemProducer {
+    type Iter: BorrowingParallelIterator<Item = Self::Item>;
 }
 
 pub trait ParallelIterator
@@ -45,7 +41,7 @@ pub trait SeqBorrowed<'e>: ItemProducer {
     type Iter: Iterator<Item = Self::Item>;
 }
 
-pub trait BorrowingParallelIterator: Divisible + MaybeIndexed + ItemProducer + Send
+pub trait BorrowingParallelIterator: Divisible + ItemProducer + Send
 where
     Self: for<'e> SeqBorrowed<'e>,
 {

@@ -9,9 +9,6 @@ macro_rules! implement_traits {
         impl ItemProducer for Range<$x> {
             type Item = $x;
         }
-        impl MaybeIndexed for Range<$x> {
-            type IsIndexed = True;
-        }
         impl<'e> ParBorrowed<'e> for Range<$x> {
             type Iter = Range<$x>;
         }
@@ -61,6 +58,7 @@ macro_rules! implement_traits {
                 Range { range: self }
             }
         }
+        impl IndexedParallelIterator for Range<$x> {}
     };
 }
 

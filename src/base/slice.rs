@@ -9,10 +9,6 @@ impl<'a, T: 'a + Sync> ItemProducer for Iter<'a, T> {
     type Item = &'a T;
 }
 
-impl<'a, T: 'a + Sync> MaybeIndexed for Iter<'a, T> {
-    type IsIndexed = True;
-}
-
 impl<'e, 'a, T: 'a + Sync> ParBorrowed<'e> for Iter<'a, T> {
     type Iter = Iter<'a, T>;
 }
@@ -52,6 +48,8 @@ impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
     }
 }
 
+impl<'a, T: 'a + Sync> IndexedParallelIterator for Iter<'a, T> {}
+
 impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
     type Iter = Iter<'a, T>;
     type Item = &'a T;
@@ -68,10 +66,6 @@ pub struct IterMut<'a, T: 'a> {
 
 impl<'a, T: 'a + Send> ItemProducer for IterMut<'a, T> {
     type Item = &'a mut T;
-}
-
-impl<'a, T: 'a + Send> MaybeIndexed for IterMut<'a, T> {
-    type IsIndexed = True;
 }
 
 impl<'e, 'a, T: 'a + Send> ParBorrowed<'e> for IterMut<'a, T> {
@@ -123,3 +117,5 @@ impl<'a, T: 'a + Send> IntoParallelIterator for &'a mut [T] {
         IterMut { slice: Some(self) }
     }
 }
+
+impl<'a, T: 'a + Send> IndexedParallelIterator for IterMut<'a, T> {}
