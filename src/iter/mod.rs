@@ -1,5 +1,5 @@
 //! We re-export here all iterator adaptors.
-// mod cloned;
+mod cloned;
 // mod even_levels;
 // mod filter;
 // mod fine_log;

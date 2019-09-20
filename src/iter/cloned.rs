@@ -1,63 +1,66 @@
 use crate::prelude::*;
 
 pub struct Cloned<I> {
-    pub(crate) iterator: I,
-}
-
-impl<I: Divisible> Divisible for Cloned<I> {
-    fn is_divisible(&self) -> bool {
-        self.iterator.is_divisible()
-    }
-    fn divide(self) -> (Self, Self) {
-        let (left, right) = self.iterator.divide();
-        (Cloned { iterator: left }, Cloned { iterator: right })
-    }
+    pub(crate) base: I,
 }
 
 impl<'a, T, I> ItemProducer for Cloned<I>
 where
-    I: ParallelIterator<Item = &'a T>,
-    T: 'a + Clone + Send + Sync,
+    T: Clone + Send + Sync + 'a,
+    I: ItemProducer<Item = &'a T>,
 {
-    type Owner = Cloned<I::Owner>;
     type Item = T;
-    type Power = I::Power;
 }
 
-impl<'e, 'a, T, I> Borrowed<'e> for Cloned<I>
+impl<I: MaybeIndexed> MaybeIndexed for Cloned<I> {
+    type IsIndexed = I::IsIndexed;
+}
+
+impl<'e, 'a, I, T> ParBorrowed<'e> for Cloned<I>
 where
+    T: Clone + Send + Sync + 'a,
     I: ParallelIterator<Item = &'a T>,
-    T: 'a + Clone + Send + Sync,
 {
-    type ParIter = Cloned<<I::Owner as Borrowed<'e>>::ParIter>;
-    type SeqIter = std::iter::Cloned<<I::Owner as Borrowed<'e>>::SeqIter>;
+    type Iter = Cloned<<I as ParBorrowed<'e>>::Iter>;
+}
+
+impl<'e, 'a, T, I> SeqBorrowed<'e> for Cloned<I>
+where
+    T: Clone + Send + Sync + 'a,
+    I: BorrowingParallelIterator<Item = &'a T>,
+{
+    type Iter = std::iter::Cloned<<I as SeqBorrowed<'e>>::Iter>;
+}
+
+impl<I: Divisible> Divisible for Cloned<I> {
+    fn should_be_divided(&self) -> bool {
+        self.base.should_be_divided()
+    }
+    fn divide(self) -> (Self, Self) {
+        let (left, right) = self.base.divide();
+        (Cloned { base: left }, Cloned { base: right })
+    }
+}
+
+impl<'a, T, I> BorrowingParallelIterator for Cloned<I>
+where
+    T: Clone + Send + Sync + 'a,
+    I: BorrowingParallelIterator<Item = &'a T>,
+{
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
+        self.base.seq_borrow(size).cloned()
+    }
 }
 
 impl<'a, T, I> ParallelIterator for Cloned<I>
 where
+    T: Clone + Send + Sync + 'a,
     I: ParallelIterator<Item = &'a T>,
-    T: 'a + Clone + Send + Sync,
 {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
+    type IsFinite = I::IsFinite;
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         Cloned {
-            iterator: self.iterator.borrow_on_left_for(size),
+            base: self.base.par_borrow(size),
         }
-    }
-
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
-        self.iterator.sequential_borrow_on_left_for(size).cloned()
-    }
-}
-
-impl<'a, T, I> FiniteParallelIterator for Cloned<I>
-where
-    I: FiniteParallelIterator<Item = &'a T>,
-    T: 'a + Clone + Send + Sync,
-{
-    fn len(&self) -> usize {
-        self.iterator.len()
     }
 }
