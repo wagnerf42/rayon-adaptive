@@ -56,7 +56,6 @@ where
     T: Clone + Send + Sync + 'a,
     I: ParallelIterator<Item = &'a T>,
 {
-    type IsFinite = I::IsFinite;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         Cloned {
             base: self.base.par_borrow(size),

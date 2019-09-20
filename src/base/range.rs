@@ -40,7 +40,6 @@ macro_rules! implement_traits {
             }
         }
         impl ParallelIterator for Range<$x> {
-            type IsFinite = True;
             fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
                 let mid = self.range.start + size as $x;
                 let left = Range {

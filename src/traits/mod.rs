@@ -5,40 +5,24 @@ mod indexed;
 mod into_iterator;
 mod into_parallel_ref;
 // mod parallel_iterator;
-// mod types;
-//
+mod types;
+
 pub use divisible::Divisible;
 // pub use finite_parallel_iterator::FiniteParallelIterator;
 pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
 pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
-// pub use types::{Borrowed, Indexed, ItemProducer, NotIndexed};
-
-pub struct True;
-pub struct False;
-
-pub trait ItemProducer {
-    type Item: Send + Sized;
-}
-
-pub trait ParBorrowed<'e>: ItemProducer {
-    type Iter: BorrowingParallelIterator<Item = Self::Item>;
-}
+pub use types::{ItemProducer, ParBorrowed, SeqBorrowed};
 
 pub trait ParallelIterator
 where
     Self: for<'e> ParBorrowed<'e>,
 {
-    type IsFinite;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
     fn bound_size(&self, size: usize) -> usize {
         size
     }
-}
-
-pub trait SeqBorrowed<'e>: ItemProducer {
-    type Iter: Iterator<Item = Self::Item>;
 }
 
 pub trait BorrowingParallelIterator: Divisible + ItemProducer + Send

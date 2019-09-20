@@ -1,16 +1,13 @@
 use crate::prelude::*;
 
-pub trait Borrowed<'e>: Owner {
-    type Iter: FiniteParallelIterator + Divisible;
-}
-
-pub trait ParallelIterator: Sized
-where
-    Self: for<'e> Borrowed<'e>,
-{
+pub trait ItemProducer {
     type Item: Send + Sized;
-    type Power;
-    type Finiteness;
 }
 
-pub trait Borrower: Sized {}
+pub trait ParBorrowed<'e>: ItemProducer {
+    type Iter: BorrowingParallelIterator<Item = Self::Item>;
+}
+
+pub trait SeqBorrowed<'e>: ItemProducer {
+    type Iter: Iterator<Item = Self::Item>;
+}
