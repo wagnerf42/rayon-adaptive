@@ -1,5 +1,5 @@
 pub trait Divisible: Sized {
-    fn is_divisible(&self) -> bool;
+    fn should_be_divided(&self) -> bool;
     /// Divide Self into two parts.
     /// It's better if the two parts contain roughly an equivalent amount of work.
     /// For Indexed iterators we REQUIRE an object of size n to be cut into two objects of size

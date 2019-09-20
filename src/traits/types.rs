@@ -1,20 +1,16 @@
 use crate::prelude::*;
 
-pub struct NotIndexed();
-pub struct Indexed();
+pub trait Borrowed<'e>: Owner {
+    type Iter: FiniteParallelIterator + Divisible;
+}
 
-pub trait ItemProducer: Sized {
-    type Owner: for<'e> Borrowed<'e>
-        + ItemProducer<Item = Self::Item, Owner = Self::Owner, Power = Self::Power>
-        + ParallelIterator;
+pub trait ParallelIterator: Sized
+where
+    Self: for<'e> Borrowed<'e>,
+{
     type Item: Send + Sized;
     type Power;
+    type Finiteness;
 }
 
-pub trait Borrowed<'e>: ItemProducer {
-    type ParIter: FiniteParallelIterator
-        + Divisible
-        + ItemProducer<Item = Self::Item, Owner = Self::Owner, Power = Self::Power>;
-    type SeqIter: Iterator<Item = Self::Item>;
-}
-
+pub trait Borrower: Sized {}
