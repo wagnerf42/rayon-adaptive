@@ -24,6 +24,27 @@ where
     fn bound_iterations_number(&self, size: usize) -> usize;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
 
+    /// fold
+    /// # Example
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let v = (0u32..10).into_par_iter()
+    ///                      .fold(Vec::new, |mut v, e| {v.push(e);v})
+    ///                      .reduce(Vec::new, |mut v1, mut v2| {v1.append(&mut v2);v1});
+    /// assert_eq!(v, vec![0,1,2,3,4,5,6,7,8,9])
+    /// ```
+    fn fold<T, ID, F>(self, identity: ID, fold_op: F) -> Fold<Self, ID, F>
+    where
+        T: Send,
+        ID: Fn() -> T + Sync,
+        F: Fn(T, Self::Item) -> T + Sync,
+    {
+        Fold {
+            base: self,
+            identity,
+            fold_op,
+        }
+    }
     //    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
     //    //    where
     //    //        OP: Fn(T, T) -> Self::Item + Sync + Send,
