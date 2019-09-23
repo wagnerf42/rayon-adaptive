@@ -45,12 +45,12 @@ where
             .micro_blocks_sizes()
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((iterator, output), |(mut iterator, output), s| {
-                let size = std::cmp::min(s, iterator.len());
+                let size = std::cmp::min(s, iterator.iterations_number());
                 let new_output = {
                     let sequential_iterator = iterator.seq_borrow(size);
                     sequential_iterator.fold(output, op)
                 };
-                if iterator.len() == 0 {
+                if iterator.completed() {
                     // it's over
                     Err(new_output)
                 } else {

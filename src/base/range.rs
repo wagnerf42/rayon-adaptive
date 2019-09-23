@@ -9,6 +9,9 @@ macro_rules! implement_traits {
         impl ItemProducer for Range<$x> {
             type Item = $x;
         }
+        impl Powered for Range<$x> {
+            type Power = Indexed;
+        }
         impl<'e> ParBorrowed<'e> for Range<$x> {
             type Iter = Range<$x>;
         }
@@ -35,7 +38,7 @@ macro_rules! implement_traits {
                 self.range.start = mid;
                 left
             }
-            fn len(&self) -> usize {
+            fn iterations_number(&self) -> usize {
                 self.range.len()
             }
         }

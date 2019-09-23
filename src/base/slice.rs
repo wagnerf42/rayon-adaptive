@@ -9,6 +9,10 @@ impl<'a, T: 'a + Sync> ItemProducer for Iter<'a, T> {
     type Item = &'a T;
 }
 
+impl<'a, T: 'a + Sync> Powered for Iter<'a, T> {
+    type Power = Indexed;
+}
+
 impl<'e, 'a, T: 'a + Sync> ParBorrowed<'e> for Iter<'a, T> {
     type Iter = Iter<'a, T>;
 }
@@ -34,7 +38,7 @@ impl<'a, T: 'a + Sync> BorrowingParallelIterator for Iter<'a, T> {
         self.slice = right;
         left.into_iter()
     }
-    fn len(&self) -> usize {
+    fn iterations_number(&self) -> usize {
         self.slice.len()
     }
 }
@@ -67,6 +71,10 @@ impl<'a, T: 'a + Send> ItemProducer for IterMut<'a, T> {
     type Item = &'a mut T;
 }
 
+impl<'a, T: 'a + Send> Powered for IterMut<'a, T> {
+    type Power = Indexed;
+}
+
 impl<'e, 'a, T: 'a + Send> ParBorrowed<'e> for IterMut<'a, T> {
     type Iter = IterMut<'a, T>;
 }
@@ -95,7 +103,7 @@ impl<'a, T: 'a + Send> BorrowingParallelIterator for IterMut<'a, T> {
         self.slice = Some(right);
         left.iter_mut()
     }
-    fn len(&self) -> usize {
+    fn iterations_number(&self) -> usize {
         self.slice.as_ref().unwrap().len()
     }
 }

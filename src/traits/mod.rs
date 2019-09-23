@@ -13,14 +13,16 @@ pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
 pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
-pub use types::{ItemProducer, ParBorrowed, SeqBorrowed};
+pub use types::{Indexed, ItemProducer, ParBorrowed, Powered, SeqBorrowed, Standard};
 
 pub trait ParallelIterator
 where
     Self: for<'e> ParBorrowed<'e>,
 {
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
-    fn bound_size(&self, size: usize) -> usize {
+    /// Takes the number of iterations requested by the user
+    /// and return the number we can really process.
+    fn bound_iterations_number(&self, size: usize) -> usize {
         size
     }
 }
@@ -30,7 +32,12 @@ where
     Self: for<'e> SeqBorrowed<'e>,
 {
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter;
-    fn len(&self) -> usize;
+    /// Return the number of iterations we still need to do.
+    fn iterations_number(&self) -> usize;
+    /// Return if nothing is left to do.
+    fn completed(&self) -> bool {
+        self.iterations_number() == 0
+    }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(std::iter::successors(Some(1), |i| Some(2 * i)))
     }

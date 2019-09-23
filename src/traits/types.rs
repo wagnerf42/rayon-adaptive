@@ -1,5 +1,12 @@
 use crate::prelude::*;
 
+pub struct Standard;
+pub struct Indexed;
+
+pub trait Powered {
+    type Power;
+}
+
 pub trait ItemProducer {
     type Item: Send + Sized;
 }

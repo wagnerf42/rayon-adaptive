@@ -12,6 +12,13 @@ where
     type Item = T;
 }
 
+impl<I> Powered for Cloned<I>
+where
+    I: Powered,
+{
+    type Power = I::Power;
+}
+
 impl<'e, 'a, I, T> ParBorrowed<'e> for Cloned<I>
 where
     T: Clone + Send + Sync + 'a,
@@ -46,8 +53,8 @@ where
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.base.seq_borrow(size).cloned()
     }
-    fn len(&self) -> usize {
-        self.base.len()
+    fn iterations_number(&self) -> usize {
+        self.base.iterations_number()
     }
 }
 
