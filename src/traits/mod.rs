@@ -15,12 +15,32 @@ pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
 pub use types::{Indexed, ItemProducer, ParBorrowed, Powered, SeqBorrowed, Standard};
 
-use crate::iter::Map;
+use crate::iter::{Filter, Map};
 pub trait ParallelIterator: Powered + Sized
 where
     Self: for<'e> ParBorrowed<'e>,
 {
+    /// Takes the number of iterations requested by the user
+    /// and return the number we can really process.
+    fn bound_iterations_number(&self, size: usize) -> usize;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
+
+    /// filter.
+    /// # Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0u32..10).into_par_iter().filter(|&e| e%2==0).sum::<u32>(), 20)
+    /// ```
+    fn filter<P>(self, filter_op: P) -> Filter<Self, P>
+    where
+        P: Fn(&Self::Item) -> bool + Sync,
+    {
+        Filter {
+            iterator: self,
+            filter_op,
+        }
+    }
+
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
         R: Send,
@@ -55,9 +75,12 @@ where
         )
     }
 
-    /// Takes the number of iterations requested by the user
-    /// and return the number we can really process.
-    fn bound_iterations_number(&self, size: usize) -> usize;
+    fn for_each<OP>(self, op: OP)
+    where
+        OP: Fn(Self::Item) + Sync + Send,
+    {
+        self.map(op).reduce(|| (), |(), ()| ())
+    }
 }
 
 pub trait BorrowingParallelIterator: Divisible + ItemProducer + Send
