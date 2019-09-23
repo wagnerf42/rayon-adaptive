@@ -12,23 +12,26 @@ pub struct BorrowedRepeat<'a, T: Sync> {
 
 impl<T: Clone + Send + Sync> ItemProducer for Repeat<T> {
     type Item = T;
-    type Owner = Self;
+}
+
+impl<T: Clone + Send + Sync> Powered for Repeat<T> {
     type Power = Indexed;
 }
 
-impl<'e, T: Clone + Send + Sync> ItemProducer for BorrowedRepeat<'e, T> {
+impl<'a, T: Clone + Send + Sync> ItemProducer for BorrowedRepeat<'a, T> {
     type Item = T;
-    type Owner = Repeat<T>;
-    type Power = Indexed;
 }
 
-impl<'e, T: Clone + Send + Sync> Borrowed<'e> for Repeat<T> {
-    type ParIter = BorrowedRepeat<'e, T>;
-    type SeqIter = std::iter::Take<std::iter::Repeat<T>>;
+impl<'e, T: Clone + Send + Sync> ParBorrowed<'e> for Repeat<T> {
+    type Iter = BorrowedRepeat<'e, T>;
+}
+
+impl<'a, 'e, T: Clone + Send + Sync> SeqBorrowed<'e> for BorrowedRepeat<'a, T> {
+    type Iter = std::iter::Take<std::iter::Repeat<T>>;
 }
 
 impl<'e, T: Clone + Send + Sync> Divisible for BorrowedRepeat<'e, T> {
-    fn is_divisible(&self) -> bool {
+    fn should_be_divided(&self) -> bool {
         self.size > 1
     }
     fn divide(self) -> (Self, Self) {
@@ -48,44 +51,21 @@ impl<'e, T: Clone + Send + Sync> Divisible for BorrowedRepeat<'e, T> {
 }
 
 impl<T: Clone + Send + Sync> ParallelIterator for Repeat<T> {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         BorrowedRepeat {
             element: Dislocated::new(&self.element),
             size,
         }
     }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
-        std::iter::repeat(self.element.clone()).take(size)
-    }
 }
 
-impl<'a, T: Clone + Send + Sync> ParallelIterator for BorrowedRepeat<'a, T> {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
-        self.size -= size;
-        BorrowedRepeat {
-            element: self.element.clone(),
-            size,
-        }
-    }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
-        self.size -= size;
-        let r: &T = &self.element;
-        //TODO: we have a slight overhead when cloning here.
-        //we could avoid it by implementing our own sequential repeat
-        //but I don't think it's worth it.
-        std::iter::repeat(r.clone()).take(size)
-    }
-}
-
-impl<'a, T: Clone + Send + Sync> FiniteParallelIterator for BorrowedRepeat<'a, T> {
-    fn len(&self) -> usize {
+impl<'a, T: Clone + Send + Sync> BorrowingParallelIterator for BorrowedRepeat<'a, T> {
+    fn iterations_number(&self) -> usize {
         self.size
+    }
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
+        self.size -= size;
+        std::iter::repeat(std::ops::Deref::deref(&self.element).clone()).take(size)
     }
 }
 
