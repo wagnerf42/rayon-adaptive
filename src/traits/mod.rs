@@ -24,6 +24,29 @@ where
     fn bound_iterations_number(&self, size: usize) -> usize;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
 
+    //    //    fn try_reduce<T, OP, ID>(self, identity: ID, op: OP) -> Self::Item
+    //    //    where
+    //    //        OP: Fn(T, T) -> Self::Item + Sync + Send,
+    //    //        ID: Fn() -> T + Sync + Send,
+    //    //        Self::Item: Try<Ok = T>,
+    //    //    {
+    //    //        // loop on macro blocks until none are left or size is too small
+    //    //        // create tasks until we cannot divide anymore
+    //    //        // end with adaptive part using the micro blocks sizes iterator
+    //    //        unimplemented!()
+    //    //    }
+
+    fn iterator_fold<R, F>(self, fold_op: F) -> IteratorFold<Self, F>
+    where
+        R: Sized + Send,
+        F: Fn(<<Self as ParBorrowed>::Iter as SeqBorrowed>::Iter) -> R + Sync,
+    {
+        IteratorFold {
+            base: self,
+            fold_op,
+        }
+    }
+
     fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
         JoinPolicy {
             base: self,

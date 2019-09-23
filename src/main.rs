@@ -75,6 +75,5 @@ use rayon_adaptive::prelude::*;
 //
 fn main() {
     let r = (0u32..10).into_par_iter();
-    eprintln!("r: {:?}", r);
     assert_eq!((0u32..10).into_par_iter().sum::<u32>(), 45);
 }
