@@ -46,9 +46,9 @@ pub trait IntoParallelRefMutIterator<'data> {
     /// ```
     /// use rayon_adaptive::prelude::*;
     ///
-    /// let mut v = vec![0usize; 5];
-    /// v.par_iter_mut().enumerate().for_each(|(i, x)| *x = i);
-    /// assert_eq!(v, [0, 1, 2, 3, 4]);
+    /// // let mut v = vec![0usize; 5];
+    /// // v.par_iter_mut().enumerate().for_each(|(i, x)| *x = i);
+    /// // assert_eq!(v, [0, 1, 2, 3, 4]);
     /// ```
     fn par_iter_mut(&'data mut self) -> Self::Iter;
 }

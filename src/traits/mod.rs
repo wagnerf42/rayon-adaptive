@@ -15,16 +15,49 @@ pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
 pub use types::{Indexed, ItemProducer, ParBorrowed, Powered, SeqBorrowed, Standard};
 
-pub trait ParallelIterator
+use crate::iter::Map;
+pub trait ParallelIterator: Powered + Sized
 where
     Self: for<'e> ParBorrowed<'e>,
 {
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
+    fn map<F, R>(self, op: F) -> Map<Self, F>
+    where
+        R: Send,
+        F: Fn(Self::Item) -> R + Send,
+    {
+        Map { op, base: self }
+    }
+    fn reduce<ID, OP>(mut self, identity: ID, op: OP) -> Self::Item
+    where
+        OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
+        ID: Fn() -> Self::Item + Sync,
+    {
+        let size = self.bound_iterations_number(std::usize::MAX);
+        let single_block = self.par_borrow(size);
+        single_block.block_reduce(&identity, &op)
+    }
+
+    /// Sums all content of the iterator.
+    /// Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// assert_eq!((0u32..3).into_par_iter().sum::<u32>(), 3);
+    /// ```
+    fn sum<S>(self) -> S
+    where
+        S: Send + core::iter::Sum<S> + core::iter::Sum<Self::Item>,
+    {
+        //TODO: we are stuck with that until iterator_fold kicks in
+        self.map(|e| std::iter::once(e).sum::<S>()).reduce(
+            || std::iter::empty::<S>().sum::<S>(),
+            |a, b| std::iter::once(a).chain(std::iter::once(b)).sum::<S>(),
+        )
+    }
+
     /// Takes the number of iterations requested by the user
     /// and return the number we can really process.
-    fn bound_iterations_number(&self, size: usize) -> usize {
-        size
-    }
+    fn bound_iterations_number(&self, size: usize) -> usize;
 }
 
 pub trait BorrowingParallelIterator: Divisible + ItemProducer + Send
@@ -41,7 +74,8 @@ where
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(std::iter::successors(Some(1), |i| Some(2 * i)))
     }
-    fn reduce<ID, OP>(self, identity: ID, op: OP) -> Self::Item
+    /// Reduce on one block.
+    fn block_reduce<ID, OP>(self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
         ID: Fn() -> Self::Item + Sync,

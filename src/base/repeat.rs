@@ -51,6 +51,9 @@ impl<'e, T: Clone + Send + Sync> Divisible for BorrowedRepeat<'e, T> {
 }
 
 impl<T: Clone + Send + Sync> ParallelIterator for Repeat<T> {
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        size
+    }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         BorrowedRepeat {
             element: Dislocated::new(&self.element),

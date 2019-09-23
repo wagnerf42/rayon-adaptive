@@ -40,6 +40,7 @@ impl<'a, I: Sync> Dislocated<'a, I> {
 }
 
 unsafe impl<'a, I: Sync> Send for Dislocated<'a, I> {}
+unsafe impl<'a, I: Sync> Sync for Dislocated<'a, I> {}
 
 pub(crate) struct DislocatedMut<'a, I: Sync> {
     raw: *mut I,
@@ -69,3 +70,4 @@ impl<'a, I: Sync> DislocatedMut<'a, I> {
 }
 
 unsafe impl<'a, I: Sync> Send for DislocatedMut<'a, I> {}
+unsafe impl<'a, I: Sync> Sync for DislocatedMut<'a, I> {}

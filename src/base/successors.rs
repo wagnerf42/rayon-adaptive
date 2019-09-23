@@ -16,42 +16,48 @@ pub struct BoundedParSuccessors<'a, T: Sync, F: Sync, S: Sync> {
     real_iterator_next: Option<DislocatedMut<'a, T>>,
 }
 
-pub struct BorrowedSeqSuccessors<'a, T: Clone + Sync, F: Send + Sync> {
+pub struct BorrowedSeqSuccessors<'a, T: Clone + Sync, F: Fn(T) -> T + Sync> {
     next: T,
     succ: Dislocated<'a, F>,
     real_iterator_next: DislocatedMut<'a, T>,
 }
 
-impl<'e, T, F, S> Borrowed<'e> for ParSuccessors<T, F, S>
+impl<T, F, S> ItemProducer for ParSuccessors<T, F, S>
 where
-    T: Send + Sync + Clone,
-    F: Fn(T) -> T + Send + Sync,
-    S: Send + Sync + Fn(T, usize) -> T,
+    T: Send + Sync,
 {
-    type ParIter = BoundedParSuccessors<'e, T, F, S>;
-    type SeqIter = Take<BorrowedSeqSuccessors<'e, T, F>>;
+    type Item = T;
 }
 
-impl<T, F, S> ItemProducer for ParSuccessors<T, F, S>
+impl<T, F, S> Powered for ParSuccessors<T, F, S> {
+    type Power = Indexed;
+}
+
+impl<'e, T, F, S> ParBorrowed<'e> for ParSuccessors<T, F, S>
 where
     T: Send + Sync + Clone,
     F: Fn(T) -> T + Send + Sync,
     S: Fn(T, usize) -> T + Send + Sync,
 {
-    type Owner = Self;
-    type Item = T;
-    type Power = Indexed;
+    type Iter = BoundedParSuccessors<'e, T, F, S>;
 }
 
 impl<'a, T, F, S> ItemProducer for BoundedParSuccessors<'a, T, F, S>
 where
+    T: Send + Sync,
+    F: Sync,
+    S: Sync,
+{
+    type Item = T;
+}
+
+impl<'e, 'a, T, F, S> SeqBorrowed<'e> for BoundedParSuccessors<'a, T, F, S>
+where
     T: Send + Sync + Clone,
     F: Fn(T) -> T + Send + Sync,
     S: Fn(T, usize) -> T + Send + Sync,
 {
-    type Owner = ParSuccessors<T, F, S>;
-    type Item = T;
-    type Power = Indexed;
+    type Iter = Take<BorrowedSeqSuccessors<'e, T, F>>;
 }
 
 impl<T, F, S> ParallelIterator for ParSuccessors<T, F, S>
@@ -60,7 +66,7 @@ where
     F: Fn(T) -> T + Send + Sync,
     S: Fn(T, usize) -> T + Send + Sync,
 {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self as Borrowed<'e>>::ParIter {
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         BoundedParSuccessors {
             next: self.next.clone(),
             remaining_iterations: size,
@@ -68,51 +74,31 @@ where
             skip_op: Dislocated::new(&self.skip_op),
             real_iterator_next: Some(DislocatedMut::new(&mut self.next)),
         }
-    }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self as Borrowed<'e>>::SeqIter {
-        BorrowedSeqSuccessors {
-            next: self.next.clone(),
-            succ: Dislocated::new(&self.succ),
-            real_iterator_next: DislocatedMut::new(&mut self.next),
-        }
-        .take(size)
     }
 }
 
-impl<'a, T, F, S> ParallelIterator for BoundedParSuccessors<'a, T, F, S>
+impl<'a, T, F, S> BorrowingParallelIterator for BoundedParSuccessors<'a, T, F, S>
 where
-    T: Clone + Send + Sync,
+    T: Send + Sync + Clone,
     F: Fn(T) -> T + Send + Sync,
     S: Fn(T, usize) -> T + Send + Sync,
 {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
-        BoundedParSuccessors {
-            next: self.next.clone(),
-            remaining_iterations: size,
-            succ: Dislocated::new(&self.succ),
-            skip_op: Dislocated::new(&self.skip_op),
-            real_iterator_next: Some(DislocatedMut::new(&mut self.next)),
-        }
-    }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         BorrowedSeqSuccessors {
             next: self.next.clone(),
-            succ: self.succ.clone(),
+            succ: Dislocated::new(&self.succ),
             real_iterator_next: DislocatedMut::new(&mut self.next),
         }
         .take(size)
+    }
+    fn iterations_number(&self) -> usize {
+        self.remaining_iterations
     }
 }
 
 impl<'a, T, F> Iterator for BorrowedSeqSuccessors<'a, T, F>
 where
-    T: Clone + Send + Sync,
+    T: Send + Sync + Clone,
     F: Fn(T) -> T + Send + Sync,
 {
     type Item = T;
@@ -126,21 +112,10 @@ where
 impl<'a, T, F> Drop for BorrowedSeqSuccessors<'a, T, F>
 where
     T: Clone + Sync,
-    F: Send + Sync,
+    F: Fn(T) -> T + Sync,
 {
     fn drop(&mut self) {
         *self.real_iterator_next = self.next.clone()
-    }
-}
-
-impl<'a, T, F, S> FiniteParallelIterator for BoundedParSuccessors<'a, T, F, S>
-where
-    T: Clone + Send + Sync,
-    F: Fn(T) -> T + Send + Sync,
-    S: Fn(T, usize) -> T + Send + Sync,
-{
-    fn len(&self) -> usize {
-        self.remaining_iterations
     }
 }
 
@@ -150,7 +125,7 @@ where
     F: Fn(T) -> T + Send + Sync,
     S: Fn(T, usize) -> T + Send + Sync,
 {
-    fn is_divisible(&self) -> bool {
+    fn should_be_divided(&self) -> bool {
         self.remaining_iterations > 1
     }
     fn divide(mut self) -> (Self, Self) {

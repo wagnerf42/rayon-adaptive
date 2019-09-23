@@ -44,6 +44,9 @@ impl<'a, T: 'a + Sync> BorrowingParallelIterator for Iter<'a, T> {
 }
 
 impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        std::cmp::min(self.slice.len(), size)
+    }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         let (left, right) = self.slice.split_at(size);
         self.slice = right;
@@ -109,6 +112,9 @@ impl<'a, T: 'a + Send> BorrowingParallelIterator for IterMut<'a, T> {
 }
 
 impl<'a, T: 'a + Send> ParallelIterator for IterMut<'a, T> {
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        std::cmp::min(self.slice.as_ref().unwrap().len(), size)
+    }
     fn par_borrow<'e>(&'e mut self, size: usize) -> IterMut<'a, T> {
         let (left, right) = self.slice.take().unwrap().split_at_mut(size);
         self.slice = Some(right);

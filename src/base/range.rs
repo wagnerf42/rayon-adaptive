@@ -1,7 +1,8 @@
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub struct Range<Idx> {
-    pub range: std::ops::Range<Idx>,
+    pub(crate) range: std::ops::Range<Idx>,
 }
 
 macro_rules! implement_traits {
@@ -50,6 +51,9 @@ macro_rules! implement_traits {
                 };
                 self.range.start = mid;
                 left
+            }
+            fn bound_iterations_number(&self, size: usize) -> usize {
+                std::cmp::min(self.range.len(), size)
             }
         }
 
