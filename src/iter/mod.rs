@@ -1,6 +1,6 @@
 //! We re-export here all iterator adaptors.
 mod cloned;
-// mod even_levels;
+mod even_levels;
 mod filter;
 // mod fine_log;
 // mod iterator_fold;
@@ -11,7 +11,7 @@ mod map;
 mod zip;
 //
 pub use cloned::Cloned;
-// pub use even_levels::EvenLevels;
+pub use even_levels::EvenLevels;
 pub use filter::Filter;
 // pub use fine_log::FineLog;
 // pub use iterator_fold::IteratorFold;

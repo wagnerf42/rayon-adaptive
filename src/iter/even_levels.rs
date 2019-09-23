@@ -12,12 +12,63 @@ pub struct EvenLevels<I> {
     pub(crate) iterator: I,
 }
 
-// step two : implement Divisible
+// step two : set all associated types.
+
+// let's choose our Items
+impl<I: ItemProducer> ItemProducer for EvenLevels<I> {
+    type Item = I::Item;
+}
+
+// let's choose if we are indexed or not
+impl<I: Powered> Powered for EvenLevels<I> {
+    type Power = I::Power;
+}
+
+// let's choose what we get once borrowed for parallel iterators
+impl<'e, I: ParallelIterator> ParBorrowed<'e> for EvenLevels<I> {
+    type Iter = EvenLevels<<I as ParBorrowed<'e>>::Iter>;
+}
+
+// let's choose what we get once borrowed for sequential iterators
+impl<'e, I: BorrowingParallelIterator> SeqBorrowed<'e> for EvenLevels<I> {
+    type Iter = <I as SeqBorrowed<'e>>::Iter;
+}
+
+// third step : implement borrowing traits.
+
+impl<I> ParallelIterator for EvenLevels<I>
+where
+    I: ParallelIterator,
+{
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        self.iterator.bound_iterations_number(size)
+    }
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
+        EvenLevels {
+            even: true,
+            iterator: self.iterator.par_borrow(size),
+        }
+    }
+}
+
+impl<I> BorrowingParallelIterator for EvenLevels<I>
+where
+    I: BorrowingParallelIterator,
+{
+    fn iterations_number(&self) -> usize {
+        self.iterator.iterations_number()
+    }
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
+        self.iterator.seq_borrow(size)
+    }
+}
+
+// last step : implement Divisible
 
 impl<I: Divisible> Divisible for EvenLevels<I> {
-    fn is_divisible(&self) -> bool {
-        // even if we are not divisible, if we are not on an even level, divide once more
-        self.iterator.is_divisible() || !self.even
+    fn should_be_divided(&self) -> bool {
+        // even if base should not be divided, if we are not on an even level, divide once more
+        self.iterator.should_be_divided() || !self.even
     }
     fn divide(self) -> (Self, Self) {
         let (left, right) = self.iterator.divide();
@@ -31,46 +82,5 @@ impl<I: Divisible> Divisible for EvenLevels<I> {
                 iterator: right,
             },
         )
-    }
-}
-
-// step three, before implementing ParallelIterator we start by choosing the types
-// and registering them in the auxilliary traits.
-// we implement "ItemProducer" and "FinitePart".
-
-impl<I: ParallelIterator> ItemProducer for EvenLevels<I> {
-    type Owner = EvenLevels<I::Owner>;
-    type Item = I::Item;
-    type Power = I::Power;
-}
-
-impl<'e, I: ParallelIterator> Borrowed<'e> for EvenLevels<I> {
-    type ParIter = EvenLevels<<I::Owner as Borrowed<'e>>::ParIter>;
-    type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
-}
-
-// step four, let's implement ParallelIterator
-
-impl<I: ParallelIterator> ParallelIterator for EvenLevels<I> {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
-        EvenLevels {
-            even: self.even,
-            iterator: self.iterator.borrow_on_left_for(size),
-        }
-    }
-
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
-        self.iterator.sequential_borrow_on_left_for(size)
-    }
-}
-
-// last step, let's implement FiniteParallelIterator
-
-impl<I: FiniteParallelIterator> FiniteParallelIterator for EvenLevels<I> {
-    fn len(&self) -> usize {
-        self.iterator.len()
     }
 }
