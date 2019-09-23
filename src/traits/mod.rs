@@ -5,6 +5,7 @@ mod into_iterator;
 mod into_parallel_ref;
 // mod parallel_iterator;
 mod types;
+use std::iter::successors;
 
 pub use divisible::Divisible;
 pub use indexed::IndexedParallelIterator;
@@ -25,9 +26,24 @@ where
 
     fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
         JoinPolicy {
-            iterator: self,
+            base: self,
             fallback,
         }
+    }
+
+    fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
+        DampenLocalDivision {
+            iterator: self,
+            created_by: rayon::current_thread_index(),
+            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+        }
+    }
+
+    fn macro_blocks_sizes() -> Box<dyn Iterator<Item = usize>> {
+        // TODO: should we go for a generic iterator type instead ?
+        Box::new(successors(Some(rayon::current_num_threads()), |s| {
+            Some(s * 2)
+        }))
     }
 
     /// filter.

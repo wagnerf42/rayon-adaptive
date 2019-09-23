@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub struct JoinPolicy<I> {
-    pub(crate) iterator: I,
+    pub(crate) base: I,
     pub(crate) fallback: usize,
 }
 
@@ -26,11 +26,11 @@ where
     I: ParallelIterator,
 {
     fn bound_iterations_number(&self, size: usize) -> usize {
-        self.iterator.bound_iterations_number(size)
+        self.base.bound_iterations_number(size)
     }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         JoinPolicy {
-            iterator: self.iterator.par_borrow(size),
+            base: self.base.par_borrow(size),
             fallback: self.fallback,
         }
     }
@@ -41,26 +41,26 @@ where
     I: BorrowingParallelIterator,
 {
     fn iterations_number(&self) -> usize {
-        self.iterator.iterations_number()
+        self.base.iterations_number()
     }
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
-        self.iterator.seq_borrow(size)
+        self.base.seq_borrow(size)
     }
 }
 
-impl<I: Divisible + BorrowingParallelIterator> Divisible for JoinPolicy<I> {
+impl<I: BorrowingParallelIterator> Divisible for JoinPolicy<I> {
     fn should_be_divided(&self) -> bool {
-        self.iterator.should_be_divided() && self.iterator.iterations_number() > self.fallback
+        self.base.should_be_divided() && self.base.iterations_number() > self.fallback
     }
     fn divide(self) -> (Self, Self) {
-        let (left, right) = self.iterator.divide();
+        let (left, right) = self.base.divide();
         (
             JoinPolicy {
-                iterator: left,
+                base: left,
                 fallback: self.fallback,
             },
             JoinPolicy {
-                iterator: right,
+                base: right,
                 fallback: self.fallback,
             },
         )
