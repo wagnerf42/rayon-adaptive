@@ -7,55 +7,6 @@ use std::iter::successors;
 // we also can't borrow sequentially.
 // tree iterator CAN be borrowed sequentially be cannot be borrowed in //
 pub trait ParallelIterator: Send + ItemProducer {
-    /// This function is used by scheduler before asking a borrow.
-    /// It asks you how much it would like and you reply how much you can give.
-    fn bound_size(&self, size: usize) -> usize {
-        size // this is the default for infinite iterators
-    }
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter;
-
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter;
-
-    fn fine_log(self, tag: &'static str) -> FineLog<Self> {
-        FineLog {
-            iterator: self,
-            tag,
-        }
-    }
-
-    fn cloned<'a, T>(self) -> Cloned<Self>
-    where
-        T: 'a + Clone + Send + Sync, // TODO I need Sync here but rayon does not
-        Self: ParallelIterator<Item = &'a T>,
-    {
-        Cloned { iterator: self }
-    }
-
-    fn map<F, R>(self, op: F) -> Map<Self, F>
-    where
-        R: Send,
-        F: Fn(Self::Item) -> R + Send,
-    {
-        Map { op, iterator: self }
-    }
-    fn filter<P>(self, filter_op: P) -> Filter<Self, P>
-    where
-        P: Fn(&Self::Item) -> bool + Send + Sync,
-    {
-        Filter {
-            iterator: self,
-            filter_op,
-        }
-    }
-    fn even_levels(self) -> EvenLevels<Self> {
-        EvenLevels {
-            even: true,
-            iterator: self,
-        }
-    }
     fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
         JoinPolicy {
             iterator: self,

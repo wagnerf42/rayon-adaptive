@@ -9,7 +9,7 @@ use crate::prelude::*;
 /// Iterator where all tasks are guaranteed at an even level from the root.
 pub struct EvenLevels<I> {
     pub(crate) even: bool,
-    pub(crate) iterator: I,
+    pub(crate) base: I,
 }
 
 // step two : set all associated types.
@@ -24,12 +24,12 @@ impl<I: Powered> Powered for EvenLevels<I> {
     type Power = I::Power;
 }
 
-// let's choose what we get once borrowed for parallel iterators
+// let's choose what we get once borrowed for parallel bases
 impl<'e, I: ParallelIterator> ParBorrowed<'e> for EvenLevels<I> {
     type Iter = EvenLevels<<I as ParBorrowed<'e>>::Iter>;
 }
 
-// let's choose what we get once borrowed for sequential iterators
+// let's choose what we get once borrowed for sequential bases
 impl<'e, I: BorrowingParallelIterator> SeqBorrowed<'e> for EvenLevels<I> {
     type Iter = <I as SeqBorrowed<'e>>::Iter;
 }
@@ -41,12 +41,12 @@ where
     I: ParallelIterator,
 {
     fn bound_iterations_number(&self, size: usize) -> usize {
-        self.iterator.bound_iterations_number(size)
+        self.base.bound_iterations_number(size)
     }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         EvenLevels {
             even: true,
-            iterator: self.iterator.par_borrow(size),
+            base: self.base.par_borrow(size),
         }
     }
 }
@@ -56,10 +56,10 @@ where
     I: BorrowingParallelIterator,
 {
     fn iterations_number(&self) -> usize {
-        self.iterator.iterations_number()
+        self.base.iterations_number()
     }
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
-        self.iterator.seq_borrow(size)
+        self.base.seq_borrow(size)
     }
 }
 
@@ -68,18 +68,18 @@ where
 impl<I: Divisible> Divisible for EvenLevels<I> {
     fn should_be_divided(&self) -> bool {
         // even if base should not be divided, if we are not on an even level, divide once more
-        self.iterator.should_be_divided() || !self.even
+        self.base.should_be_divided() || !self.even
     }
     fn divide(self) -> (Self, Self) {
-        let (left, right) = self.iterator.divide();
+        let (left, right) = self.base.divide();
         (
             EvenLevels {
                 even: !self.even,
-                iterator: left,
+                base: left,
             },
             EvenLevels {
                 even: !self.even,
-                iterator: right,
+                base: right,
             },
         )
     }

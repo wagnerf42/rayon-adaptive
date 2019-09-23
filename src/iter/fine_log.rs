@@ -1,26 +1,26 @@
 use crate::prelude::*;
 
 pub struct FineLog<I> {
-    pub(crate) iterator: I,
+    pub(crate) base: I,
     pub(crate) tag: &'static str,
 }
 
 /// Sequential Logged Iterator.
 #[cfg(feature = "logs")]
 pub struct LoggedIterator<I> {
-    iterator: I,
+    base: I,
     tag: &'static str,
     size: usize,
 }
 #[cfg(not(feature = "logs"))]
 pub struct LoggedIterator<I> {
-    iterator: I,
+    base: I,
 }
 
 impl<I: Iterator> Iterator for LoggedIterator<I> {
     type Item = I::Item;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iterator.next()
+        self.base.next()
     }
 }
 
@@ -31,30 +31,35 @@ impl<I> Drop for LoggedIterator<I> {
     }
 }
 
-impl<I: ParallelIterator> ItemProducer for FineLog<I> {
+impl<I: ItemProducer> ItemProducer for FineLog<I> {
     type Item = I::Item;
-    type Owner = FineLog<I::Owner>;
+}
+
+impl<I: Powered> Powered for FineLog<I> {
     type Power = I::Power;
 }
 
-impl<'e, I: ParallelIterator> Borrowed<'e> for FineLog<I> {
-    type ParIter = FineLog<<I::Owner as Borrowed<'e>>::ParIter>;
-    type SeqIter = LoggedIterator<<I::Owner as Borrowed<'e>>::SeqIter>;
+impl<'e, I: ParallelIterator> ParBorrowed<'e> for FineLog<I> {
+    type Iter = FineLog<<I as ParBorrowed<'e>>::Iter>;
+}
+
+impl<'e, I: BorrowingParallelIterator> SeqBorrowed<'e> for FineLog<I> {
+    type Iter = LoggedIterator<<I as SeqBorrowed<'e>>::Iter>;
 }
 
 impl<I: Divisible> Divisible for FineLog<I> {
-    fn is_divisible(&self) -> bool {
-        self.iterator.is_divisible()
+    fn should_be_divided(&self) -> bool {
+        self.base.should_be_divided()
     }
     fn divide(self) -> (Self, Self) {
-        let (left, right) = self.iterator.divide();
+        let (left, right) = self.base.divide();
         (
             FineLog {
-                iterator: left,
+                base: left,
                 tag: self.tag,
             },
             FineLog {
-                iterator: right,
+                base: right,
                 tag: self.tag,
             },
         )
@@ -62,23 +67,29 @@ impl<I: Divisible> Divisible for FineLog<I> {
 }
 
 impl<I: ParallelIterator> ParallelIterator for FineLog<I> {
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        self.base.bound_iterations_number(size)
+    }
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         FineLog {
-            iterator: self.iterator.borrow_on_left_for(size),
+            base: self.base.par_borrow(size),
             tag: self.tag,
         }
     }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
+}
+
+impl<I: BorrowingParallelIterator> BorrowingParallelIterator for FineLog<I> {
+    fn iterations_number(&self) -> usize {
+        self.base.iterations_number()
+    }
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         let r;
         #[cfg(feature = "logs")]
         {
             rayon_logs::start_subgraph(self.tag);
-            let size = self.iterator.bound_size(size);
+            let size = self.base.bound_size(size);
             r = LoggedIterator {
-                iterator: self.iterator.sequential_borrow_on_left_for(size),
+                base: self.base.seq_borrow(size),
                 tag: self.tag,
                 size,
             };
@@ -86,15 +97,9 @@ impl<I: ParallelIterator> ParallelIterator for FineLog<I> {
         #[cfg(not(feature = "logs"))]
         {
             r = LoggedIterator {
-                iterator: self.iterator.sequential_borrow_on_left_for(size),
+                base: self.base.seq_borrow(size),
             };
         }
         r
-    }
-}
-
-impl<I: FiniteParallelIterator> FiniteParallelIterator for FineLog<I> {
-    fn len(&self) -> usize {
-        self.iterator.len()
     }
 }

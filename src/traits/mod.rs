@@ -13,7 +13,7 @@ pub use into_parallel_ref::IntoParallelRefIterator;
 // pub use parallel_iterator::ParallelIterator;
 pub use types::{Indexed, ItemProducer, ParBorrowed, Powered, SeqBorrowed, Standard};
 
-use crate::iter::{Filter, Map};
+use crate::iter::*;
 pub trait ParallelIterator: Powered + Sized
 where
     Self: for<'e> ParBorrowed<'e>,
@@ -39,6 +39,13 @@ where
         }
     }
 
+    fn even_levels(self) -> EvenLevels<Self> {
+        EvenLevels {
+            even: true,
+            base: self,
+        }
+    }
+
     fn map<F, R>(self, op: F) -> Map<Self, F>
     where
         R: Send,
@@ -46,6 +53,19 @@ where
     {
         Map { op, base: self }
     }
+
+    fn fine_log(self, tag: &'static str) -> FineLog<Self> {
+        FineLog { base: self, tag }
+    }
+
+    fn cloned<'a, T>(self) -> Cloned<Self>
+    where
+        T: 'a + Clone + Send + Sync, // TODO I need Sync here but rayon does not
+        Self: ParallelIterator<Item = &'a T>,
+    {
+        Cloned { base: self }
+    }
+
     fn reduce<ID, OP>(mut self, identity: ID, op: OP) -> Self::Item
     where
         OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync,
