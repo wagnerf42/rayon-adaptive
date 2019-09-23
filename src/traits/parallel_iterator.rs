@@ -7,12 +7,6 @@ use std::iter::successors;
 // we also can't borrow sequentially.
 // tree iterator CAN be borrowed sequentially be cannot be borrowed in //
 pub trait ParallelIterator: Send + ItemProducer {
-    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
-        JoinPolicy {
-            iterator: self,
-            fallback,
-        }
-    }
     fn with_rayon_policy(self) -> DampenLocalDivision<Self> {
         DampenLocalDivision {
             iterator: self,

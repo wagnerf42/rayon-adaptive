@@ -23,6 +23,13 @@ where
     fn bound_iterations_number(&self, size: usize) -> usize;
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
 
+    fn with_join_policy(self, fallback: usize) -> JoinPolicy<Self> {
+        JoinPolicy {
+            iterator: self,
+            fallback,
+        }
+    }
+
     /// filter.
     /// # Example:
     /// ```

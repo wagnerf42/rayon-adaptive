@@ -5,9 +5,52 @@ pub struct JoinPolicy<I> {
     pub(crate) fallback: usize,
 }
 
-impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
-    fn is_divisible(&self) -> bool {
-        self.iterator.is_divisible() && self.iterator.len() > self.fallback
+impl<I: ItemProducer> ItemProducer for JoinPolicy<I> {
+    type Item = I::Item;
+}
+
+impl<I: Powered> Powered for JoinPolicy<I> {
+    type Power = I::Power;
+}
+
+impl<'e, I: ParallelIterator> ParBorrowed<'e> for JoinPolicy<I> {
+    type Iter = JoinPolicy<<I as ParBorrowed<'e>>::Iter>;
+}
+
+impl<'e, I: BorrowingParallelIterator> SeqBorrowed<'e> for JoinPolicy<I> {
+    type Iter = <I as SeqBorrowed<'e>>::Iter;
+}
+
+impl<I> ParallelIterator for JoinPolicy<I>
+where
+    I: ParallelIterator,
+{
+    fn bound_iterations_number(&self, size: usize) -> usize {
+        self.iterator.bound_iterations_number(size)
+    }
+    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
+        JoinPolicy {
+            iterator: self.iterator.par_borrow(size),
+            fallback: self.fallback,
+        }
+    }
+}
+
+impl<I> BorrowingParallelIterator for JoinPolicy<I>
+where
+    I: BorrowingParallelIterator,
+{
+    fn iterations_number(&self) -> usize {
+        self.iterator.iterations_number()
+    }
+    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
+        self.iterator.seq_borrow(size)
+    }
+}
+
+impl<I: Divisible + BorrowingParallelIterator> Divisible for JoinPolicy<I> {
+    fn should_be_divided(&self) -> bool {
+        self.iterator.should_be_divided() && self.iterator.iterations_number() > self.fallback
     }
     fn divide(self) -> (Self, Self) {
         let (left, right) = self.iterator.divide();
@@ -21,40 +64,5 @@ impl<I: FiniteParallelIterator + Divisible> Divisible for JoinPolicy<I> {
                 fallback: self.fallback,
             },
         )
-    }
-}
-
-impl<I: ParallelIterator> ItemProducer for JoinPolicy<I> {
-    type Owner = JoinPolicy<I::Owner>;
-    type Item = I::Item;
-    type Power = I::Power;
-}
-
-impl<'e, I: ParallelIterator> Borrowed<'e> for JoinPolicy<I> {
-    type ParIter = JoinPolicy<<I::Owner as Borrowed<'e>>::ParIter>;
-    type SeqIter = <I::Owner as Borrowed<'e>>::SeqIter;
-}
-
-impl<I> ParallelIterator for JoinPolicy<I>
-where
-    I: ParallelIterator,
-{
-    fn borrow_on_left_for<'e>(&'e mut self, size: usize) -> <Self::Owner as Borrowed<'e>>::ParIter {
-        JoinPolicy {
-            iterator: self.iterator.borrow_on_left_for(size),
-            fallback: self.fallback,
-        }
-    }
-    fn sequential_borrow_on_left_for<'e>(
-        &'e mut self,
-        size: usize,
-    ) -> <Self::Owner as Borrowed<'e>>::SeqIter {
-        self.iterator.sequential_borrow_on_left_for(size)
-    }
-}
-
-impl<I: FiniteParallelIterator> FiniteParallelIterator for JoinPolicy<I> {
-    fn len(&self) -> usize {
-        self.iterator.len()
     }
 }
