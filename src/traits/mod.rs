@@ -1,6 +1,5 @@
 use crate::scheduler::schedule_reduce;
 mod divisible;
-// mod finite_parallel_iterator;
 mod indexed;
 mod into_iterator;
 mod into_parallel_ref;
@@ -8,7 +7,6 @@ mod into_parallel_ref;
 mod types;
 
 pub use divisible::Divisible;
-// pub use finite_parallel_iterator::FiniteParallelIterator;
 pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
 pub use into_parallel_ref::IntoParallelRefIterator;

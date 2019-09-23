@@ -29,6 +29,13 @@ macro_rules! implement_traits {
                 borrowed_range
             }
         }
+        impl IntoParallelIterator for std::ops::RangeFrom<$x> {
+            type Iter = RangeFrom<$x>;
+            type Item = $x;
+            fn into_par_iter(self) -> Self::Iter {
+                RangeFrom { start: self.start }
+            }
+        }
     };
 }
 

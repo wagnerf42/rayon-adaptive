@@ -8,7 +8,7 @@ mod filter;
 // mod local;
 mod map;
 // mod take;
-// mod zip;
+mod zip;
 //
 pub use cloned::Cloned;
 // pub use even_levels::EvenLevels;
@@ -19,4 +19,4 @@ pub use filter::Filter;
 // pub use local::DampenLocalDivision;
 pub use map::Map;
 // pub use take::Take;
-// pub use zip::Zip;
+pub use zip::Zip;

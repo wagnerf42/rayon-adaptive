@@ -54,8 +54,6 @@ impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Sync> IndexedParallelIterator for Iter<'a, T> {}
-
 impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
     type Iter = Iter<'a, T>;
     type Item = &'a T;
@@ -129,5 +127,3 @@ impl<'a, T: 'a + Send> IntoParallelIterator for &'a mut [T] {
         IterMut { slice: Some(self) }
     }
 }
-
-impl<'a, T: 'a + Send> IndexedParallelIterator for IterMut<'a, T> {}

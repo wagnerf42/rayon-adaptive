@@ -64,7 +64,6 @@ macro_rules! implement_traits {
                 Range { range: self }
             }
         }
-        impl IndexedParallelIterator for Range<$x> {}
     };
 }
 

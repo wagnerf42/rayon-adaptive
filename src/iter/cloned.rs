@@ -72,10 +72,3 @@ where
         }
     }
 }
-
-impl<'a, T, I> IndexedParallelIterator for Cloned<I>
-where
-    T: Clone + Send + Sync + 'a,
-    I: IndexedParallelIterator<Item = &'a T>,
-{
-}
