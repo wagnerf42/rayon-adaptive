@@ -12,11 +12,12 @@ fn main() {
     let (_, log) = pool.logging_install(|| {
         let s: u32 = (0u32..10_000)
             .into_par_iter()
+            .chain(0u32..1_000)
             .with_join_policy(10_000)
             //            .even_levels()
             .fine_log("sum")
             .sum();
-        assert_eq!(s, 9_999 * 5_000);
+        assert_eq!(s, 9_999 * 5_000 + 999 * 500);
     });
     log.save_svg("fine_log.svg")
         .expect("failed saving svg file");

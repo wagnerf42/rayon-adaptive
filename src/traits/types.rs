@@ -7,6 +7,18 @@ pub trait Powered {
     type Power;
 }
 
+pub trait MinPower<B> {
+    type Min;
+}
+
+impl<B> MinPower<B> for Standard {
+    type Min = Standard;
+}
+
+impl<B> MinPower<B> for Indexed {
+    type Min = B;
+}
+
 pub trait ItemProducer {
     type Item: Send + Sized;
 }

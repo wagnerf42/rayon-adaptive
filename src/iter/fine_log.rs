@@ -87,7 +87,7 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for FineLog<I> {
         #[cfg(feature = "logs")]
         {
             rayon_logs::start_subgraph(self.tag);
-            let size = self.base.bound_size(size);
+            let size = std::cmp::min(self.base.iterations_number(), size);
             r = LoggedIterator {
                 base: self.base.seq_borrow(size),
                 tag: self.tag,

@@ -8,6 +8,7 @@ mod join;
 mod local;
 mod map;
 // mod take;
+mod chain;
 mod fold;
 mod zip;
 //
@@ -20,5 +21,6 @@ pub use join::JoinPolicy;
 pub use local::DampenLocalDivision;
 pub use map::Map;
 // pub use take::Take;
+pub use chain::Chain;
 pub use fold::Fold;
 pub use zip::Zip;
