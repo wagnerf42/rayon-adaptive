@@ -186,6 +186,21 @@ where
     {
         self.map(op).reduce(|| (), |(), ()| ())
     }
+
+    /// # Example
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// let s:u32 = (0u32..10).into_par_iter()
+    ///                      .take(5)
+    ///                      .sum();
+    /// assert_eq!(s, 10);
+    /// ```
+    fn take(self, len: usize) -> Take<Self> {
+        Take {
+            iterator: self,
+            n: len,
+        }
+    }
 }
 
 pub trait BorrowingParallelIterator: Divisible + ItemProducer + Send
