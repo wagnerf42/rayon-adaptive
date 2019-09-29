@@ -10,7 +10,7 @@ impl<I: ItemProducer> ItemProducer for Take<I> {
 }
 
 impl<I: Powered> Powered for Take<I> {
-    type Power = I::Power;
+    type Power = Indexed;
 }
 
 impl<'l, I: ParBorrowed<'l>> ParBorrowed<'l> for Take<I> {
