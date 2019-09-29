@@ -194,6 +194,8 @@ where
     ///                      .take(5)
     ///                      .sum();
     /// assert_eq!(s, 10);
+    /// let s: u32 = (0u32..).into_par_iter().take(100).sum();
+    /// assert_eq!(s, 4950);
     /// ```
     fn take(self, len: usize) -> Take<Self> {
         Take {
