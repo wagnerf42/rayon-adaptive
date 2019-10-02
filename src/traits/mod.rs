@@ -22,6 +22,7 @@ where
     /// Takes the number of iterations requested by the user
     /// and return the number we can really process.
     fn bound_iterations_number(&self, size: usize) -> usize;
+    /// Call this with a bounded size
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
 
     fn completed(&self) -> bool {
@@ -185,23 +186,6 @@ where
         OP: Fn(Self::Item) + Sync + Send,
     {
         self.map(op).reduce(|| (), |(), ()| ())
-    }
-
-    /// # Example
-    /// ```
-    /// use rayon_adaptive::prelude::*;
-    /// let s:u32 = (0u32..10).into_par_iter()
-    ///                      .take(5)
-    ///                      .sum();
-    /// assert_eq!(s, 10);
-    /// let s: u32 = (0u32..).into_par_iter().take(100).sum();
-    /// assert_eq!(s, 4950);
-    /// ```
-    fn take(self, len: usize) -> Take<Self> {
-        Take {
-            iterator: self,
-            n: len,
-        }
     }
 }
 
