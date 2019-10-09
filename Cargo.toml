@@ -15,3 +15,4 @@ debug = true
 rayon = "*"
 crossbeam = "*"
 rayon_logs={optional=true, git="https://github.com/wagnerf42/rayon-logs"}
+either = "*"
