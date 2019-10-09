@@ -1,3 +1,4 @@
 - do we need to have a method to bound iterations number ? we could just bound directly
 in the par_borrow no ? already seen this debate
 - successors require sync on dislocated : why ???
+- flatmap pb

@@ -9,7 +9,7 @@ mod scheduler;
 pub(crate) mod small_channel;
 mod traits;
 // pub use base::repeat::repeat;
-// pub use base::successors::successors;
+pub use base::successors::successors;
 
 // TODO: by_blocks -> we need a method giving the blocks sizes
 //

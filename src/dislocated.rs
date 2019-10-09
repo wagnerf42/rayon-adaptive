@@ -44,7 +44,7 @@ unsafe impl<'a, I: Sync> Sync for Dislocated<'a, I> {}
 
 pub(crate) struct DislocatedMut<'a, I: Sync> {
     raw: *mut I,
-    phantom: PhantomData<&'a ()>,
+    phantom: PhantomData<&'a mut ()>,
 }
 
 impl<'a, I: Sync> Deref for DislocatedMut<'a, I> {
@@ -64,6 +64,12 @@ impl<'a, I: Sync> DislocatedMut<'a, I> {
     pub(crate) fn new(input: &'a mut I) -> DislocatedMut<'a, I> {
         DislocatedMut {
             raw: input as *mut I,
+            phantom: PhantomData,
+        }
+    }
+    pub(crate) fn borrow_mut<'e>(&'e mut self) -> DislocatedMut<'e, I> {
+        DislocatedMut {
+            raw: self.raw,
             phantom: PhantomData,
         }
     }
