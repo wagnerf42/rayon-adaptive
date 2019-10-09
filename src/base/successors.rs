@@ -139,7 +139,7 @@ where
     S: Fn(&T, usize) -> T + Sync,
 {
     fn should_be_divided(&self) -> bool {
-        !(self.owner_next.is_none() && self.next.is_none()) && self.count != 0
+        self.count > 1
     }
     fn divide(mut self) -> (Self, Self) {
         let left_count = self.count / 2;
