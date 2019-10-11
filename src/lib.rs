@@ -9,8 +9,7 @@ mod scheduler;
 pub(crate) mod small_channel;
 mod traits;
 // pub use base::repeat::repeat;
-pub use base::skipable::skip;
-pub use base::successors::successors;
+pub use base::skipable::{chacha_iter, skip, successors};
 
 // TODO: by_blocks -> we need a method giving the blocks sizes
 //

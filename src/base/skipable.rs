@@ -1,6 +1,8 @@
 //! Skipable iterators.
 use crate::dislocated::{Dislocated, DislocatedMut};
 use crate::prelude::*;
+use rand::prelude::*;
+use rand_chacha::ChaChaRng;
 use std::iter::Take;
 
 pub struct Skipable<I, N, S> {
@@ -174,4 +176,81 @@ where
         next_op,
         skip: skip_op,
     }
+}
+
+/// Infinite iterator on successors.
+/// You need to provide a fast way to `skip` elements
+///
+/// # Example
+///
+/// ```
+/// use rayon_adaptive::prelude::*;
+/// use rayon_adaptive::successors;
+/// // let's fake a range just for testing
+/// let s:u64 = successors(0u64,
+///                    |&i| i+1,
+///                    |&i, n| i+(n as u64)).take(10_000).sum();
+/// assert_eq!(s, 5_000* 9_999)
+/// ```
+pub fn successors<T, F, S>(
+    first: T,
+    succ: F,
+    skip_op: S,
+) -> impl ParallelIterator<Power = Indexed, Item = T>
+where
+    T: Send + Sync,
+    F: Fn(&T) -> T + Sync,
+    S: Fn(&T, usize) -> T + Sync,
+{
+    skip(
+        first,
+        move |t| {
+            let mut next_t = succ(t);
+            std::mem::swap(&mut next_t, t);
+            next_t
+        },
+        move |t, s| skip_op(t, s),
+    )
+}
+
+/// Infinite Iterator on pseudo-random elements.
+/// Good stuff : the randomness is fully deterministic and
+/// independant from scheduling policies.
+///
+/// # Example
+/// ```
+/// use rayon_adaptive::prelude::*;
+/// use rayon_adaptive::random_iter;
+///
+/// let seed = [
+///        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3,
+///        0, 0, 0, 0, 0, 0, 0,
+/// ];
+///
+/// let v1:Vec<u64> = chacha_iter(seed.clone()).with_join_policy(10).take(100).collect();
+/// let v2:Vec<u64> = chacha_iter(seed).with_join_policy(20).take(100).collect();
+/// assert_eq!(v1, v2);
+/// ```
+pub fn chacha_iter<T>(seed: [u8; 32]) -> impl ParallelIterator<Item = T, Power = Indexed>
+where
+    T: Send + Sync,
+    rand::distributions::Standard: rand::distributions::Distribution<T>,
+{
+    let mut rng = ChaChaRng::from_seed(seed);
+    rng.gen::<T>();
+    let pos_increment = rng.get_word_pos() as usize;
+    rng.set_word_pos(0);
+    skip(
+        (0, rng),
+        move |(c, rng)| {
+            *c += pos_increment;
+            rng.gen()
+        },
+        move |(c, rng), size| {
+            let mut right_rng = rng.clone();
+            let new_pos = *c + size * pos_increment;
+            right_rng.set_word_pos(new_pos as u128);
+            (new_pos, right_rng)
+        },
+    )
 }
