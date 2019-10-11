@@ -11,6 +11,13 @@ where
     fn bound_iterations_number(&self, size: usize) -> usize; // required by zip implementation
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter;
 
+    fn collect<C>(self) -> C
+    where
+        C: FromParallelIterator<Self::Item>,
+    {
+        C::from_par_iter(self)
+    }
+
     fn completed(&self) -> bool {
         self.bound_iterations_number(std::usize::MAX) == 0
     }
