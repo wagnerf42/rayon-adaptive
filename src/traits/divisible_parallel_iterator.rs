@@ -9,7 +9,6 @@ use crate::traits::Indexed;
 /// ParallelIterator yourself.
 pub trait DivisibleParallelIterator: Send + Sized + IntoIterator {
     fn base_length(&self) -> usize;
-    fn should_be_cut(&self) -> bool;
     /// Cuts self, left side is returned and self is now the right side of the cut
     fn cut_at_index(&mut self, index: usize) -> Self;
 }
@@ -27,7 +26,7 @@ where
 
 impl<I: DivisibleParallelIterator> Divisible for I {
     fn should_be_divided(&self) -> bool {
-        self.should_be_cut()
+        self.base_length() > 1
     }
     fn divide(mut self) -> (Self, Self) {
         let mylen = self.base_length();
