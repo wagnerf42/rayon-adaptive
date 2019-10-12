@@ -30,3 +30,10 @@ pub trait ParBorrowed<'e>: ItemProducer {
 pub trait SeqBorrowed<'e>: ItemProducer {
     type Iter: Iterator<Item = Self::Item>;
 }
+
+impl<I: IntoIterator> ItemProducer for I
+where
+    I::Item: Sized + Send,
+{
+    type Item = I::Item;
+}

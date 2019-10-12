@@ -1,5 +1,6 @@
 mod borrowing_parallel_iterator;
 mod divisible;
+mod divisible_parallel_iterator;
 mod from_parallel_iterator;
 mod indexed;
 mod into_iterator;
@@ -9,6 +10,7 @@ mod types;
 
 pub use borrowing_parallel_iterator::BorrowingParallelIterator;
 pub use divisible::Divisible;
+pub use divisible_parallel_iterator::DivisibleParallelIterator;
 pub use from_parallel_iterator::FromParallelIterator;
 pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
