@@ -1,59 +1,36 @@
 //! Parallel iterator on mutable slices.
 use crate::prelude::*;
 
-pub struct Iter<'a, T: 'a> {
+pub struct Iter<'a, T: 'a + Sync> {
     slice: &'a [T],
 }
 
-impl<'a, T: 'a + Sync> ItemProducer for Iter<'a, T> {
+impl<'a, T: 'a + Sync> IntoIterator for Iter<'a, T> {
     type Item = &'a T;
-}
-
-impl<'a, T: 'a + Sync> Powered for Iter<'a, T> {
-    type Power = Indexed;
-}
-
-impl<'e, 'a, T: 'a + Sync> ParBorrowed<'e> for Iter<'a, T> {
-    type Iter = Iter<'a, T>;
-}
-
-impl<'e, 'a, T: 'a + Sync> SeqBorrowed<'e> for Iter<'a, T> {
-    type Iter = std::slice::Iter<'a, T>;
-}
-
-impl<'a, T: 'a + Sync> Divisible for Iter<'a, T> {
-    fn should_be_divided(&self) -> bool {
-        self.slice.len() > 1
-    }
-    fn divide(self) -> (Self, Self) {
-        let mid = self.slice.len() / 2;
-        let (left, right) = self.slice.split_at(mid);
-        (Iter { slice: left }, Iter { slice: right })
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.slice.into_iter()
     }
 }
 
-impl<'a, T: 'a + Sync> BorrowingParallelIterator for Iter<'a, T> {
-    fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
-        let (left, right) = self.slice.split_at(size);
-        self.slice = right;
-        left.into_iter()
-    }
-    fn iterations_number(&self) -> usize {
+impl<'a, T: 'a + Sync> DivisibleParallelIterator for Iter<'a, T> {
+    fn base_length(&self) -> usize {
         self.slice.len()
     }
-}
-
-impl<'a, T: 'a + Sync> ParallelIterator for Iter<'a, T> {
-    fn bound_iterations_number(&self, size: usize) -> usize {
-        std::cmp::min(self.slice.len(), size)
-    }
-    fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
-        let (left, right) = self.slice.split_at(size);
+    /// Cuts self, left side is returned and self is now the right side of the cut
+    fn cut_at_index(&mut self, index: usize) -> Self {
+        let (left, right) = self.slice.split_at(index);
         self.slice = right;
         Iter { slice: left }
     }
 }
 
+/// Ordinary slices can also be turned into parallel iterators.
+/// # Example:
+/// ```
+/// let some_vec: Vec<u32> = (0..1000).collect();
+/// assert_eq!((&some_vec[0..500]).into_par_iter().filter(|&e| e%2==0).sum::<u32>(), 62250)
+/// ```
 impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
     type Iter = Iter<'a, T>;
     type Item = &'a T;
@@ -61,9 +38,9 @@ impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
         Iter { slice: self }
     }
 }
-
-// mutable slices
-
+//
+//// mutable slices
+//
 pub struct IterMut<'a, T: 'a> {
     pub(crate) slice: Option<&'a mut [T]>, // TODO: this option is only here to avoid an unsafe
 }
