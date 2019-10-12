@@ -28,6 +28,7 @@ impl<'a, T: 'a + Sync> DivisibleParallelIterator for Iter<'a, T> {
 /// Ordinary slices can also be turned into parallel iterators.
 /// # Example:
 /// ```
+/// use rayon_adaptive::prelude::*;
 /// let some_vec: Vec<u32> = (0..1000).collect();
 /// assert_eq!((&some_vec[0..500]).into_par_iter().filter(|&e| e%2==0).sum::<u32>(), 62250)
 /// ```
