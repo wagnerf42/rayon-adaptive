@@ -46,6 +46,13 @@ where
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.base.seq_borrow(size)
     }
+    fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
+        println!(
+            "MB size {:?}",
+            Box::new(std::iter::successors(Some(self.fallback), |&i| Some(i)))
+        ); //TODO remove before flight
+        Box::new(std::iter::successors(Some(self.fallback), |&i| Some(i)))
+    }
 }
 
 impl<I: BorrowingParallelIterator> Divisible for JoinPolicy<I> {
