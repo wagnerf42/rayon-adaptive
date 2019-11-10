@@ -94,3 +94,13 @@ where
         self.cut_at_index(self.bound_iterations_number(size))
     }
 }
+
+impl<I: DivisibleParallelIterator> DivisibleParallelIterator for (I, I) {
+    fn base_length(&self) -> usize {
+        debug_assert_eq!(self.0.base_length(), self.1.base_length());
+        self.0.base_length()
+    }
+    fn cut_at_index(&mut self, index: usize) -> Self {
+        (self.0.cut_at_index(index), self.1.cut_at_index(index))
+    }
+}
