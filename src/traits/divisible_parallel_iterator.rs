@@ -25,7 +25,7 @@ pub struct Wrapper<T> {
 
 impl<T: DivisibleParallelIterator> DivisibleParallelIterator for Wrapper<T> {
     fn base_length(&self) -> usize {
-        self.inner_iter.base_length() //ASK: doesn't feel right.
+        self.inner_iter.base_length()
     }
     fn cut_at_index(&mut self, index: usize) -> Self {
         let left_side = self.inner_iter.cut_at_index(index);

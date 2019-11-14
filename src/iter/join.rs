@@ -47,11 +47,7 @@ where
         self.base.seq_borrow(size)
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
-        println!(
-            "MB size {:?}",
-            Box::new(std::iter::successors(Some(self.fallback), |&i| Some(i)))
-        ); //TODO remove before flight
-        Box::new(std::iter::successors(Some(self.fallback), |&i| Some(i)))
+        Box::new(std::iter::repeat(self.fallback))
     }
 }
 

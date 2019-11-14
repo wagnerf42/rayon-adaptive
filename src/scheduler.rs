@@ -58,20 +58,11 @@ where
                     Ok((iterator, new_output))
                 }
             }) {
-            Ok((mut remaining_iterator, output)) => {
+            Ok((remaining_iterator, output)) => {
                 // we are being stolen. Let's give something.
-                if remaining_iterator.should_be_divided() {
-                    //ASK: should be guarded like this.
-                    let (my_half, his_half) = remaining_iterator.divide();
-                    sender.send(Some(his_half));
-                    schedule_reduce(my_half, identity, op, output)
-                } else {
-                    sender.send(None);
-                    let remaining_len = remaining_iterator.iterations_number();
-                    remaining_iterator
-                        .seq_borrow(remaining_len)
-                        .fold(output, op)
-                }
+                let (my_half, his_half) = remaining_iterator.divide();
+                sender.send(Some(his_half));
+                schedule_reduce(my_half, identity, op, output)
             }
             Err(output) => {
                 // all is completed, cancel stealer's task.
