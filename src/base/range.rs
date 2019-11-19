@@ -1,67 +1,22 @@
 use crate::prelude::*;
 
-#[derive(Debug)]
-pub struct Range<Idx> {
-    pub(crate) range: std::ops::Range<Idx>,
-}
-
 macro_rules! implement_traits {
     ($x: ty) => {
-        impl ItemProducer for Range<$x> {
-            type Item = $x;
-        }
-        impl Powered for Range<$x> {
-            type Power = Indexed;
-        }
-        impl<'e> ParBorrowed<'e> for Range<$x> {
-            type Iter = Range<$x>;
-        }
-        impl<'e> SeqBorrowed<'e> for Range<$x> {
-            type Iter = std::ops::Range<$x>;
-        }
-        impl Divisible for Range<$x> {
-            fn should_be_divided(&self) -> bool {
-                self.range.len() > 1
+        impl DivisibleParallelIterator for std::ops::Range<$x> {
+            fn base_length(&self) -> usize {
+                self.len()
             }
-            fn divide(mut self) -> (Self, Self) {
-                let mid = ((self.range.start + self.range.end) / 2) as $x;
-                let right = Range {
-                    range: mid..self.range.end,
-                };
-                self.range.end = mid;
-                (self, right)
+            fn cut_at_index(&mut self, index: usize) -> Self {
+                let right = (index as $x)..self.end;
+                self.end = index as $x;
+                right
             }
         }
-        impl BorrowingParallelIterator for Range<$x> {
-            fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
-                let mid = self.range.start + size as $x;
-                let left = self.range.start..mid;
-                self.range.start = mid;
-                left
-            }
-            fn iterations_number(&self) -> usize {
-                self.range.len()
-            }
-        }
-        impl ParallelIterator for Range<$x> {
-            fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
-                let mid = self.range.start + size as $x;
-                let left = Range {
-                    range: self.range.start..mid,
-                };
-                self.range.start = mid;
-                left
-            }
-            fn bound_iterations_number(&self, size: usize) -> usize {
-                std::cmp::min(self.range.len(), size)
-            }
-        }
-
         impl IntoParallelIterator for std::ops::Range<$x> {
-            type Iter = Range<$x>;
+            type Iter = DivisibleIter<std::ops::Range<$x>>;
             type Item = $x;
             fn into_par_iter(self) -> Self::Iter {
-                Range { range: self }
+                DivisibleIter { base: self }
             }
         }
     };
