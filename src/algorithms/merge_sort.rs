@@ -1,4 +1,3 @@
-use crate::prelude::DivisibleParallelIterator;
 use crate::prelude::*;
 use itertools::merge;
 
@@ -22,7 +21,6 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut 
     to_sort
         .wrap_iter()
         .map(|s| {
-            eprintln!("len of {}", s.0.len());
             s.0.sort();
             s
         })
