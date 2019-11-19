@@ -1,7 +1,4 @@
-use crate::prelude::{
-    BorrowingParallelIterator, Divisible, ParBorrowed, ParallelIterator, Powered, SeqBorrowed,
-};
-use crate::traits::Indexed;
+use crate::prelude::*;
 use std::iter::{once, Once};
 /// This trait provides a shortcut to making a parallel iterator. If this trait is implemented, the
 /// type shall also automatically implement ParallelIterator and IndexedParallelIterator traits.
@@ -14,9 +11,15 @@ pub trait DivisibleParallelIterator: Send + Sized {
     fn cut_at_index(&mut self, index: usize) -> Self;
     /// Will wrap self in a type that is also a divisible parallel iterator. Should allow quick
     /// nesting of parallel iterators.
-    fn wrap_iter(self) -> Wrapper<Self> {
-        Wrapper { inner_iter: self }
+    fn wrap_iter(self) -> DivisibleIter<Wrapper<Self>> {
+        DivisibleIter {
+            base: Wrapper { inner_iter: self },
+        }
     }
+}
+
+pub struct DivisibleIter<I> {
+    pub(crate) base: I,
 }
 
 pub struct Wrapper<T> {
@@ -43,62 +46,90 @@ impl<T> IntoIterator for Wrapper<T> {
     }
 }
 
-impl<I: DivisibleParallelIterator> Powered for I {
+impl<I> Powered for DivisibleIter<I> {
     type Power = Indexed;
 }
 
-impl<'l, I: DivisibleParallelIterator + IntoIterator> SeqBorrowed<'l> for I
+impl<I: IntoIterator> ItemProducer for DivisibleIter<I>
+where
+    I::Item: Sized + Send,
+{
+    type Item = I::Item;
+}
+
+impl<'l, I: DivisibleParallelIterator + IntoIterator> SeqBorrowed<'l> for DivisibleIter<I>
 where
     I::Item: Sized + Send,
 {
     type Iter = I::IntoIter;
 }
 
-impl<I: DivisibleParallelIterator> Divisible for I {
+impl<I: DivisibleParallelIterator> Divisible for DivisibleIter<I> {
     fn should_be_divided(&self) -> bool {
-        self.base_length() > 1
+        self.base.base_length() > 1
     }
     fn divide(mut self) -> (Self, Self) {
-        let mylen = self.base_length();
-        (self.cut_at_index(mylen / 2), self)
+        let mylen = self.base.base_length();
+        (
+            DivisibleIter {
+                base: self.base.cut_at_index(mylen / 2),
+            },
+            self,
+        )
     }
 }
 
-impl<'l, I: DivisibleParallelIterator + IntoIterator> ParBorrowed<'l> for I
+impl<'l, I: DivisibleParallelIterator + IntoIterator> ParBorrowed<'l> for DivisibleIter<I>
 where
     I::Item: Sized + Send,
 {
-    type Iter = I;
+    type Iter = DivisibleIter<I>;
 }
 
-impl<I: DivisibleParallelIterator + IntoIterator> BorrowingParallelIterator for I
+impl<I: DivisibleParallelIterator + IntoIterator> BorrowingParallelIterator for DivisibleIter<I>
 where
     I::Item: Sized + Send,
 {
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
-        self.cut_at_index(size).into_iter()
+        self.base.cut_at_index(size).into_iter()
     }
     fn iterations_number(&self) -> usize {
-        self.base_length()
+        self.base.base_length()
     }
 }
 
-impl<I: DivisibleParallelIterator + IntoIterator> ParallelIterator for I
+impl<I: DivisibleParallelIterator + IntoIterator> ParallelIterator for DivisibleIter<I>
 where
     I::Item: Sized + Send,
 {
     fn bound_iterations_number(&self, size: usize) -> usize {
-        std::cmp::min(size, self.base_length())
+        std::cmp::min(size, self.base.base_length())
     }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
-        self.cut_at_index(self.bound_iterations_number(size))
+        DivisibleIter {
+            base: self.base.cut_at_index(self.bound_iterations_number(size)),
+        }
     }
 }
 
-impl<I: DivisibleParallelIterator> DivisibleParallelIterator for (I, I) {
+// TODO: I don't see any solution but manual implem for each type
+//
+// impl<I: DivisibleParallelIterator + IntoIterator> IntoParallelIterator for I
+// where
+//     I::Item: Sized + Send,
+// {
+//     type Iter = DivisibleIter<I>;
+//     type Item = I::Item;
+//     fn into_par_iter(self) -> Self::Iter {
+//         DivisibleIter { base: self }
+//     }
+// }
+
+impl<I: DivisibleParallelIterator, J: DivisibleParallelIterator> DivisibleParallelIterator
+    for (I, J)
+{
     fn base_length(&self) -> usize {
-        debug_assert_eq!(self.0.base_length(), self.1.base_length());
-        self.0.base_length()
+        std::cmp::min(self.0.base_length(), self.1.base_length())
     }
     fn cut_at_index(&mut self, index: usize) -> Self {
         (self.0.cut_at_index(index), self.1.cut_at_index(index))

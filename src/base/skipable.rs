@@ -220,7 +220,7 @@ where
 /// # Example
 /// ```
 /// use rayon_adaptive::prelude::*;
-/// use rayon_adaptive::random_iter;
+/// use rayon_adaptive::chacha_iter;
 ///
 /// let seed = [
 ///        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3,
