@@ -165,6 +165,28 @@ where
         reduced_value
     }
 
+    /// this is a quick implementation of reduce_with.
+    /// there surely is a much better way to do it.
+    fn reduce_with<OP>(self, op: OP) -> Option<Self::Item>
+    where
+        OP: Fn(Self::Item, Self::Item) -> Self::Item + Sync + Send,
+    {
+        self.map(|i| Some(i)).reduce(
+            || None,
+            |o1, o2| {
+                if let Some(r1) = o1 {
+                    if let Some(r2) = o2 {
+                        Some(op(r1, r2))
+                    } else {
+                        Some(r1)
+                    }
+                } else {
+                    o2
+                }
+            },
+        )
+    }
+
     /// Sums all content of the iterator.
     /// Example:
     /// ```
