@@ -10,6 +10,7 @@ mod types;
 
 pub use borrowing_parallel_iterator::BorrowingParallelIterator;
 pub use divisible::Divisible;
+pub(crate) use divisible_parallel_iterator::DivisibleIter;
 pub use divisible_parallel_iterator::DivisibleParallelIterator;
 pub use from_parallel_iterator::FromParallelIterator;
 pub use indexed::IndexedParallelIterator;

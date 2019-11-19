@@ -1,4 +1,3 @@
-use crate::base::range::Range;
 use crate::prelude::*;
 
 pub struct RangeFrom<Idx> {
@@ -14,7 +13,7 @@ macro_rules! implement_traits {
             type Power = Indexed;
         }
         impl<'e> ParBorrowed<'e> for RangeFrom<$x> {
-            type Iter = Range<$x>;
+            type Iter = DivisibleIter<std::ops::Range<$x>>;
         }
         impl ParallelIterator for RangeFrom<$x> {
             fn bound_iterations_number(&self, size: usize) -> usize {
@@ -22,8 +21,8 @@ macro_rules! implement_traits {
             }
             fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
                 let end = self.start + size as $x;
-                let borrowed_range = Range {
-                    range: self.start..end,
+                let borrowed_range = DivisibleIter {
+                    base: self.start..end,
                 };
                 self.start = end;
                 borrowed_range

@@ -42,6 +42,9 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivi
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.iterator.seq_borrow(size)
     }
+    fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
+        self.iterator.micro_blocks_sizes()
+    }
 }
 
 impl<I: BorrowingParallelIterator> Divisible for DampenLocalDivision<I> {
