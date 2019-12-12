@@ -55,6 +55,7 @@ impl<I> BorrowingParallelIterator for EvenLevels<I>
 where
     I: BorrowingParallelIterator,
 {
+    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }

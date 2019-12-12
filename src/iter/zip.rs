@@ -55,6 +55,7 @@ where
     A: BorrowingParallelIterator,
     B: BorrowingParallelIterator,
 {
+    type ScheduleType = A::ScheduleType;
     fn iterations_number(&self) -> usize {
         let iterations_a = self.a.iterations_number();
         let iterations_b = self.b.iterations_number();

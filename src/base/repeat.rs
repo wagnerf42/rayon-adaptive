@@ -63,6 +63,7 @@ impl<T: Clone + Send + Sync> ParallelIterator for Repeat<T> {
 }
 
 impl<'a, T: Clone + Send + Sync> BorrowingParallelIterator for BorrowedRepeat<'a, T> {
+    type ScheduleType = Adaptive;
     fn iterations_number(&self) -> usize {
         self.size
     }

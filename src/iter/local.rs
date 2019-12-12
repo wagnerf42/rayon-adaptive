@@ -36,6 +36,7 @@ impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
 }
 
 impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivision<I> {
+    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.iterator.iterations_number()
     }

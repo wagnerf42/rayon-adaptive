@@ -88,6 +88,7 @@ where
     F: Fn(I::Item) -> PI + Sync,
     PI: IntoParallelIterator,
 {
+    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.inner_iterator.iterations_number()
     }

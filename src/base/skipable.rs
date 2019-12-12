@@ -92,6 +92,7 @@ where
     S: Fn(&mut I, usize) -> I + Sync,
     E: Send,
 {
+    type ScheduleType = Adaptive;
     fn iterations_number(&self) -> usize {
         self.count
     }

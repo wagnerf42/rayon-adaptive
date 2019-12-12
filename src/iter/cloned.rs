@@ -50,6 +50,7 @@ where
     T: Clone + Send + Sync + 'a,
     I: BorrowingParallelIterator<Item = &'a T>,
 {
+    type ScheduleType = I::ScheduleType;
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.base.seq_borrow(size).cloned()
     }

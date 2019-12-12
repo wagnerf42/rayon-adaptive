@@ -1,7 +1,13 @@
 use crate::prelude::*;
+use crate::scheduler::*;
 
 pub struct Standard;
 pub struct Indexed;
+
+#[derive(Copy, Clone)]
+pub struct Adaptive {}
+#[derive(Copy, Clone)]
+pub struct NonAdaptive {}
 
 pub trait Powered {
     type Power;

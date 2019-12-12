@@ -98,6 +98,7 @@ where
     I: BorrowingParallelIterator,
     P: Sync + Fn(&I::Item) -> bool,
 {
+    type ScheduleType = I::ScheduleType;
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         SeqFilter {
             iterator: self.iterator.seq_borrow(size),

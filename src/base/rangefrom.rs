@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::traits::Adaptive;
 
 pub struct RangeFrom<Idx> {
     start: Idx,
@@ -13,7 +14,7 @@ macro_rules! implement_traits {
             type Power = Indexed;
         }
         impl<'e> ParBorrowed<'e> for RangeFrom<$x> {
-            type Iter = DivisibleIter<std::ops::Range<$x>>;
+            type Iter = DivisibleIter<std::ops::Range<$x>, Adaptive>;
         }
         impl ParallelIterator for RangeFrom<$x> {
             fn bound_iterations_number(&self, size: usize) -> usize {
@@ -23,6 +24,7 @@ macro_rules! implement_traits {
                 let end = self.start + size as $x;
                 let borrowed_range = DivisibleIter {
                     base: self.start..end,
+                    schedule_type: Adaptive {},
                 };
                 self.start = end;
                 borrowed_range

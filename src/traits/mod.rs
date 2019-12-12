@@ -17,4 +17,7 @@ pub use indexed::IndexedParallelIterator;
 pub use into_iterator::IntoParallelIterator;
 pub use into_parallel_ref::IntoParallelRefIterator;
 pub use parallel_iterator::ParallelIterator;
-pub use types::{Indexed, ItemProducer, MinPower, ParBorrowed, Powered, SeqBorrowed, Standard};
+pub use types::{
+    Adaptive, Indexed, ItemProducer, MinPower, NonAdaptive, ParBorrowed, Powered, SeqBorrowed,
+    Standard,
+};

@@ -84,6 +84,7 @@ where
     ID: Fn() -> T + Sync,
     F: Fn(T, I::Item) -> T + Sync,
 {
+    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }

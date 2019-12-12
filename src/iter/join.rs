@@ -40,6 +40,7 @@ impl<I> BorrowingParallelIterator for JoinPolicy<I>
 where
     I: BorrowingParallelIterator,
 {
+    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }

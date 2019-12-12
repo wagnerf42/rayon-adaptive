@@ -1,39 +1,15 @@
 use crate::prelude::*;
 use crate::small_channel::small_channel;
 
-/// This just does one block.
-/// It is a new version, pretty nifty as it fuses all schedulers into one.
-/// It also allows us to avoid policies since all policies are just iterator adaptors now.
-pub(crate) fn schedule_reduce<I, ID, OP>(
-    iterator: I,
-    identity: &ID,
-    op: &OP,
-    output: I::Item,
-) -> I::Item
-where
-    I: BorrowingParallelIterator,
-    OP: Fn(I::Item, I::Item) -> I::Item + Sync,
-    ID: Fn() -> I::Item + Sync,
-{
-    // for now just a non adaptive version
-    if iterator.should_be_divided() {
-        let (left, right) = iterator.divide();
-        let (left_answer, right_answer) = rayon::join(
-            || schedule_reduce(left, identity, op, output),
-            || schedule_reduce(right, identity, op, identity()),
-        );
-        op(left_answer, right_answer)
-    } else {
-        schedule_adaptive(iterator, identity, op, output)
-    }
+pub trait Schedulable {
+    fn schedule_reduce<I, ID, OP>(iterator: I, identity: &ID, op: &OP, output: I::Item) -> I::Item
+    where
+        OP: Fn(I::Item, I::Item) -> I::Item + Sync,
+        ID: Fn() -> I::Item + Sync,
+        I: BorrowingParallelIterator;
 }
 
-pub(crate) fn schedule_adaptive<I, ID, OP>(
-    iterator: I,
-    identity: &ID,
-    op: &OP,
-    output: I::Item,
-) -> I::Item
+pub fn schedule_adaptive<I, ID, OP>(iterator: I, identity: &ID, op: &OP, output: I::Item) -> I::Item
 where
     I: BorrowingParallelIterator,
     OP: Fn(I::Item, I::Item) -> I::Item + Sync,
@@ -62,7 +38,7 @@ where
                 // we are being stolen. Let's give something.
                 let (my_half, his_half) = remaining_iterator.divide();
                 sender.send(Some(his_half));
-                schedule_reduce(my_half, identity, op, output)
+                I::ScheduleType::schedule_reduce(my_half, identity, op, output)
             }
             Err(output) => {
                 // all is completed, cancel stealer's task.
@@ -75,7 +51,9 @@ where
                 receiver
                     .recv()
                     .expect("receiving adaptive iterator failed")
-                    .map(|iterator| schedule_reduce(iterator, identity, op, identity()))
+                    .map(|iterator| {
+                        I::ScheduleType::schedule_reduce(iterator, identity, op, identity())
+                    })
             } else {
                 None
             }
@@ -85,5 +63,53 @@ where
         op(left_result, right_result)
     } else {
         left_result
+    }
+}
+impl Schedulable for Adaptive {
+    fn schedule_reduce<I, ID, OP>(iterator: I, identity: &ID, op: &OP, output: I::Item) -> I::Item
+    where
+        OP: Fn(I::Item, I::Item) -> I::Item + Sync,
+        ID: Fn() -> I::Item + Sync,
+        I: BorrowingParallelIterator,
+    {
+        if iterator.should_be_divided() {
+            let (left, right) = iterator.divide();
+            let (left_answer, right_answer) = rayon::join(
+                || <Self as Schedulable>::schedule_reduce(left, identity, op, output),
+                || <Self as Schedulable>::schedule_reduce(right, identity, op, identity()),
+            );
+            op(left_answer, right_answer)
+        } else {
+            schedule_adaptive(iterator, identity, op, output)
+        }
+    }
+}
+
+impl Schedulable for NonAdaptive {
+    fn schedule_reduce<I, ID, OP>(
+        mut iterator: I,
+        identity: &ID,
+        op: &OP,
+        output: I::Item,
+    ) -> I::Item
+    where
+        OP: Fn(I::Item, I::Item) -> I::Item + Sync,
+        ID: Fn() -> I::Item + Sync,
+        I: BorrowingParallelIterator,
+    {
+        // for now just a non adaptive version
+        if iterator.should_be_divided() {
+            let (left, right) = iterator.divide();
+            let (left_answer, right_answer) = rayon::join(
+                || <Self as Schedulable>::schedule_reduce(left, identity, op, output),
+                || <Self as Schedulable>::schedule_reduce(right, identity, op, identity()),
+            );
+            op(left_answer, right_answer)
+        } else {
+            //No more parallelism
+            iterator
+                .seq_borrow({ iterator.iterations_number() })
+                .fold(output, op)
+        }
     }
 }
