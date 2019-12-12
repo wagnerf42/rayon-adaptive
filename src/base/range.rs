@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::traits::Adaptive;
 
 macro_rules! implement_traits {
     ($x: ty) => {
@@ -7,16 +8,19 @@ macro_rules! implement_traits {
                 self.len()
             }
             fn cut_at_index(&mut self, index: usize) -> Self {
-                let right = (index as $x)..self.end;
-                self.end = index as $x;
-                right
+                let left = self.start..(self.start + index as $x);
+                self.start = self.start + index as $x;
+                left
             }
         }
         impl IntoParallelIterator for std::ops::Range<$x> {
-            type Iter = DivisibleIter<std::ops::Range<$x>>;
+            type Iter = DivisibleIter<std::ops::Range<$x>, Adaptive>;
             type Item = $x;
             fn into_par_iter(self) -> Self::Iter {
-                DivisibleIter { base: self }
+                DivisibleIter {
+                    base: self,
+                    schedule_type: Adaptive {},
+                }
             }
         }
     };
