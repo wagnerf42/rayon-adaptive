@@ -20,3 +20,10 @@ either = "*"
 rand_chacha="*"
 rand="*"
 itertools="*"
+
+[dev_dependencies]
+criterion="*"
+
+[[bench]]
+name = "merge_sort"
+harness = false

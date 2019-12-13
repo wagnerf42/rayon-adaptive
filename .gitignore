@@ -5,3 +5,7 @@ TODO
 target/
 .vim/
 *.sh
+*.html
+*.png
+*.jpg
+*.swp
