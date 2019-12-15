@@ -210,4 +210,8 @@ where
     {
         self.map(op).reduce(|| (), |(), ()| ())
     }
+
+    fn non_adaptive_iter(self) -> NonAdaptiveIter<Self> {
+        NonAdaptiveIter { base: self }
+    }
 }
