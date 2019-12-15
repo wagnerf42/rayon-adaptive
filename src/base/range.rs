@@ -7,9 +7,9 @@ macro_rules! implement_traits {
                 self.len()
             }
             fn cut_at_index(&mut self, index: usize) -> Self {
-                let right = (index as $x)..self.end;
-                self.end = index as $x;
-                right
+                let left = self.start..self.start + (index as $x);
+                self.start = left.end;
+                left
             }
         }
         impl IntoParallelIterator for std::ops::Range<$x> {
