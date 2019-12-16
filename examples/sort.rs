@@ -22,11 +22,11 @@ fn main() {
     #[cfg(not(feature = "logs"))]
     {
         rayon::ThreadPoolBuilder::new()
-            .num_threads(1)
+            .num_threads(5)
             .build_global()
             .expect("pool build failed");
         merge_sort_adaptive(&mut input);
     }
     //println!("after {:?}", input);
-    assert_eq!(input, (0..100_000u32).collect::<Vec<u32>>());
+    assert_eq!(input, (1..100_000u32).collect::<Vec<u32>>());
 }

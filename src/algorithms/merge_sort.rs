@@ -24,9 +24,9 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut 
             s.0.sort();
             s
         })
-        .with_join_policy(5000)
         .with_rayon_policy()
         .even_levels()
+        .non_adaptive_iter()
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {
             let new_output = fuse_slices(left_output, right_output);
             new_output
