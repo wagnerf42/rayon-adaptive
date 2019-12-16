@@ -7,12 +7,12 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-pub(crate) struct Dislocated<'a, I: Sync> {
+pub(crate) struct Dislocated<'a, I> {
     raw: *const I,
     phantom: PhantomData<&'a ()>,
 }
 
-impl<'a, I: Sync> Clone for Dislocated<'a, I> {
+impl<'a, I> Clone for Dislocated<'a, I> {
     fn clone(&self) -> Self {
         Dislocated {
             raw: self.raw,
@@ -21,16 +21,16 @@ impl<'a, I: Sync> Clone for Dislocated<'a, I> {
     }
 }
 
-impl<'a, I: Sync> Copy for Dislocated<'a, I> {}
+impl<'a, I> Copy for Dislocated<'a, I> {}
 
-impl<'a, I: Sync> Deref for Dislocated<'a, I> {
+impl<'a, I> Deref for Dislocated<'a, I> {
     type Target = I;
     fn deref(&self) -> &Self::Target {
         unsafe { self.raw.as_ref() }.unwrap()
     }
 }
 
-impl<'a, I: Sync> Dislocated<'a, I> {
+impl<'a, I> Dislocated<'a, I> {
     pub(crate) fn new(input: &'a I) -> Dislocated<'a, I> {
         Dislocated {
             raw: input as *const I,
@@ -42,25 +42,25 @@ impl<'a, I: Sync> Dislocated<'a, I> {
 unsafe impl<'a, I: Sync> Send for Dislocated<'a, I> {}
 unsafe impl<'a, I: Sync> Sync for Dislocated<'a, I> {}
 
-pub(crate) struct DislocatedMut<'a, I: Sync> {
+pub(crate) struct DislocatedMut<'a, I> {
     raw: *mut I,
     phantom: PhantomData<&'a mut ()>,
 }
 
-impl<'a, I: Sync> Deref for DislocatedMut<'a, I> {
+impl<'a, I> Deref for DislocatedMut<'a, I> {
     type Target = I;
     fn deref(&self) -> &Self::Target {
         unsafe { self.raw.as_ref() }.unwrap()
     }
 }
 
-impl<'a, I: Sync> DerefMut for DislocatedMut<'a, I> {
+impl<'a, I> DerefMut for DislocatedMut<'a, I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.raw.as_mut() }.unwrap()
     }
 }
 
-impl<'a, I: Sync> DislocatedMut<'a, I> {
+impl<'a, I> DislocatedMut<'a, I> {
     pub(crate) fn new(input: &'a mut I) -> DislocatedMut<'a, I> {
         DislocatedMut {
             raw: input as *mut I,

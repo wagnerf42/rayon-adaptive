@@ -9,6 +9,7 @@ mod iterator_fold;
 mod join;
 mod local;
 mod map;
+mod merge;
 mod take;
 mod zip;
 
@@ -22,5 +23,6 @@ pub use iterator_fold::IteratorFold;
 pub use join::JoinPolicy;
 pub use local::DampenLocalDivision;
 pub use map::Map;
+pub use merge::ParallelMerge;
 pub use take::Take;
 pub use zip::Zip;
