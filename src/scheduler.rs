@@ -50,7 +50,7 @@ where
                     let sequential_iterator = iterator.seq_borrow(size);
                     sequential_iterator.fold(output, op)
                 };
-                if iterator.completed() {
+                if iterator.part_completed() {
                     // it's over
                     Err(new_output)
                 } else {

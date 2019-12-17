@@ -92,7 +92,7 @@ where
         for element in self.base.seq_borrow(size) {
             new_value = (self.fold_op)(new_value, element);
         }
-        if self.base.completed() {
+        if self.base.part_completed() {
             Some(new_value)
         } else {
             self.current_value = Some(new_value);

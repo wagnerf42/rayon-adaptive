@@ -10,7 +10,7 @@ where
     /// Return the number of iterations we still need to do.
     fn iterations_number(&self) -> usize;
     /// Return if nothing is left to do.
-    fn completed(&self) -> bool {
+    fn part_completed(&self) -> bool {
         self.iterations_number() == 0
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {

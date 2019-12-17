@@ -1,5 +1,7 @@
+use crate::iter::ParallelMerge;
 use crate::prelude::*;
 use std::iter::{once, Once};
+use std::marker::PhantomData;
 /// This trait provides a shortcut to making a parallel iterator. If this trait is implemented, the
 /// type shall also automatically implement ParallelIterator and IndexedParallelIterator traits.
 /// The catch is that even while making macro blocks, this divide_at_index() method will be called.
@@ -57,8 +59,9 @@ where
     type Item = I::Item;
 }
 
-impl<'l, I: DivisibleParallelIterator + IntoIterator> SeqBorrowed<'l> for DivisibleIter<I>
+impl<'e, I> SeqBorrowed<'e> for DivisibleIter<I>
 where
+    I: IntoIterator,
     I::Item: Sized + Send,
 {
     type Iter = I::IntoIter;
@@ -77,17 +80,27 @@ impl<I: DivisibleParallelIterator> Divisible for DivisibleIter<I> {
             self,
         )
     }
+    fn divide_at(mut self, index: usize) -> (Self, Self) {
+        (
+            DivisibleIter {
+                base: self.base.cut_at_index(index),
+            },
+            self,
+        )
+    }
 }
 
-impl<'l, I: DivisibleParallelIterator + IntoIterator> ParBorrowed<'l> for DivisibleIter<I>
+impl<'e, I> ParBorrowed<'e> for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
 {
     type Iter = DivisibleIter<I>;
 }
 
-impl<I: DivisibleParallelIterator + IntoIterator> BorrowingParallelIterator for DivisibleIter<I>
+impl<I> BorrowingParallelIterator for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
 {
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
@@ -98,8 +111,9 @@ where
     }
 }
 
-impl<I: DivisibleParallelIterator + IntoIterator> ParallelIterator for DivisibleIter<I>
+impl<I> ParallelIterator for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
 {
     fn bound_iterations_number(&self, size: usize) -> usize {
@@ -133,5 +147,28 @@ impl<I: DivisibleParallelIterator, J: DivisibleParallelIterator> DivisibleParall
     }
     fn cut_at_index(&mut self, index: usize) -> Self {
         (self.0.cut_at_index(index), self.1.cut_at_index(index))
+    }
+}
+
+impl<'a, T: 'a> std::ops::Index<usize> for DivisibleIter<&'a [T]> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.base[index]
+    }
+}
+
+impl<I> DivisibleIter<I>
+where
+    I: DivisibleParallelIterator + IntoIterator,
+    Self: std::ops::Index<usize>,
+    <Self as std::ops::Index<usize>>::Output: Ord,
+{
+    /// Merge two ordered parallel iterators into one ordered parallel iterator.
+    pub fn merge<J>(self, other: DivisibleIter<J>) -> ParallelMerge<I, J>
+    where
+        J: DivisibleParallelIterator + IntoIterator<Item = I::Item>,
+        DivisibleIter<J>: std::ops::Index<usize, Output = <Self as std::ops::Index<usize>>::Output>,
+    {
+        ParallelMerge { i: self, j: other }
     }
 }

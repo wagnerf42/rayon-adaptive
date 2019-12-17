@@ -29,13 +29,6 @@ impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
     }
 }
 
-impl<'a, T: 'a> std::ops::Index<usize> for DivisibleIter<&'a [T]> {
-    type Output = T;
-    fn index(&self, index: usize) -> &T {
-        &self.base[index]
-    }
-}
-
 //// mutable slices
 impl<'a, T: 'a + Sync + Send> DivisibleParallelIterator for &'a mut [T] {
     fn base_length(&self) -> usize {
@@ -66,12 +59,5 @@ impl<'a, T: 'a + Sync + Send> IntoParallelIterator for &'a mut [T] {
     type Item = &'a mut T;
     fn into_par_iter(self) -> Self::Iter {
         DivisibleIter { base: self }
-    }
-}
-
-impl<'a, T: 'a> std::ops::Index<usize> for DivisibleIter<&'a mut [T]> {
-    type Output = T;
-    fn index(&self, index: usize) -> &T {
-        &self.base[index]
     }
 }
