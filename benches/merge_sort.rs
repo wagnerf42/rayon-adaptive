@@ -6,6 +6,7 @@ extern crate rayon_adaptive;
 
 use rayon::prelude::*;
 use rayon_adaptive::merge_sort_adaptive;
+//use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
@@ -33,12 +34,21 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         .with_function("adaptive sort", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    (0..*input_size)
-                        .map(|_| rand::random())
-                        .collect::<Vec<u32>>()
+                    let thread_pool = rayon::ThreadPoolBuilder::new()
+                        .num_threads(1)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (
+                        thread_pool,
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>(),
+                    )
                 },
-                |mut v| {
-                    merge_sort_adaptive(&mut v);
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        merge_sort_adaptive(&mut v);
+                    });
                     v
                 },
             )
@@ -46,52 +56,61 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         .with_function("rayon", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    (0..*input_size)
-                        .map(|_| rand::random())
-                        .collect::<Vec<u32>>()
+                    let thread_pool = rayon::ThreadPoolBuilder::new()
+                        .num_threads(1)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (
+                        thread_pool,
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>(),
+                    )
                 },
-                |mut v| {
-                    v.par_sort();
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        v.par_sort();
+                    });
                     v
                 },
             )
         }),
     );
 
-    c.bench(
-        "merge sort (reversed input)",
-        ParameterizedBenchmark::new(
-            "sequential",
-            |b, input_size| {
-                b.iter_with_setup(
-                    || (0..*input_size).rev().collect::<Vec<u32>>(),
-                    |mut v| {
-                        v.sort();
-                        v
-                    },
-                )
-            },
-            sizes,
-        )
-        .with_function("adaptive", |b, input_size| {
-            b.iter_with_setup(
-                || (0..*input_size).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    merge_sort_adaptive(&mut v);
-                    v
-                },
-            )
-        })
-        .with_function("rayon", |b, input_size| {
-            b.iter_with_setup(
-                || (0..*input_size).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    v.par_sort();
-                    v
-                },
-            )
-        }),
-    );
+    //c.bench(
+    //    "merge sort (reversed input)",
+    //    ParameterizedBenchmark::new(
+    //        "sequential",
+    //        |b, input_size| {
+    //            b.iter_with_setup(
+    //                || (0..*input_size).rev().collect::<Vec<u32>>(),
+    //                |mut v| {
+    //                    v.sort();
+    //                    v
+    //                },
+    //            )
+    //        },
+    //        sizes,
+    //    )
+    //    .with_function("adaptive", |b, input_size| {
+    //        b.iter_with_setup(
+    //            || (0..*input_size).rev().collect::<Vec<u32>>(),
+    //            |mut v| {
+    //                merge_sort_adaptive(&mut v);
+    //                v
+    //            },
+    //        )
+    //    })
+    //    .with_function("rayon", |b, input_size| {
+    //        b.iter_with_setup(
+    //            || (0..*input_size).rev().collect::<Vec<u32>>(),
+    //            |mut v| {
+    //                v.par_sort();
+    //                v
+    //            },
+    //        )
+    //    }),
+    //);
 }
 
 criterion_group!(benches, merge_sort_benchmarks);
