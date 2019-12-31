@@ -12,6 +12,7 @@ fn fuse_slices<'a: 'c, 'b: 'c, 'c, T: 'a + 'b>(s1: &'a mut [T], s2: &'b mut [T])
 }
 
 pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut [T]) {
+    let problem_size = input.len();
     let mut copy_vector: Vec<T> = Vec::with_capacity(input.len());
     unsafe {
         copy_vector.set_len(input.len());
@@ -24,6 +25,7 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut 
             s.0.sort();
             s
         })
+        .with_join_policy(problem_size / 9) //The constant here should be number of threads + 1
         .with_rayon_policy()
         .even_levels()
         .non_adaptive_iter()
