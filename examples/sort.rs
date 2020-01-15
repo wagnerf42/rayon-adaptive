@@ -5,7 +5,7 @@ use rayon_adaptive::merge_sort_adaptive;
 use rayon_logs::ThreadPoolBuilder;
 
 fn main() {
-    let mut input = (1..100_000u32).rev().collect::<Vec<u32>>();
+    let mut input = (1..100_001u32).rev().collect::<Vec<u32>>();
     input.shuffle(&mut thread_rng());
     //println!("before {:?}", input);
     #[cfg(feature = "logs")]
@@ -28,5 +28,5 @@ fn main() {
         merge_sort_adaptive(&mut input);
     }
     //println!("after {:?}", input);
-    assert_eq!(input, (0..100_000u32).collect::<Vec<u32>>());
+    assert_eq!(input, (0..100_001u32).collect::<Vec<u32>>());
 }
