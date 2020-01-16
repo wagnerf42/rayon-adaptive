@@ -36,5 +36,5 @@ fn main() {
         merge_sort_adaptive_rayon(&mut input);
     }
     //println!("after {:?}", input);
-    assert_eq!(input, (0..100_001u32).collect::<Vec<u32>>());
+    assert_eq!(input, (1..100_001u32).collect::<Vec<u32>>());
 }
