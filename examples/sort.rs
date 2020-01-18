@@ -4,7 +4,7 @@ use rayon_adaptive::{merge_sort_adaptive_jp, merge_sort_adaptive_rayon};
 #[cfg(feature = "logs")]
 use rayon_logs::ThreadPoolBuilder;
 
-const PROBLEM_SIZE: u32 = 1_000_000u32;
+const PROBLEM_SIZE: u32 = 1_000_001u32;
 
 fn main() {
     let mut input = (1..PROBLEM_SIZE).rev().collect::<Vec<u32>>();
@@ -23,7 +23,7 @@ fn main() {
         //log.save_svg("rayon_sort_log.svg")
         //    .expect("saving svg file failed");
         let p = ThreadPoolBuilder::new()
-            .num_threads(2)
+            .num_threads(17)
             .build()
             .expect("builder failed");
         let log = p.logging_install(|| merge_sort_adaptive_jp(&mut input)).1;

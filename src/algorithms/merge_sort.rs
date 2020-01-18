@@ -22,10 +22,11 @@ pub fn merge_sort_adaptive_jp<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a m
     to_sort
         .wrap_iter()
         .map(|s| {
+            assert!(s.0.len() >= problem_size / 16);
             s.0.sort();
             s
         })
-        .with_join_policy(problem_size / 8) //The constant here should be number of threads + 1
+        .with_join_policy(problem_size / 16)
         .even_levels()
         .non_adaptive_iter()
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {

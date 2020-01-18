@@ -18,6 +18,7 @@ where
     // for now just a non adaptive version
     if iterator.should_be_divided() {
         let (left, right) = iterator.divide();
+        println!("Divide in scheduler");
         let (left_answer, right_answer) = rayon::join(
             || schedule_reduce(left, identity, op, output),
             || schedule_reduce(right, identity, op, identity()),
@@ -61,6 +62,10 @@ where
             Ok((remaining_iterator, output)) => {
                 // we are being stolen. Let's give something.
                 let (my_half, his_half) = remaining_iterator.divide();
+                println!(
+                    "Adaptive scheduler gave {} to stealer",
+                    his_half.iterations_number()
+                );
                 sender.send(Some(his_half));
                 schedule_reduce(my_half, identity, op, output)
             }
