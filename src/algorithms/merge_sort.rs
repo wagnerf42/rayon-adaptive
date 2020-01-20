@@ -1,5 +1,7 @@
 use crate::prelude::*;
 use itertools::merge;
+#[cfg(feature = "logs")]
+use rayon_logs::subgraph;
 
 /// Fuse contiguous slices together back into one.
 /// This panics if slices are not contiguous.
@@ -19,25 +21,55 @@ pub fn merge_sort_adaptive_jp<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a m
     }
     let to_sort = (input, copy_vector.as_mut_slice());
 
-    to_sort
-        .wrap()
-        .non_adaptive_iter()
-        .map(|s| {
-            s.0.sort();
-            s
-        })
-        .with_join_policy(problem_size / 4) //The constant here should be number of threads + 1
-        .even_levels()
-        .reduce_with(|(left_input, left_output), (right_input, right_output)| {
-            let new_output = fuse_slices(left_output, right_output);
-            new_output
-                .into_iter()
-                .zip(merge(&mut left_input[..], &mut right_input[..]))
-                .for_each(|(outp, inp)| {
-                    *outp = *inp;
+    #[cfg(not(feature = "logs"))]
+    {
+        to_sort
+            .wrap()
+            .non_adaptive_iter()
+            .map(|s| {
+                s.0.sort();
+                s
+            })
+            .with_join_policy(problem_size / 4) //The constant here should be number of threads + 1
+            .even_levels()
+            .reduce_with(|(left_input, left_output), (right_input, right_output)| {
+                let new_output = fuse_slices(left_output, right_output);
+                new_output
+                    .into_iter()
+                    .zip(merge(&mut left_input[..], &mut right_input[..]))
+                    .for_each(|(outp, inp)| {
+                        *outp = *inp;
+                    });
+                (new_output, fuse_slices(left_input, right_input))
+            });
+    }
+
+    #[cfg(feature = "logs")]
+    {
+        to_sort
+            .wrap()
+            .non_adaptive_iter()
+            .map(|s| {
+                subgraph("sequential sorting", s.0.len(), || {
+                    s.0.sort();
                 });
-            (new_output, fuse_slices(left_input, right_input))
-        });
+                s
+            })
+            .with_join_policy(problem_size / 4) //The constant here should be number of threads + 1
+            .even_levels()
+            .reduce_with(|(left_input, left_output), (right_input, right_output)| {
+                let new_output = fuse_slices(left_output, right_output);
+                subgraph("sequential merge", new_output.len(), || {
+                    new_output
+                        .into_iter()
+                        .zip(merge(&mut left_input[..], &mut right_input[..]))
+                        .for_each(|(outp, inp)| {
+                            *outp = *inp;
+                        });
+                });
+                (new_output, fuse_slices(left_input, right_input))
+            });
+    }
 }
 pub fn merge_sort_adaptive_rayon<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut [T]) {
     let mut copy_vector: Vec<T> = Vec::with_capacity(input.len());
@@ -48,7 +80,7 @@ pub fn merge_sort_adaptive_rayon<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'
 
     to_sort
         .wrap()
-        .adaptive_iter()
+        .non_adaptive_iter()
         .map(|s| {
             s.0.sort();
             s
