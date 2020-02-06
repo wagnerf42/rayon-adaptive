@@ -28,3 +28,7 @@ thread_binder="*"
 [[bench]]
 name = "merge_sort"
 harness = false
+
+[[bench]]
+name = "ms_sequential_overhead"
+harness = false
