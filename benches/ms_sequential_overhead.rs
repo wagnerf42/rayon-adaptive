@@ -10,7 +10,7 @@ use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
-fn merge_sort_benchmarks(c: &mut Criterion) {
+fn merge_sort_overhead(c: &mut Criterion) {
     let sizes = vec![100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000];
     c.bench(
         "merge sort (random input)",
@@ -90,6 +90,6 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
 criterion_group! {
         name = benches;
             config = Criterion::default().sample_size(10).nresamples(1000);
-                targets = merge_sort_benchmarks
+                targets = merge_sort_overhead
 }
 criterion_main!(benches);
