@@ -1,2 +1,2 @@
 mod merge_sort;
-pub use merge_sort::{merge_sort_adaptive_jp, merge_sort_adaptive_rayon};
+pub use merge_sort::{merge_sort_itertools, merge_sort_peek, merge_sort_raw};
