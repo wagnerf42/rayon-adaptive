@@ -23,6 +23,7 @@ itertools="*"
 
 [dev_dependencies]
 criterion="*"
+thread_binder="*"
 
 [[bench]]
 name = "merge_sort"

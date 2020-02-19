@@ -17,7 +17,7 @@ pub use base::skipable::{chacha_iter, skip, successors};
 //
 #[macro_use]
 mod private;
-pub use algorithms::merge_sort_adaptive;
+pub use algorithms::*;
 pub(crate) use private_try::Try;
 
 /// We hide the `Try` trait in a private module, as it's only meant to be a

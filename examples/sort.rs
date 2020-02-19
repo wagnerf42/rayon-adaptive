@@ -25,7 +25,7 @@ fn main() {
             .num_threads(1)
             .build_global()
             .expect("pool build failed");
-        merge_sort_adaptive(&mut input);
+        merge_sort_adaptive(&mut input, (100_000 - 1) / 1);
     }
     //println!("after {:?}", input);
     assert_eq!(input, (0..100_000u32).collect::<Vec<u32>>());
