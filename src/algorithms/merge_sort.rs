@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use itertools::merge;
+#[cfg(feature = "logs")]
+use rayon_logs::subgraph;
 
 /// Fuse contiguous slices together back into one.
 /// This panics if slices are not contiguous.

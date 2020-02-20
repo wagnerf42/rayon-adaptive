@@ -19,13 +19,13 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             |b, input_size| {
                 b.iter_with_setup(
                     || {
-                        (0..*input_size)
-                            .map(|_| rand::random())
-                            .collect::<Vec<u32>>()
+                        //        (0..*input_size)
+                        //            .map(|_| rand::random())
+                        //            .collect::<Vec<u32>>()
                     },
-                    |mut v| {
-                        v.sort();
-                        v
+                    |()| {
+                        //        v.sort();
+                        //        v
                     },
                 )
             },
