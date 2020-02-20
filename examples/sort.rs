@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use rand::{thread_rng, Rng};
-use rayon_adaptive::{merge_sort_adaptive_jp, merge_sort_adaptive_rayon};
+use rayon_adaptive::merge_sort_adaptive;
 #[cfg(feature = "logs")]
 use rayon_logs::ThreadPoolBuilder;
 
