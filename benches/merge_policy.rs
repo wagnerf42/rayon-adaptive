@@ -5,22 +5,22 @@ extern crate rayon;
 extern crate rayon_adaptive;
 
 use rayon::prelude::*;
-use rayon_adaptive::merge_sort_adaptive_jp;
+use rayon_adaptive::{merge_sort_itertools, merge_sort_peek, merge_sort_raw};
 use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
 
-fn merge_sort_overhead(c: &mut Criterion) {
+fn merge_policy(c: &mut Criterion) {
     let sizes = vec![100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000];
     c.bench(
         "merge sort (random input)",
         ParameterizedBenchmark::new(
-            "sequential",
+            "itertools",
             |b, input_size| {
                 b.iter_with_setup(
                     || {
                         let thread_pool = ThreadPoolBuilder::new()
-                            .num_threads(1)
+                            .num_threads(4)
                             .build()
                             .expect("Thread binder didn't work!");
                         (
@@ -32,7 +32,7 @@ fn merge_sort_overhead(c: &mut Criterion) {
                     },
                     |(tp, mut v)| {
                         tp.install(|| {
-                            v.sort();
+                            merge_sort_itertools(&mut v, *input_size / 2);
                         });
                         v
                     },
@@ -40,11 +40,11 @@ fn merge_sort_overhead(c: &mut Criterion) {
             },
             sizes.clone(),
         )
-        .with_function("adaptive sort", |b, input_size| {
+        .with_function("peeking iterator", |b, input_size| {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(1)
+                        .num_threads(4)
                         .build()
                         .expect("Thread binder didn't work!");
                     (
@@ -56,17 +56,17 @@ fn merge_sort_overhead(c: &mut Criterion) {
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        merge_sort_adaptive_jp(&mut v, *input_size / 8);
+                        merge_sort_peek(&mut v, *input_size / 2);
                     });
                     v
                 },
             )
         })
-        .with_function("rayon", |b, input_size| {
+        .with_function("raw", |b, input_size| {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(1)
+                        .num_threads(4)
                         .build()
                         .expect("Thread binder didn't work!");
                     (
@@ -78,7 +78,7 @@ fn merge_sort_overhead(c: &mut Criterion) {
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        v.par_sort();
+                        merge_sort_raw(&mut v, *input_size / 2);
                     });
                     v
                 },
@@ -90,6 +90,6 @@ fn merge_sort_overhead(c: &mut Criterion) {
 criterion_group! {
         name = benches;
             config = Criterion::default().sample_size(10).nresamples(1000);
-                targets = merge_sort_overhead
+                targets = merge_policy
 }
 criterion_main!(benches);
