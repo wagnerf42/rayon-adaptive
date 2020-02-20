@@ -19,13 +19,13 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             |b, input_size| {
                 b.iter_with_setup(
                     || {
-                        //        (0..*input_size)
-                        //            .map(|_| rand::random())
-                        //            .collect::<Vec<u32>>()
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>()
                     },
-                    |()| {
-                        //        v.sort();
-                        //        v
+                    |mut v| {
+                        v.sort();
+                        v
                     },
                 )
             },
@@ -129,5 +129,9 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, merge_sort_benchmarks);
+criterion_group! {
+    name = benches;
+            config = Criterion::default().sample_size(10).nresamples(10);
+                targets = merge_sort_benchmarks
+}
 criterion_main!(benches);
