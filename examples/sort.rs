@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use rand::{thread_rng, Rng};
-use rayon_adaptive::merge_sort_adaptive;
+use rayon_adaptive::merge_sort_raw;
 #[cfg(feature = "logs")]
 use rayon_logs::ThreadPoolBuilder;
 
@@ -33,7 +33,7 @@ fn main() {
             .num_threads(1)
             .build_global()
             .expect("pool build failed");
-        merge_sort_adaptive(&mut input, (100_000 - 1) / 1);
+        merge_sort_raw(&mut input, (100_000 - 1) / 1);
     }
     //println!("after {:?}", input);
     assert_eq!(input, (1..100_001u32).collect::<Vec<u32>>());

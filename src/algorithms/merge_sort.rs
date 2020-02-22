@@ -62,10 +62,49 @@ fn raw_merge<T: Ord + Send + Sync + Copy>(left: &[T], right: &[T], output: &mut 
 ///    .num_threads(8)
 ///    .build_global()
 ///    .expect("pool build failed");
-///merge_sort_adaptive(&mut input, 25_000_001/8);
+///merge_sort_raw(&mut input, 25_000_001/8);
 ///assert_eq!(input,solution);
 ///```
-pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(
+pub fn merge_sort_raw<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut [T], threshold: usize) {
+    let mut copy_vector: Vec<T> = Vec::with_capacity(input.len());
+    unsafe {
+        copy_vector.set_len(input.len());
+    }
+    let to_sort = (input, copy_vector.as_mut_slice());
+
+    to_sort
+        .wrap()
+        .non_adaptive_iter()
+        .map(|s| {
+            s.0.sort();
+            s
+        })
+        .with_rayon_policy()
+        .with_join_policy(threshold) //The constant here should be number of threads + 1
+        .even_levels()
+        .reduce_with(|(left_input, left_output), (right_input, right_output)| {
+            let new_output = fuse_slices(left_output, right_output);
+            raw_merge(&left_input[..], &right_input[..], new_output);
+            (new_output, fuse_slices(left_input, right_input))
+        });
+}
+
+///Example:
+///```
+///use rand::thread_rng;
+///use rayon_adaptive::merge_sort_adaptive;
+///use rand::seq::SliceRandom;
+///let mut input = (1..25_000_001u32).collect::<Vec<u32>>();
+///input.shuffle(&mut thread_rng());
+///let solution = (1..25_000_001u32).collect::<Vec<u32>>();
+///rayon::ThreadPoolBuilder::new()
+///    .num_threads(8)
+///    .build_global()
+///    .expect("pool build failed");
+///merge_sort_itertools(&mut input, 25_000_001/8);
+///assert_eq!(input,solution);
+///```
+pub fn merge_sort_itertools<'a, T: 'a + Send + Sync + Ord + Copy>(
     input: &'a mut [T],
     threshold: usize,
 ) {
@@ -87,7 +126,12 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(
         .even_levels()
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {
             let new_output = fuse_slices(left_output, right_output);
-            raw_merge(&left_input[..], &right_input[..], new_output);
+            new_output
+                .into_iter()
+                .zip(merge(&left_input[..], &right_input[..]))
+                .for_each(|(outp, inp)| {
+                    *outp = *inp;
+                });
             (new_output, fuse_slices(left_input, right_input))
         });
 }

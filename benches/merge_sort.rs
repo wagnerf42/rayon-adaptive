@@ -5,7 +5,7 @@ extern crate rayon;
 extern crate rayon_adaptive;
 
 use rayon::prelude::*;
-use rayon_adaptive::merge_sort_adaptive;
+use rayon_adaptive::{merge_sort_itertools, merge_sort_raw};
 use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
@@ -47,7 +47,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        merge_sort_adaptive(&mut v, *input_size as usize / 16);
+                        merge_sort_raw(&mut v, *input_size as usize / 16);
                     });
                     v
                 },
@@ -103,7 +103,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        merge_sort_adaptive(&mut v, *input_size as usize / 16);
+                        merge_sort_raw(&mut v, *input_size as usize / 16);
                     });
                     v
                 },
