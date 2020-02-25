@@ -53,11 +53,11 @@ impl<I, J> Powered for ParallelMerge<I, J> {
     type Power = Indexed;
 }
 
-impl<'par, I, J> ParBorrowed<'par> for ParallelMerge<I, J>
+impl<'par, I: 'par, J: 'par> ParBorrowed<'par> for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -77,11 +77,11 @@ where
     type Iter = Take<SequentialMerge<'seq, I, J>>;
 }
 
-impl<I, J> ParallelIterator for ParallelMerge<I, J>
+impl<I: 'static, J: 'static> ParallelIterator for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -99,11 +99,11 @@ where
     }
 }
 
-impl<'par, I, J> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
+impl<'par, I: 'par, J: 'par> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -121,11 +121,12 @@ where
     }
 }
 
-impl<'par, I, J> Divisible for BorrowingParallelMerge<'par, I, J>
+//TODO have to specialise for slices with SliceIndex, get_unchecked is way faster
+impl<'par, I: 'par, J: 'par> Divisible for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -133,32 +134,42 @@ where
     fn should_be_divided(&self) -> bool {
         false // we force the use of the adaptive algorithm ?
     }
-    fn divide(self) -> (Self, Self) {
+    fn divide(mut self) -> (Self, Self) {
         unimplemented!()
-        //        if self.i.iterations_number() <= self.j.iterations_number() {
-        //            let (left_i, right_i) = self.i.divide();
-        //            // we take the pivot as the last element of left side.
-        //            // this way we are sure there is always one.
-        //            let pivot_index = left_i.iterations_number() - 1;
-        //            let pivot_value = &left_i[pivot_index];
-        //            // do a binary search on j
-        //            let mut start_index = 0;
-        //            let mut end_index = self.j.iterations_number() - 1;
-        //            while end_index != start_index {
-        //                let mid = (start_index + end_index) / 2;
-        //                if &self.j[mid] == pivot_value {
-        //                    unimplemented!()
-        //                }
-        //                if &self.j[mid] < pivot_value {
-        //                    start_index = mid + 1
-        //                } else {
-        //                    end_index = mid - 1
-        //                }
-        //            }
-        //            unimplemented!()
-        //        } else {
-        //            unimplemented!()
-        //        }
+        //let left_i_diviter = self.i.base.cut_at_index({ self.i.iterations_number() / 2 }); //self.i is now right side of the cut
+        //let pivot_value = &self.i[0];
+        //let mut start_index = 0;
+        //let mut end_index = self.j.iterations_number() - 1;
+        //while end_index != start_index {
+        //    let mid = (start_index + end_index) / 2;
+        //    if self.j[mid] <= *pivot_value {
+        //        start_index = mid + 1
+        //    } else {
+        //        end_index = mid - 1
+        //    }
+        //}
+        //while self.j[start_index] == *pivot_value && start_index < self.j.iterations_number() {
+        //    start_index += 1;
+        //}
+        //let left_j_diviter = self.j.base.cut_at_index(start_index); //Left side does not include start_index
+        //let left_left = DislocatedMut::new(&mut DivisibleIter {
+        //    base: left_i_diviter,
+        //});
+        //let left_right = DislocatedMut::new(&mut DivisibleIter {
+        //    base: left_j_diviter,
+        //});
+        //(
+        //    BorrowingParallelMerge {
+        //        i: left_left,
+        //        j: left_right,
+        //        size: self.size / 2 + start_index,
+        //    },
+        //    BorrowingParallelMerge {
+        //        i: self.i,
+        //        j: self.j,
+        //        size: self.size / 2 + start_index,
+        //    },
+        //)
     }
 }
 
