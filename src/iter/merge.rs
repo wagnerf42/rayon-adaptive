@@ -27,9 +27,18 @@ pub struct ParallelMerge<I, J> {
     pub(crate) j: DivisibleIter<J>,
 }
 
+struct LeftLeft<I, J> {
+    i: DivisibleIter<I>,
+    j: DivisibleIter<J>,
+}
+
+struct RightRight<'niq, I, J> {
+    i: DislocatedMut<'niq, DivisibleIter<I>>,
+    j: DislocatedMut<'niq, DivisibleIter<J>>,
+}
+
 pub struct BorrowingParallelMerge<'par, I, J> {
-    i: DislocatedMut<'par, DivisibleIter<I>>,
-    j: DislocatedMut<'par, DivisibleIter<J>>,
+    ij: either::Either<LeftLeft<I, J>, RightRight<'par, I, J>>,
     size: usize,
 }
 
@@ -53,11 +62,11 @@ impl<I, J> Powered for ParallelMerge<I, J> {
     type Power = Indexed;
 }
 
-impl<'par, I, J> ParBorrowed<'par> for ParallelMerge<I, J>
+impl<'par, I: 'par, J: 'par> ParBorrowed<'par> for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -77,11 +86,11 @@ where
     type Iter = Take<SequentialMerge<'seq, I, J>>;
 }
 
-impl<I, J> ParallelIterator for ParallelMerge<I, J>
+impl<'afterlife, I: 'afterlife, J: 'afterlife> ParallelIterator for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -92,18 +101,20 @@ where
     }
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         BorrowingParallelMerge {
-            i: DislocatedMut::new(&mut self.i),
-            j: DislocatedMut::new(&mut self.j),
+            ij: either::Right(RightRight {
+                i: DislocatedMut::new(&mut self.i),
+                j: DislocatedMut::new(&mut self.j),
+            }),
             size,
         }
     }
 }
 
-impl<'par, I, J> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
+impl<'par, I: 'par, J: 'par> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -113,19 +124,25 @@ where
     }
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.size -= size;
-        SequentialMerge {
-            i: self.i.borrow_mut(),
-            j: self.j.borrow_mut(),
-        }
-        .take(size)
+        let (i, j) = self.ij.as_mut().either(
+            |owned| {
+                (
+                    DislocatedMut::new(&mut owned.i),
+                    DislocatedMut::new(&mut owned.j),
+                )
+            },
+            |borrowed| (borrowed.i.borrow_mut(), borrowed.j.borrow_mut()),
+        );
+        SequentialMerge { i: i, j: j }.take(size)
     }
 }
 
-impl<'par, I, J> Divisible for BorrowingParallelMerge<'par, I, J>
+//TODO have to specialise for slices with SliceIndex, get_unchecked is way faster
+impl<'par, I: 'par, J: 'par> Divisible for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
-    <DivisibleIter<I> as Index<usize>>::Output: Ord,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
     I::Item: Send,
     J: DivisibleParallelIterator + IntoIterator<Item = I::Item> + Sync,
     DivisibleIter<J>: Index<usize, Output = <DivisibleIter<I> as Index<usize>>::Output>,
@@ -133,32 +150,131 @@ where
     fn should_be_divided(&self) -> bool {
         false // we force the use of the adaptive algorithm ?
     }
-    fn divide(self) -> (Self, Self) {
-        unimplemented!()
-        //        if self.i.iterations_number() <= self.j.iterations_number() {
-        //            let (left_i, right_i) = self.i.divide();
-        //            // we take the pivot as the last element of left side.
-        //            // this way we are sure there is always one.
-        //            let pivot_index = left_i.iterations_number() - 1;
-        //            let pivot_value = &left_i[pivot_index];
-        //            // do a binary search on j
-        //            let mut start_index = 0;
-        //            let mut end_index = self.j.iterations_number() - 1;
-        //            while end_index != start_index {
-        //                let mid = (start_index + end_index) / 2;
-        //                if &self.j[mid] == pivot_value {
-        //                    unimplemented!()
-        //                }
-        //                if &self.j[mid] < pivot_value {
-        //                    start_index = mid + 1
-        //                } else {
-        //                    end_index = mid - 1
-        //                }
-        //            }
-        //            unimplemented!()
-        //        } else {
-        //            unimplemented!()
-        //        }
+    fn divide(mut self) -> (Self, Self) {
+        let (mut i_iter, mut j_iter) = self.ij.as_mut().either(
+            |owned_stuff| {
+                (
+                    DislocatedMut::new(&mut owned_stuff.i),
+                    DislocatedMut::new(&mut owned_stuff.j),
+                )
+            },
+            |borrowed_stuff| (borrowed_stuff.i.borrow_mut(), borrowed_stuff.j.borrow_mut()),
+        );
+        let i_len = i_iter.iterations_number();
+        let j_len = j_iter.iterations_number();
+        let (left_i_diviter, left_j_diviter) = if i_len < j_len {
+            //divide j into two and binary search in i
+            let left_j_diviter = DivisibleIter {
+                base: j_iter.base.cut_at_index(j_len / 2),
+            };
+            //j_iter is now right side of the cut
+            let pivot_value = &left_j_diviter[(j_len - 1) / 2]; // pivot here means the last element of the left side of the cut
+            let mut start_index = 0;
+            let mut end_index = i_len - 1;
+            while end_index != start_index {
+                let mid = (start_index + end_index) / 2;
+                if i_iter[mid] <= *pivot_value {
+                    //right side of the binary-search cut should not have equal values.
+                    start_index = mid + 1
+                } else {
+                    end_index = mid - 1
+                }
+            }
+            while i_iter[start_index] == *pivot_value && start_index < i_len {
+                start_index += 1;
+            }
+            let left_i_diviter = DivisibleIter {
+                base: i_iter.base.cut_at_index(start_index),
+            }; //Left side does not include start_index, cut should not include index on the left
+            (left_i_diviter, left_j_diviter)
+        } else {
+            //divide i into two and binary search in j
+            let left_i_diviter = DivisibleIter {
+                base: i_iter.base.cut_at_index(i_len / 2),
+            };
+            //i_iter is now right side of the cut
+            let pivot_value = &left_i_diviter[(i_len - 1) / 2]; // pivot here means the last element of the left side of the cut
+            let mut start_index = 0;
+            let mut end_index = j_len - 1;
+            while end_index != start_index {
+                let mid = (start_index + end_index) / 2;
+                if j_iter[mid] <= *pivot_value {
+                    start_index = mid + 1
+                } else {
+                    end_index = mid - 1
+                }
+            }
+            while j_iter[start_index] == *pivot_value && start_index < j_len {
+                start_index += 1;
+            }
+            let left_j_diviter = DivisibleIter {
+                base: j_iter.base.cut_at_index(start_index),
+            }; //Left side does not include start_index, cut should not include index on the left
+            (left_i_diviter, left_j_diviter)
+        };
+        let left_div_size = left_i_diviter.iterations_number() + left_j_diviter.iterations_number();
+        let right_div_size = i_iter.iterations_number() + j_iter.iterations_number();
+        let left_div: either::Either<LeftLeft<I, J>, RightRight<I, J>> = either::Left(LeftLeft {
+            i: left_i_diviter,
+            j: left_j_diviter,
+        });
+        let right_div = self.ij.either(
+            |owned_stuff| {
+                either::Left(LeftLeft {
+                    i: owned_stuff.i,
+                    j: owned_stuff.j,
+                })
+            },
+            |borrowed_stuff| {
+                either::Right(RightRight {
+                    i: borrowed_stuff.i,
+                    j: borrowed_stuff.j,
+                })
+            },
+        );
+        (
+            BorrowingParallelMerge {
+                ij: left_div,
+                size: left_div_size,
+            },
+            BorrowingParallelMerge {
+                ij: right_div,
+                size: right_div_size,
+            },
+        )
+        //let pivot_value = &self.i[0];
+        //let mut start_index = 0;
+        //let mut end_index = self.j.iterations_number() - 1;
+        //while end_index != start_index {
+        //    let mid = (start_index + end_index) / 2;
+        //    if self.j[mid] <= *pivot_value {
+        //        start_index = mid + 1
+        //    } else {
+        //        end_index = mid - 1
+        //    }
+        //}
+        //while self.j[start_index] == *pivot_value && start_index < self.j.iterations_number() {
+        //    start_index += 1;
+        //}
+        //let left_j_diviter = self.j.base.cut_at_index(start_index); //Left side does not include start_index
+        //let left_left = DislocatedMut::new(&mut DivisibleIter {
+        //    base: left_i_diviter,
+        //});
+        //let left_right = DislocatedMut::new(&mut DivisibleIter {
+        //    base: left_j_diviter,
+        //});
+        //(
+        //    BorrowingParallelMerge {
+        //        i: left_left,
+        //        j: left_right,
+        //        size: self.size / 2 + start_index,
+        //    },
+        //    BorrowingParallelMerge {
+        //        i: self.i,
+        //        j: self.j,
+        //        size: self.size / 2 + start_index,
+        //    },
+        //)
     }
 }
 
@@ -180,19 +296,18 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        unimplemented!()
-        //        let i_is_empty = self.i.completed();
-        //        let j_is_empty = self.j.completed();
-        //        if !i_is_empty && !j_is_empty {
-        //            if self.i[0] <= self.j[0] {
-        //                self.i.next()
-        //            } else {
-        //                self.j.next()
-        //            }
-        //        } else if j_is_empty {
-        //            self.i.next()
-        //        } else {
-        //            self.j.next()
-        //        }
+        let i_is_empty = self.i.completed();
+        let j_is_empty = self.j.completed();
+        if !i_is_empty && !j_is_empty {
+            if self.i[0] <= self.j[0] {
+                self.i.next()
+            } else {
+                self.j.next()
+            }
+        } else if j_is_empty {
+            self.i.next()
+        } else {
+            self.j.next()
+        }
     }
 }
