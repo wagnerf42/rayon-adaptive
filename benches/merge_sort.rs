@@ -6,11 +6,13 @@ extern crate rayon_adaptive;
 
 use rayon::prelude::*;
 use rayon_adaptive::merge_sort_adaptive;
+use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
+const NUM_THREADS: usize = 16;
 
 fn merge_sort_benchmarks(c: &mut Criterion) {
-    let sizes = vec![50_000, 100_000, 150_000, 262_144, 1_000_000];
+    let sizes: Vec<u32> = vec![100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000];
     c.bench(
         "merge sort (random input)",
         ParameterizedBenchmark::new(
@@ -33,12 +35,21 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         .with_function("adaptive sort", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    (0..*input_size)
-                        .map(|_| rand::random())
-                        .collect::<Vec<u32>>()
+                    let thread_pool = ThreadPoolBuilder::new()
+                        .num_threads(NUM_THREADS)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (
+                        thread_pool,
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>(),
+                    )
                 },
-                |mut v| {
-                    merge_sort_adaptive(&mut v);
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        merge_sort_adaptive(&mut v);
+                    });
                     v
                 },
             )
@@ -46,12 +57,21 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         .with_function("rayon", |b, input_size| {
             b.iter_with_setup(
                 || {
-                    (0..*input_size)
-                        .map(|_| rand::random())
-                        .collect::<Vec<u32>>()
+                    let thread_pool = ThreadPoolBuilder::new()
+                        .num_threads(NUM_THREADS)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (
+                        thread_pool,
+                        (0..*input_size)
+                            .map(|_| rand::random())
+                            .collect::<Vec<u32>>(),
+                    )
                 },
-                |mut v| {
-                    v.par_sort();
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        v.par_sort();
+                    });
                     v
                 },
             )
@@ -64,7 +84,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             "sequential",
             |b, input_size| {
                 b.iter_with_setup(
-                    || (0..*input_size).rev().collect::<Vec<u32>>(),
+                    || (0u32..*input_size).rev().collect::<Vec<u32>>(),
                     |mut v| {
                         v.sort();
                         v
@@ -75,18 +95,34 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         )
         .with_function("adaptive", |b, input_size| {
             b.iter_with_setup(
-                || (0..*input_size).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    merge_sort_adaptive(&mut v);
+                || {
+                    let thread_pool = ThreadPoolBuilder::new()
+                        .num_threads(NUM_THREADS)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (thread_pool, (0u32..*input_size).rev().collect::<Vec<u32>>())
+                },
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        merge_sort_adaptive(&mut v);
+                    });
                     v
                 },
             )
         })
         .with_function("rayon", |b, input_size| {
             b.iter_with_setup(
-                || (0..*input_size).rev().collect::<Vec<u32>>(),
-                |mut v| {
-                    v.par_sort();
+                || {
+                    let thread_pool = ThreadPoolBuilder::new()
+                        .num_threads(NUM_THREADS)
+                        .build()
+                        .expect("Thread binder didn't work!");
+                    (thread_pool, (0..*input_size).rev().collect::<Vec<u32>>())
+                },
+                |(tp, mut v)| {
+                    tp.install(|| {
+                        v.par_sort();
+                    });
                     v
                 },
             )
@@ -94,5 +130,9 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, merge_sort_benchmarks);
+criterion_group! {
+    name = benches;
+            config = Criterion::default().sample_size(10).nresamples(10);
+                targets = merge_sort_benchmarks
+}
 criterion_main!(benches);
