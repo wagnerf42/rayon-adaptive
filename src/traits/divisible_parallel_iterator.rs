@@ -153,7 +153,7 @@ impl<I: DivisibleParallelIterator, J: DivisibleParallelIterator> DivisibleParall
 impl<'a, T: 'a> std::ops::Index<usize> for DivisibleIter<&'a [T]> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
-        &self.base[index]
+        unsafe { &self.base.get_unchecked(index) }
     }
 }
 
