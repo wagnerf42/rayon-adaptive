@@ -138,8 +138,8 @@ where
     fn part_completed(&self) -> bool {
         self.iterations_number() == 0
             || self.ij.as_ref().either(
-                |left| left.i.iterations_number() < 100 || left.j.iterations_number() < 100,
-                |right| right.i.iterations_number() < 100 || right.j.iterations_number() < 100,
+                |left| left.i.iterations_number() < 2 || left.j.iterations_number() < 2,
+                |right| right.i.iterations_number() < 2 || right.j.iterations_number() < 2,
             )
     }
 }

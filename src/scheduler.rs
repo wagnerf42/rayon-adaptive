@@ -65,7 +65,6 @@ where
             }) {
             Ok((remaining_iterator, output)) => {
                 // we are being stolen. Let's give something.
-                assert!(remaining_iterator.iterations_number() > 0);
                 let (my_half, his_half) = remaining_iterator.divide();
                 sender.send(Some(his_half));
                 schedule_reduce(my_half, identity, op, output)
