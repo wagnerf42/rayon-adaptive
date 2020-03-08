@@ -4,12 +4,23 @@ use rayon_adaptive::merge_sort_adaptive;
 #[cfg(feature = "logs")]
 use rayon_logs::ThreadPoolBuilder;
 
-const PROBLEM_SIZE: u32 = 1_000_000u32;
+const PROBLEM_SIZE: u32 = 20_000_000u32;
 
 fn main() {
-    let mut input = (1..PROBLEM_SIZE).rev().collect::<Vec<u32>>();
-    input.shuffle(&mut thread_rng());
-    let solution = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
+    let mut input1 = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
+    input1.shuffle(&mut thread_rng());
+    let mut input2 = (1..PROBLEM_SIZE / 5)
+        .chain(1..PROBLEM_SIZE / 5)
+        .chain(1..PROBLEM_SIZE / 5)
+        .chain(1..PROBLEM_SIZE / 5)
+        .chain(1..PROBLEM_SIZE / 5)
+        .collect::<Vec<u32>>();
+    input1.shuffle(&mut thread_rng());
+    input2.shuffle(&mut thread_rng());
+    let solution1 = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
+    let solution2 = (1..PROBLEM_SIZE / 5)
+        .flat_map(|num| std::iter::repeat(num).take(5))
+        .collect::<Vec<u32>>();
     //println!("before {:?}", input);
     #[cfg(feature = "logs")]
     {
@@ -21,11 +32,13 @@ fn main() {
     #[cfg(not(feature = "logs"))]
     {
         rayon::ThreadPoolBuilder::new()
-            .num_threads(5)
+            .num_threads(4)
             .build_global()
             .expect("pool build failed");
-        merge_sort_adaptive(&mut input);
+        merge_sort_adaptive(&mut input1);
+        merge_sort_adaptive(&mut input2);
     }
     //println!("after {:?}", input);
-    assert_eq!(input, solution);
+    assert_eq!(input1, solution1);
+    assert_eq!(input2, solution2);
 }

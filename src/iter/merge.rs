@@ -62,7 +62,7 @@ impl<I, J> Powered for ParallelMerge<I, J> {
     type Power = Indexed;
 }
 
-impl<'par, I: 'par, J: 'par> ParBorrowed<'par> for ParallelMerge<I, J>
+impl<'par, I, J> ParBorrowed<'par> for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
@@ -86,7 +86,7 @@ where
     type Iter = Take<SequentialMerge<'seq, I, J>>;
 }
 
-impl<'afterlife, I: 'afterlife, J: 'afterlife> ParallelIterator for ParallelMerge<I, J>
+impl<I, J> ParallelIterator for ParallelMerge<I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
@@ -110,7 +110,7 @@ where
     }
 }
 
-impl<'par, I: 'par, J: 'par> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
+impl<'par, I, J> BorrowingParallelIterator for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
@@ -135,10 +135,17 @@ where
         );
         SequentialMerge { i: i, j: j }.take(size)
     }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() == 0
+            || self.ij.as_ref().either(
+                |left| left.i.iterations_number() < 100 || left.j.iterations_number() < 100,
+                |right| right.i.iterations_number() < 100 || right.j.iterations_number() < 100,
+            )
+    }
 }
 
 //TODO have to specialise for slices with SliceIndex, get_unchecked is way faster
-impl<'par, I: 'par, J: 'par> Divisible for BorrowingParallelMerge<'par, I, J>
+impl<'par, I, J> Divisible for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
     DivisibleIter<I>: Index<usize>,
@@ -168,10 +175,10 @@ where
                 base: j_iter.base.cut_at_index(j_len / 2),
             };
             //j_iter is now right side of the cut
-            let pivot_value = &left_j_diviter[(j_len - 1) / 2]; // pivot here means the last element of the left side of the cut
+            let pivot_value = &left_j_diviter[j_len / 2 - 1]; // pivot here means the last element of the left side of the cut
             let mut start_index = 0;
             let mut end_index = i_len - 1;
-            while end_index != start_index {
+            while end_index - start_index > 1 {
                 let mid = (start_index + end_index) / 2;
                 if i_iter[mid] <= *pivot_value {
                     //right side of the binary-search cut should not have equal values.
@@ -180,7 +187,10 @@ where
                     end_index = mid - 1
                 }
             }
-            while i_iter[start_index] == *pivot_value && start_index < i_len {
+            while start_index < i_len {
+                if i_iter[start_index] > *pivot_value {
+                    break;
+                }
                 start_index += 1;
             }
             let left_i_diviter = DivisibleIter {
@@ -193,10 +203,10 @@ where
                 base: i_iter.base.cut_at_index(i_len / 2),
             };
             //i_iter is now right side of the cut
-            let pivot_value = &left_i_diviter[(i_len - 1) / 2]; // pivot here means the last element of the left side of the cut
+            let pivot_value = &left_i_diviter[i_len / 2 - 1]; // pivot here means the last element of the left side of the cut
             let mut start_index = 0;
             let mut end_index = j_len - 1;
-            while end_index != start_index {
+            while end_index - start_index > 1 {
                 let mid = (start_index + end_index) / 2;
                 if j_iter[mid] <= *pivot_value {
                     start_index = mid + 1
@@ -204,7 +214,11 @@ where
                     end_index = mid - 1
                 }
             }
-            while j_iter[start_index] == *pivot_value && start_index < j_len {
+            //Try to rethink this, was panicking if written in one line
+            while start_index < j_len {
+                if j_iter[start_index] > *pivot_value {
+                    break;
+                }
                 start_index += 1;
             }
             let left_j_diviter = DivisibleIter {

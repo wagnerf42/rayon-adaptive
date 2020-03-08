@@ -1,6 +1,7 @@
 //! We re-export here all iterator adaptors.
 mod chain;
 mod cloned;
+mod directional_zip;
 mod even_levels;
 mod filter;
 mod fine_log;
@@ -16,6 +17,7 @@ mod zip;
 
 pub use chain::Chain;
 pub use cloned::Cloned;
+pub use directional_zip::DirectionalZip;
 pub use even_levels::EvenLevels;
 pub use filter::Filter;
 pub use fine_log::FineLog;
