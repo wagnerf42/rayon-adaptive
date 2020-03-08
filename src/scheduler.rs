@@ -46,11 +46,16 @@ where
             .take_while(|_| !sender.receiver_is_waiting())
             .try_fold((iterator, output), |(mut iterator, output), s| {
                 let size = std::cmp::min(s, iterator.iterations_number());
-                let new_output = {
+                let mut new_output = {
                     let sequential_iterator = iterator.seq_borrow(size);
                     sequential_iterator.fold(output, op)
                 };
                 if iterator.part_completed() {
+                    if iterator.iterations_number() != 0 {
+                        //Somehow I don't want to be divided but am not done yet
+                        let sequential_iterator = iterator.seq_borrow(iterator.iterations_number());
+                        new_output = sequential_iterator.fold(new_output, op)
+                    }
                     // it's over
                     Err(new_output)
                 } else {
@@ -60,6 +65,7 @@ where
             }) {
             Ok((remaining_iterator, output)) => {
                 // we are being stolen. Let's give something.
+                assert!(remaining_iterator.iterations_number() > 0);
                 let (my_half, his_half) = remaining_iterator.divide();
                 sender.send(Some(his_half));
                 schedule_reduce(my_half, identity, op, output)

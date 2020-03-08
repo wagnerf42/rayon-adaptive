@@ -128,6 +128,9 @@ where
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
+    }
 }
 
 pub struct SeqBorrowingMap<'e, I, F: Sync> {
