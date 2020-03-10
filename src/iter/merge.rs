@@ -141,6 +141,16 @@ where
                 |left| left.i.iterations_number() < 2 || left.j.iterations_number() < 2,
                 |right| right.i.iterations_number() < 2 || right.j.iterations_number() < 2,
             )
+            || self.ij.as_ref().either(
+                |left| {
+                    left.i[left.i.iterations_number() - 1] <= left.j[0]
+                        || left.j[left.j.iterations_number() - 1] <= left.i[0]
+                },
+                |right| {
+                    right.i[right.i.iterations_number() - 1] <= right.j[0]
+                        || right.j[right.j.iterations_number() - 1] <= right.i[0]
+                },
+            )
     }
 }
 
