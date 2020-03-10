@@ -169,6 +169,7 @@ where
         );
         let i_len = i_iter.iterations_number();
         let j_len = j_iter.iterations_number();
+        debug_assert!(i_len > 1 && j_len > 1);
         let (left_i_diviter, left_j_diviter) = if i_len < j_len {
             //divide j into two and binary search in i
             let left_j_diviter = DivisibleIter {
