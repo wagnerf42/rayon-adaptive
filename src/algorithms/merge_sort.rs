@@ -119,7 +119,7 @@ fn test_stability() {
                 second: index,
             })
             .collect();
-        merge_sort_adaptive(&mut v);
+        merge_sort_raw(&mut v);
         &v.windows(2).for_each(|slice_of_tuples| {
             assert!(slice_of_tuples[0].second < slice_of_tuples[1].second);
         });
