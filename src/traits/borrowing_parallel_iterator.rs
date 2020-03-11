@@ -10,11 +10,14 @@ where
     /// Return the number of iterations we still need to do.
     fn iterations_number(&self) -> usize;
     /// Return if nothing is left to do.
-    fn completed(&self) -> bool {
+    fn part_completed(&self) -> bool {
         self.iterations_number() == 0
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(std::iter::successors(Some(1), |i| Some(2 * i)))
+    }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.seq_borrow(1).next()
     }
     /// Reduce on one block.
     fn block_reduce<ID, OP>(self, identity: ID, op: OP, init: Self::Item) -> Self::Item

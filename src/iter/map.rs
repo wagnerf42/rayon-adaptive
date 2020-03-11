@@ -77,6 +77,19 @@ where
             },
         )
     }
+    fn divide_at(self, index: usize) -> (Self, Self) {
+        let (left, right) = self.base.divide_at(index);
+        (
+            BorrowingMap {
+                op: self.op,
+                base: left,
+            },
+            BorrowingMap {
+                op: self.op,
+                base: right,
+            },
+        )
+    }
 }
 
 impl<'a, R, I, F> ItemProducer for BorrowingMap<'a, I, F>
@@ -115,6 +128,9 @@ where
     }
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
+    }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
     }
 }
 

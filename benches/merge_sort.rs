@@ -5,10 +5,11 @@ extern crate rayon;
 extern crate rayon_adaptive;
 
 use rayon::prelude::*;
-use rayon_adaptive::{merge_sort_itertools, merge_sort_raw};
+use rayon_adaptive::merge_sort_adaptive;
 use thread_binder::ThreadPoolBuilder;
 
 use criterion::{Criterion, ParameterizedBenchmark};
+const NUM_THREADS: usize = 16;
 
 fn merge_sort_benchmarks(c: &mut Criterion) {
     let sizes: Vec<u32> = vec![100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000];
@@ -35,7 +36,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(16)
+                        .num_threads(NUM_THREADS)
                         .build()
                         .expect("Thread binder didn't work!");
                     (
@@ -47,7 +48,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        merge_sort_raw(&mut v, *input_size as usize / 16);
+                        merge_sort_adaptive(&mut v);
                     });
                     v
                 },
@@ -57,7 +58,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(16)
+                        .num_threads(NUM_THREADS)
                         .build()
                         .expect("Thread binder didn't work!");
                     (
@@ -96,14 +97,14 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(16)
+                        .num_threads(NUM_THREADS)
                         .build()
                         .expect("Thread binder didn't work!");
                     (thread_pool, (0u32..*input_size).rev().collect::<Vec<u32>>())
                 },
                 |(tp, mut v)| {
                     tp.install(|| {
-                        merge_sort_raw(&mut v, *input_size as usize / 16);
+                        merge_sort_adaptive(&mut v);
                     });
                     v
                 },
@@ -113,7 +114,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             b.iter_with_setup(
                 || {
                     let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(16)
+                        .num_threads(NUM_THREADS)
                         .build()
                         .expect("Thread binder didn't work!");
                     (thread_pool, (0..*input_size).rev().collect::<Vec<u32>>())

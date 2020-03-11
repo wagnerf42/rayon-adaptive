@@ -8,8 +8,8 @@ macro_rules! implement_traits {
                 self.len()
             }
             fn cut_at_index(&mut self, index: usize) -> Self {
-                let left = self.start..(self.start + index as $x);
-                self.start = self.start + index as $x;
+                let left = self.start..self.start + (index as $x);
+                self.start = left.end;
                 left
             }
         }
