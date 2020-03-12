@@ -38,6 +38,24 @@ pub trait IndexedParallelIterator: ParallelIterator {
             b: zip_op.into_par_iter(),
         }
     }
+    ///This will do the division as per self.
+    ///The zip op iterator should be able to divide at index for this to work
+    /// # Example:
+    /// ```
+    /// use rayon_adaptive::prelude::*;
+    /// // 1,2,3 times 0,1,2,.. is 2,6 which sums to 8
+    /// assert_eq!((1u32..4).into_par_iter().directional_zip(0u32..8).map(|(e1, e2)| e1*e2).sum::<u32>(), 8)
+    /// ```
+    fn directional_zip<Z>(self, zip_op: Z) -> DirectionalZip<Self, Z::Iter>
+    where
+        Z: IntoParallelIterator,
+        Z::Iter: IndexedParallelIterator,
+    {
+        DirectionalZip {
+            a: self,
+            b: zip_op.into_par_iter(),
+        }
+    }
     fn enumerate(self) -> Enumerate<Self> {
         (0usize..).into_par_iter().zip(self)
     }
