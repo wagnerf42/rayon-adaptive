@@ -59,23 +59,18 @@ where
                 }
             }) {
             Ok((mut remaining_iterator, output)) => {
-                // we are being stolen. Let's try to give something.
-                if remaining_iterator.part_completed() {
-                    // Remaining stuff is too small to be divided
-                    sender.send(None);
-                    let output = if remaining_iterator.iterations_number() != 0 {
-                        //Somehow I don't want to be divided but am also not done yet
-                        let sequential_iterator =
-                            remaining_iterator.seq_borrow(remaining_iterator.iterations_number());
-                        sequential_iterator.fold(output, op)
-                    } else {
-                        output
-                    };
-                    output
-                } else {
+                // we are being stolen. Let's give something if what is left is big enough.
+                let first_size = remaining_iterator.micro_blocks_sizes().next().unwrap();
+                let remaining_size = remaining_iterator.iterations_number();
+                if remaining_size > first_size {
                     let (my_half, his_half) = remaining_iterator.divide();
                     sender.send(Some(his_half));
                     schedule_reduce(my_half, identity, op, output)
+                } else {
+                    sender.send(None);
+                    remaining_iterator
+                        .seq_borrow(remaining_size)
+                        .fold(output, op)
                 }
             }
             Err(output) => {
