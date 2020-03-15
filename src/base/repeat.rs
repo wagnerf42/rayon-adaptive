@@ -71,9 +71,8 @@ impl<'a, T: Clone + Send + Sync> BorrowingParallelIterator for BorrowedRepeat<'a
         std::iter::repeat(std::ops::Deref::deref(&self.element).clone()).take(size)
     }
     fn part_completed(&self) -> bool {
-        //Ideally I would have wanted to compare the iterations number with the next micro block
-        //size but that is not possible since I can not peek on the iterator that holds it
-        self.iterations_number() == 0
+        //compare the iterations number with the next micro block size.
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
     }
 }
 

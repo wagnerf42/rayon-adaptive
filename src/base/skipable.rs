@@ -107,7 +107,7 @@ where
         .take(size)
     }
     fn part_completed(&self) -> bool {
-        self.iterations_number() == 0
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
     }
 }
 

@@ -18,11 +18,6 @@ pub trait DivisibleParallelIterator: Send + Sized {
             base: Wrapper { inner_iter: self },
         }
     }
-    ///This is the default behaviour for a divisible parallel iterator. You can overload this while
-    ///implementing the trait for your base type.
-    fn stop_division(&self) -> bool {
-        self.base_length() == 0
-    }
 }
 
 pub struct DivisibleIter<I> {
@@ -115,7 +110,7 @@ where
         self.base.base_length()
     }
     fn part_completed(&self) -> bool {
-        self.base.stop_division()
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
     }
 }
 
