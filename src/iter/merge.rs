@@ -136,10 +136,12 @@ where
         SequentialMerge { i: i, j: j }.take(size)
     }
     fn part_completed(&self) -> bool {
+        //In the case of the merge this has to serve as a triviality check.
+        //If the left and right ends match, we don't divide and let sequential iter take over.
         self.iterations_number() == 0
             || self.ij.as_ref().either(
-                |left| left.i.iterations_number() < 2 || left.j.iterations_number() < 2,
-                |right| right.i.iterations_number() < 2 || right.j.iterations_number() < 2,
+                |left| left.i.iterations_number() < 4 || left.j.iterations_number() < 4,
+                |right| right.i.iterations_number() < 4 || right.j.iterations_number() < 4,
             )
             || self.ij.as_ref().either(
                 |left| {
@@ -154,7 +156,138 @@ where
     }
 }
 
-//TODO have to specialise for slices with SliceIndex, get_unchecked is way faster
+//Cut sorted_iter into two roughly equal pieces.
+//It keeps the right side in sorted_iter and returns the left side
+//
+//The tricky part is that sorted_iter[len/2] might be repeated to the left and/or to the right.
+//If so, we search with exponential growth, on the left and right side of the center for a different
+//value.
+//As soon as we find a unique value on either side, we do a binary search between that unique value
+//and the middle value, to find the extent of the repetition.
+//
+//If we had searched on the left side, we keep the repeated values on the right side of the cut.
+//Else if we had searched on the right side, we keep the repeated values on the left side of the
+//cut.
+//
+//PRECONDITION: sorted_iter can not have all values equal
+//This should be unit-tested
+fn cut_around_middle<I>(sorted_iter: &mut DivisibleIter<I>) -> I
+where
+    I: DivisibleParallelIterator + IntoIterator + Sync,
+    DivisibleIter<I>: Index<usize>,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
+{
+    let iter_len = sorted_iter.base.base_length();
+    if sorted_iter[iter_len / 2] != sorted_iter[iter_len / 2 + 1] {
+        sorted_iter.base.cut_at_index(iter_len / 2 + 1)
+    } else if sorted_iter[iter_len / 2] != sorted_iter[iter_len / 2 - 1] {
+        sorted_iter.base.cut_at_index(iter_len / 2)
+    } else {
+        let middle_value = &sorted_iter[iter_len / 2];
+        //This is not good for the cache, but will make the search direction agnostic
+        let first_unequal_position = (1..)
+            .map(|power: u32| 2_usize.pow(power))
+            .take_while(|&power_of_two| power_of_two <= (iter_len - 1) / 2)
+            .take_while(|power_of_two| {
+                middle_value != &sorted_iter[iter_len / 2 + power_of_two]
+                    || middle_value != &sorted_iter[iter_len / 2 - power_of_two]
+            })
+            .last()
+            .unwrap();
+        if middle_value != &sorted_iter[iter_len / 2 - first_unequal_position] {
+            let mut start = iter_len / 2 - first_unequal_position;
+            let mut end = iter_len / 2 - (first_unequal_position >> 1); //search only till the previous power of two
+            while start < end - 1 {
+                let mid = (start + end) / 2;
+                if &sorted_iter[mid] < middle_value {
+                    //LOOP INVARIANT sorted_iter[start] < middle_value
+                    start = mid;
+                } else {
+                    end = mid;
+                }
+            }
+            debug_assert!(start == end - 1);
+            sorted_iter.base.cut_at_index(end)
+        } else if middle_value != &sorted_iter[iter_len / 2 + first_unequal_position] {
+            let mut start = iter_len / 2 + (first_unequal_position >> 1);
+            let mut end = iter_len / 2 + first_unequal_position;
+            while start < end - 1 {
+                let mid = (start + end) / 2;
+                if &sorted_iter[mid] <= middle_value {
+                    //LOOP INVARIANT sorted_iter[end] > middle_value
+                    start = mid;
+                } else {
+                    end = mid;
+                }
+            }
+            debug_assert!(start == end - 1);
+            sorted_iter.base.cut_at_index(end)
+        } else {
+            //I think this is possible only if the length is even
+            //and sorted_iter[0] is unique while all others are equal to middle value
+            assert!(iter_len % 2 == 1);
+            assert!(sorted_iter[1] == sorted_iter[iter_len - 1]);
+            assert!(sorted_iter[0] != sorted_iter[1]);
+            sorted_iter.base.cut_at_index(1)
+        }
+    }
+}
+
+//This may get all equal values in the toughest case.
+//If the repeating value is equal to the search value, we cut sorted_iter
+//in half and return.
+fn search_and_cut<I>(
+    sorted_iter: &mut DivisibleIter<I>,
+    value: &<DivisibleIter<I> as Index<usize>>::Output,
+) -> I
+where
+    I: DivisibleParallelIterator + IntoIterator + Sync,
+    DivisibleIter<I>: Index<usize>,
+    <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
+{
+    let iter_len = sorted_iter.base.base_length();
+    if sorted_iter[0] != sorted_iter[iter_len - 1] {
+        if &sorted_iter[0] < value {
+            //even if value repeats, it surely doesn't repeat till the left end
+            let mut start = 0;
+            let mut end = iter_len - 1;
+            while start < end - 1 {
+                let mid = (start + end) / 2;
+                if &sorted_iter[mid] < value {
+                    start = mid;
+                } else {
+                    end = mid;
+                }
+            }
+            sorted_iter.base.cut_at_index(end)
+        } else if &sorted_iter[iter_len - 1] > value {
+            //even if value repeats, it surely doesn't repeat till the right end
+            let mut start = 0;
+            let mut end = iter_len - 1;
+            while start < end - 1 {
+                let mid = (start + end) / 2;
+                if &sorted_iter[mid] <= value {
+                    start = mid;
+                } else {
+                    end = mid;
+                }
+            }
+            sorted_iter.base.cut_at_index(end)
+        } else {
+            panic!("it is midnight and I have no clue why this is printed")
+        }
+    } else {
+        if &sorted_iter[0] < value {
+            sorted_iter.base.cut_at_index(iter_len)
+        } else if &sorted_iter[0] > value {
+            sorted_iter.base.cut_at_index(0)
+        } else {
+            //This would be something!
+            sorted_iter.base.cut_at_index(iter_len / 2)
+        }
+    }
+}
+
 impl<'par, I, J> Divisible for BorrowingParallelMerge<'par, I, J>
 where
     I: DivisibleParallelIterator + IntoIterator + Sync,
@@ -180,60 +313,29 @@ where
         let i_len = i_iter.iterations_number();
         let j_len = j_iter.iterations_number();
         debug_assert!(i_len > 1 && j_len > 1);
-        let (left_i_diviter, left_j_diviter) = if i_len < j_len {
-            //divide j into two and binary search in i
+        let (left_i_diviter, left_j_diviter) = if i_len < j_len && j_iter[0] != j_iter[j_len - 1] {
+            //j is bigger and does not have the same value repeated.
+            //if j has the same value over and over again, i will have some unique stuff and the j
+            //value will fit somewhere in between i values (else part_completed would not have
+            //allowed division with the triviality check)
             let left_j_diviter = DivisibleIter {
-                base: j_iter.base.cut_at_index(j_len / 2),
+                base: cut_around_middle(&mut j_iter),
             };
             //j_iter is now right side of the cut
-            let pivot_value = &left_j_diviter[j_len / 2 - 1]; // pivot here means the last element of the left side of the cut
-            let mut start_index = 0;
-            let mut end_index = i_len - 1;
-            while end_index - start_index > 1 {
-                let mid = (start_index + end_index) / 2;
-                if i_iter[mid] <= *pivot_value {
-                    //right side of the binary-search cut should not have equal values.
-                    start_index = mid + 1
-                } else {
-                    end_index = mid - 1
-                }
-            }
-            while start_index < i_len {
-                if i_iter[start_index] > *pivot_value {
-                    break;
-                }
-                start_index += 1;
-            }
+            let pivot_value = &left_j_diviter[left_j_diviter.iterations_number() - 1];
             let left_i_diviter = DivisibleIter {
-                base: i_iter.base.cut_at_index(start_index),
+                base: search_and_cut(&mut i_iter, pivot_value),
             }; //Left side does not include start_index, cut should not include index on the left
             (left_i_diviter, left_j_diviter)
         } else {
             //divide i into two and binary search in j
             let left_i_diviter = DivisibleIter {
-                base: i_iter.base.cut_at_index(i_len / 2),
+                base: cut_around_middle(&mut i_iter),
             };
             //i_iter is now right side of the cut
-            let pivot_value = &left_i_diviter[i_len / 2 - 1]; // pivot here means the last element of the left side of the cut
-            let mut start_index = 0;
-            let mut end_index = j_len - 1;
-            while end_index - start_index > 1 {
-                let mid = (start_index + end_index) / 2;
-                if j_iter[mid] <= *pivot_value {
-                    start_index = mid + 1
-                } else {
-                    end_index = mid - 1
-                }
-            }
-            //Try to rethink this, was panicking if written in one line
-            while start_index < j_len {
-                if j_iter[start_index] > *pivot_value {
-                    break;
-                }
-                start_index += 1;
-            }
+            let pivot_value = &left_i_diviter[left_i_diviter.iterations_number() - 1];
             let left_j_diviter = DivisibleIter {
-                base: j_iter.base.cut_at_index(start_index),
+                base: search_and_cut(&mut j_iter, pivot_value),
             }; //Left side does not include start_index, cut should not include index on the left
             (left_i_diviter, left_j_diviter)
         };
@@ -267,39 +369,6 @@ where
                 size: right_div_size,
             },
         )
-        //let pivot_value = &self.i[0];
-        //let mut start_index = 0;
-        //let mut end_index = self.j.iterations_number() - 1;
-        //while end_index != start_index {
-        //    let mid = (start_index + end_index) / 2;
-        //    if self.j[mid] <= *pivot_value {
-        //        start_index = mid + 1
-        //    } else {
-        //        end_index = mid - 1
-        //    }
-        //}
-        //while self.j[start_index] == *pivot_value && start_index < self.j.iterations_number() {
-        //    start_index += 1;
-        //}
-        //let left_j_diviter = self.j.base.cut_at_index(start_index); //Left side does not include start_index
-        //let left_left = DislocatedMut::new(&mut DivisibleIter {
-        //    base: left_i_diviter,
-        //});
-        //let left_right = DislocatedMut::new(&mut DivisibleIter {
-        //    base: left_j_diviter,
-        //});
-        //(
-        //    BorrowingParallelMerge {
-        //        i: left_left,
-        //        j: left_right,
-        //        size: self.size / 2 + start_index,
-        //    },
-        //    BorrowingParallelMerge {
-        //        i: self.i,
-        //        j: self.j,
-        //        size: self.size / 2 + start_index,
-        //    },
-        //)
     }
 }
 
