@@ -46,6 +46,10 @@ where
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(std::iter::repeat(std::usize::MAX))
     }
+    fn part_completed(&self) -> bool {
+        //This adaptor will hence never allow a steal
+        true
+    }
 }
 
 impl<I: BorrowingParallelIterator> Divisible for NonAdaptiveIter<I> {

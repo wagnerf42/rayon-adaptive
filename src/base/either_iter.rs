@@ -56,6 +56,12 @@ where
             EitherIter::J(j) => EitherSeqIter::J(j.seq_borrow(size)),
         }
     }
+    fn part_completed(&self) -> bool {
+        match self {
+            EitherIter::I(i) => i.part_completed(),
+            EitherIter::J(j) => j.part_completed(),
+        }
+    }
 }
 
 impl<I, J> ParallelIterator for EitherIter<I, J>

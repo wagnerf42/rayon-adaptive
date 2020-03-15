@@ -107,6 +107,9 @@ where
     fn iterations_number(&self) -> usize {
         self.iterator.iterations_number()
     }
+    fn part_completed(&self) -> bool {
+        self.iterator.part_completed()
+    }
 }
 
 impl<'a, I, P> Iterator for SeqFilter<'a, I, P>

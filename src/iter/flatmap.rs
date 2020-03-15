@@ -95,6 +95,9 @@ where
         //TODO: we need to do something on return :-(
         unimplemented!()
     }
+    fn part_completed(&self) -> bool {
+        self.inner_iterator.part_completed()
+    }
 }
 
 impl<'a, PI, I, F> Divisible for BorrowingFlatMap<'a, PI, I, F>
