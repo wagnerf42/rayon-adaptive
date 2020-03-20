@@ -39,13 +39,45 @@ fn unsafe_manual_merge(left: &[u32], right: &[u32], output: &mut [u32]) {
             1
         } else if indices[1] >= sizes[1] {
             0
-        } else if inputs[0][indices[0]] >= inputs[1][indices[1]] {
+        } else if unsafe {
+            inputs[0].get_unchecked(indices[0]) >= inputs[1].get_unchecked(indices[1])
+        } {
             0
         } else {
             1
         };
         *o = unsafe { *inputs[direction].get_unchecked(indices[direction]) };
         indices[direction] += 1;
+    }
+}
+
+//TODO: this will be very bad if one block ends up being small
+// we should fall back to another algorithm in this case
+fn unsafe_very_manual_merge(left: &[u32], right: &[u32], mut output: &mut [u32]) {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    loop {
+        let remaining_left_size = left.len() - left_index;
+        let remaining_right_size = right.len() - right_index;
+        let block_size = std::cmp::min(remaining_left_size, remaining_right_size);
+        if block_size == 0 {
+            break;
+        }
+        output[..block_size].iter_mut().for_each(|o| unsafe {
+            if left.get_unchecked(left_index) <= right.get_unchecked(right_index) {
+                *o = *left.get_unchecked(left_index);
+                left_index += 1;
+            } else {
+                *o = *right.get_unchecked(right_index);
+                right_index += 1;
+            }
+        });
+        output = &mut output[block_size..];
+    }
+    if left_index != left.len() {
+        output.copy_from_slice(&left[left_index..])
+    } else {
+        output.copy_from_slice(&right[right_index..])
     }
 }
 
@@ -93,6 +125,15 @@ fn merge_benchmarks(c: &mut Criterion) {
                 || interleaved_input(*input_size),
                 |(left, right, mut output)| {
                     unsafe_manual_merge(&left, &right, &mut output);
+                    (left, right, output)
+                },
+            )
+        })
+        .with_function("unsafe very manual merge", |b, input_size| {
+            b.iter_with_setup(
+                || interleaved_input(*input_size),
+                |(left, right, mut output)| {
+                    unsafe_very_manual_merge(&left, &right, &mut output);
                     (left, right, output)
                 },
             )
