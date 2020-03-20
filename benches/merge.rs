@@ -51,6 +51,28 @@ fn unsafe_manual_merge(left: &[u32], right: &[u32], output: &mut [u32]) {
     }
 }
 
+fn unsafe_manual_merge2(left: &[u32], right: &[u32], output: &mut [u32]) {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    for o in output {
+        unsafe {
+            if left_index >= left.len() {
+                *o = *right.get_unchecked(right_index);
+                right_index += 1;
+            } else if right_index >= right.len() {
+                *o = *left.get_unchecked(left_index);
+                left_index += 1;
+            } else if left.get_unchecked(left_index) <= right.get_unchecked(right_index) {
+                *o = *left.get_unchecked(left_index);
+                left_index += 1;
+            } else {
+                *o = *right.get_unchecked(right_index);
+                right_index += 1;
+            };
+        }
+    }
+}
+
 //TODO: this will be very bad if one block ends up being small
 // we should fall back to another algorithm in this case
 fn unsafe_very_manual_merge(left: &[u32], right: &[u32], mut output: &mut [u32]) {
@@ -91,7 +113,7 @@ fn interleaved_input(input_size: u32) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
 }
 
 fn merge_benchmarks(c: &mut Criterion) {
-    let sizes: Vec<u32> = vec![100_000, 500_000, 1_000_000, 2_000_000];
+    let sizes: Vec<u32> = vec![100_000, 500_000, 1_000_000, 2_000_000, 5_000_000];
     // let sizes: Vec<u32> = vec![100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000];
     c.bench(
         "merge (random input, interleaved, shuffled)",
@@ -125,6 +147,15 @@ fn merge_benchmarks(c: &mut Criterion) {
                 || interleaved_input(*input_size),
                 |(left, right, mut output)| {
                     unsafe_manual_merge(&left, &right, &mut output);
+                    (left, right, output)
+                },
+            )
+        })
+        .with_function("unsafe manual merge 2", |b, input_size| {
+            b.iter_with_setup(
+                || interleaved_input(*input_size),
+                |(left, right, mut output)| {
+                    unsafe_manual_merge2(&left, &right, &mut output);
                     (left, right, output)
                 },
             )
