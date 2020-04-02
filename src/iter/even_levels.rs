@@ -65,6 +65,9 @@ where
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         self.base.micro_blocks_sizes()
     }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
+    }
 }
 
 // last step : implement Divisible

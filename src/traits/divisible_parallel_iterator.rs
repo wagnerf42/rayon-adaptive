@@ -128,6 +128,9 @@ where
     fn iterations_number(&self) -> usize {
         self.base.base_length()
     }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
+    }
 }
 
 impl<J, I> ParallelIterator for DivisibleIter<I, J>

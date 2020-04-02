@@ -132,7 +132,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-            config = Criterion::default().sample_size(10).nresamples(10);
+            config = Criterion::default().sample_size(10).nresamples(200);
                 targets = merge_sort_benchmarks
 }
 criterion_main!(benches);

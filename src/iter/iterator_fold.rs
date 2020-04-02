@@ -94,6 +94,9 @@ where
         let r = (self.fold_op)(i);
         once(r)
     }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
+    }
 }
 
 impl<'a, R, I, F> Divisible for BorrowedIteratorFold<'a, I, F>

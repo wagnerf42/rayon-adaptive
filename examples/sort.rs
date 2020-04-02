@@ -1,10 +1,11 @@
 use rand::prelude::*;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use rayon_adaptive::merge_sort_adaptive;
 #[cfg(feature = "logs")]
 use rayon_logs::ThreadPoolBuilder;
 
 const PROBLEM_SIZE: u32 = 20_000_000u32;
+const NUM_THREADS: usize = 4;
 
 fn main() {
     let mut input1 = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
@@ -24,21 +25,26 @@ fn main() {
     //println!("before {:?}", input);
     #[cfg(feature = "logs")]
     {
-        let p = ThreadPoolBuilder::new().build().expect("builder failed");
-        let log = p.logging_install(|| merge_sort_adaptive(&mut input)).1;
-        log.save_svg("our_log.svg").expect("saving svg file failed");
+        let p = ThreadPoolBuilder::new()
+            .num_threads(NUM_THREADS)
+            .build()
+            .expect("builder failed");
+        let log = p.logging_install(|| merge_sort_adaptive(&mut input1)).1;
+        log.save_svg("fully_parallel_sort.svg")
+            .expect("saving svg file failed");
+        assert_eq!(input1, solution1);
     }
 
     #[cfg(not(feature = "logs"))]
     {
         rayon::ThreadPoolBuilder::new()
-            .num_threads(4)
+            .num_threads(NUM_THREADS)
             .build_global()
             .expect("pool build failed");
         merge_sort_adaptive(&mut input1);
         merge_sort_adaptive(&mut input2);
+        assert_eq!(input1, solution1);
+        assert_eq!(input2, solution2);
     }
     //println!("after {:?}", input);
-    assert_eq!(input1, solution1);
-    assert_eq!(input2, solution2);
 }

@@ -46,6 +46,9 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivi
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         self.iterator.micro_blocks_sizes()
     }
+    fn part_completed(&self) -> bool {
+        self.iterator.part_completed()
+    }
 }
 
 impl<I: BorrowingParallelIterator> Divisible for DampenLocalDivision<I> {

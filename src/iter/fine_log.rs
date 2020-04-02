@@ -103,4 +103,7 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for FineLog<I> {
         }
         r
     }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
+    }
 }

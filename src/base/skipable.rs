@@ -107,6 +107,9 @@ where
         }
         .take(size)
     }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
+    }
 }
 
 impl<I, N, S, E> ParallelIterator for Skipable<I, N, S>
