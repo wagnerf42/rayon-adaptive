@@ -140,17 +140,21 @@ where
         //If the left and right ends match, we don't divide and let sequential iter take over.
         self.iterations_number() == 0
             || self.ij.as_ref().either(
-                |left| left.i.iterations_number() < 4 || left.j.iterations_number() < 4,
-                |right| right.i.iterations_number() < 4 || right.j.iterations_number() < 4,
+                |left| left.i.iterations_number() < 6 || left.j.iterations_number() < 6,
+                |right| right.i.iterations_number() < 6 || right.j.iterations_number() < 6,
             )
             || self.ij.as_ref().either(
                 |left| {
                     left.i[left.i.iterations_number() - 1] <= left.j[0]
                         || left.j[left.j.iterations_number() - 1] <= left.i[0]
+                        || left.i[0] == left.i[left.i.iterations_number() - 1] //should we remove these?
+                        || left.j[0] == left.j[left.j.iterations_number() - 1]
                 },
                 |right| {
                     right.i[right.i.iterations_number() - 1] <= right.j[0]
                         || right.j[right.j.iterations_number() - 1] <= right.i[0]
+                        || right.i[0] == right.i[right.i.iterations_number() - 1] //should we remove these?
+                        || right.j[0] == right.j[right.j.iterations_number() - 1]
                 },
             )
     }
@@ -185,18 +189,22 @@ where
     } else {
         let middle_value = &sorted_iter[iter_len / 2];
         //This is not good for the cache, but will make the search direction agnostic
-        let first_unequal_position = (1..)
+        let last_equal_position = (0..)
             .map(|power: u32| 2_usize.pow(power))
             .take_while(|&power_of_two| power_of_two <= (iter_len - 1) / 2)
             .take_while(|power_of_two| {
-                middle_value != &sorted_iter[iter_len / 2 + power_of_two]
-                    || middle_value != &sorted_iter[iter_len / 2 - power_of_two]
+                middle_value == &sorted_iter[iter_len / 2 + power_of_two]
+                    && middle_value == &sorted_iter[iter_len / 2 - power_of_two]
             })
             .last()
             .unwrap();
-        if middle_value != &sorted_iter[iter_len / 2 - first_unequal_position] {
-            let mut start = iter_len / 2 - first_unequal_position;
-            let mut end = iter_len / 2 - (first_unequal_position >> 1); //search only till the previous power of two
+        if middle_value
+            != &sorted_iter
+                [(iter_len as u64 / 2).saturating_sub(2 * last_equal_position as u64) as usize]
+        {
+            let mut start =
+                (iter_len as u64 / 2).saturating_sub(2 * last_equal_position as u64) as usize;
+            let mut end = iter_len / 2 - last_equal_position; //search only till the previous power of two
             while start < end - 1 {
                 let mid = (start + end) / 2;
                 if &sorted_iter[mid] < middle_value {
@@ -206,11 +214,13 @@ where
                     end = mid;
                 }
             }
-            debug_assert!(start == end - 1);
+            debug_assert!(start == end - 1 && sorted_iter[start] != sorted_iter[end]);
             sorted_iter.base.cut_at_index(end)
-        } else if middle_value != &sorted_iter[iter_len / 2 + first_unequal_position] {
-            let mut start = iter_len / 2 + (first_unequal_position >> 1);
-            let mut end = iter_len / 2 + first_unequal_position;
+        } else if middle_value
+            != &sorted_iter[std::cmp::min(iter_len - 1, iter_len / 2 + 2 * last_equal_position)]
+        {
+            let mut start = iter_len / 2 + last_equal_position;
+            let mut end = std::cmp::min(iter_len - 1, iter_len / 2 + 2 * last_equal_position);
             while start < end - 1 {
                 let mid = (start + end) / 2;
                 if &sorted_iter[mid] <= middle_value {
@@ -220,22 +230,16 @@ where
                     end = mid;
                 }
             }
-            debug_assert!(start == end - 1);
+            debug_assert!(start == end - 1 && sorted_iter[start] != sorted_iter[end]);
             sorted_iter.base.cut_at_index(end)
         } else {
-            //I think this is possible only if the length is even
-            //and sorted_iter[0] is unique while all others are equal to middle value
-            assert!(iter_len % 2 == 1);
-            assert!(sorted_iter[1] == sorted_iter[iter_len - 1]);
-            assert!(sorted_iter[0] != sorted_iter[1]);
-            sorted_iter.base.cut_at_index(1)
+            panic!("This can not be printed");
         }
     }
 }
 
-//This may get all equal values in the toughest case.
-//If the repeating value is equal to the search value, we cut sorted_iter
-//in half and return.
+//Cut sorted_iter in two pieces such that left side contains all elements <= value
+//TODO redo this, value might lie totally outside the bounds
 fn search_and_cut<I>(
     sorted_iter: &mut DivisibleIter<I>,
     value: &<DivisibleIter<I> as Index<usize>>::Output,
@@ -246,45 +250,26 @@ where
     <DivisibleIter<I> as Index<usize>>::Output: Ord + Sized,
 {
     let iter_len = sorted_iter.base.base_length();
-    if sorted_iter[0] != sorted_iter[iter_len - 1] {
-        if &sorted_iter[0] < value {
-            //even if value repeats, it surely doesn't repeat till the left end
-            let mut start = 0;
-            let mut end = iter_len - 1;
-            while start < end - 1 {
-                let mid = (start + end) / 2;
-                if &sorted_iter[mid] < value {
-                    start = mid;
-                } else {
-                    end = mid;
-                }
-            }
-            sorted_iter.base.cut_at_index(end)
-        } else if &sorted_iter[iter_len - 1] > value {
-            //even if value repeats, it surely doesn't repeat till the right end
-            let mut start = 0;
-            let mut end = iter_len - 1;
-            while start < end - 1 {
-                let mid = (start + end) / 2;
-                if &sorted_iter[mid] <= value {
-                    start = mid;
-                } else {
-                    end = mid;
-                }
-            }
-            sorted_iter.base.cut_at_index(end)
-        } else {
-            panic!("it is midnight and I have no clue why this is printed")
-        }
+    if value < &sorted_iter[0] {
+        sorted_iter.base.cut_at_index(0)
+    } else if value >= &sorted_iter[iter_len - 1] {
+        sorted_iter.base.cut_at_index(iter_len - 1)
     } else {
-        if &sorted_iter[0] < value {
-            sorted_iter.base.cut_at_index(iter_len)
-        } else if &sorted_iter[0] > value {
-            sorted_iter.base.cut_at_index(0)
-        } else {
-            //This would be something!
-            sorted_iter.base.cut_at_index(iter_len / 2)
+        //INVARIANT l[end]>value
+        let mut start = 0;
+        let mut end = iter_len - 1;
+        while start < end - 1 {
+            let mid = (start + end) / 2;
+            if &sorted_iter[mid] <= value {
+                start = mid;
+            } else {
+                end = mid;
+            }
         }
+        debug_assert!(start == end - 1);
+        debug_assert!(sorted_iter[start] != sorted_iter[end]);
+        debug_assert!(&sorted_iter[end] > value);
+        sorted_iter.base.cut_at_index(end)
     }
 }
 
@@ -313,7 +298,7 @@ where
         let i_len = i_iter.iterations_number();
         let j_len = j_iter.iterations_number();
         debug_assert!(i_len > 1 && j_len > 1);
-        let (left_i_diviter, left_j_diviter) = if i_len < j_len && j_iter[0] != j_iter[j_len - 1] {
+        let (left_i_diviter, left_j_diviter) = if i_len < j_len {
             //j is bigger and does not have the same value repeated.
             //if j has the same value over and over again, i will have some unique stuff and the j
             //value will fit somewhere in between i values (else part_completed would not have
