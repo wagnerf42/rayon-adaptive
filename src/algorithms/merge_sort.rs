@@ -9,45 +9,6 @@ fn fuse_slices<'a: 'c, 'b: 'c, 'c, T: 'a + 'b>(s1: &'a mut [T], s2: &'b mut [T])
     }
 }
 
-#[test]
-fn test_stability() {
-    #[derive(Copy, Clone, Debug)]
-    struct OpaqueTuple {
-        first: u64,
-        second: u64,
-    }
-    unsafe impl Send for OpaqueTuple {}
-    unsafe impl Sync for OpaqueTuple {}
-    impl PartialEq for OpaqueTuple {
-        fn eq(&self, other: &Self) -> bool {
-            self.first == other.first
-        }
-    }
-    impl Eq for OpaqueTuple {}
-    impl PartialOrd for OpaqueTuple {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            Some(self.first.cmp(&other.first))
-        }
-    }
-    impl Ord for OpaqueTuple {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            self.first.cmp(&other.first)
-        }
-    }
-    for len in (2..10).chain(100..110).chain(10_000..10_010) {
-        let mut v: Vec<_> = (0u64..len)
-            .map(|index| OpaqueTuple {
-                first: 2,
-                second: index,
-            })
-            .collect();
-        merge_sort_adaptive(&mut v);
-        &v.windows(2).for_each(|slice_of_tuples| {
-            assert!(slice_of_tuples[0].second < slice_of_tuples[1].second);
-        });
-    }
-}
-
 ///Example:
 ///```
 ///use rand::thread_rng;
@@ -56,10 +17,6 @@ fn test_stability() {
 ///let mut input = (1..25_000_001u32).collect::<Vec<u32>>();
 ///input.shuffle(&mut thread_rng());
 ///let solution = (1..25_000_001u32).collect::<Vec<u32>>();
-///rayon::ThreadPoolBuilder::new()
-///    .num_threads(4)
-///    .build_global()
-///    .expect("pool build failed");
 ///merge_sort_adaptive(&mut input);
 ///assert_eq!(input,solution);
 ///```
