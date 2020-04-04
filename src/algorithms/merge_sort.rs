@@ -1,4 +1,6 @@
 use crate::prelude::*;
+#[cfg(feature = "logs")]
+use rayon_logs::subgraph;
 /// Fuse contiguous slices together back into one.
 /// This panics if slices are not contiguous.
 fn fuse_slices<'a: 'c, 'b: 'c, 'c, T: 'a + 'b>(s1: &'a mut [T], s2: &'b mut [T]) -> &'c mut [T] {
@@ -31,20 +33,42 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut 
     to_sort
         .wrap_iter()
         .map(|s| {
-            s.0.sort();
+            #[cfg(feature = "logs")]
+            {
+                subgraph("sequential sort", s.0.len(), || {
+                    s.0.sort();
+                });
+            }
+            #[cfg(not(feature = "logs"))]
+            {
+                s.0.sort();
+            }
             s
         })
-        .with_rayon_policy()
         .with_join_policy(problem_size / rayon::current_num_threads())
+        .with_rayon_policy()
         .non_adaptive_iter()
         .even_levels()
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {
             let new_output = fuse_slices(left_output, right_output);
-            left_input
-                .par_iter()
-                .merge(right_input.par_iter())
-                .directional_zip(new_output.par_iter_mut())
-                .for_each(|(sorted, placeholder)| *placeholder = *sorted);
+            #[cfg(feature = "logs")]
+            {
+                subgraph("parallel fusion", new_output.len(), || {
+                    left_input
+                        .par_iter()
+                        .merge(right_input.par_iter())
+                        .directional_zip(new_output.par_iter_mut())
+                        .for_each(|(sorted, placeholder)| *placeholder = *sorted);
+                });
+            }
+            #[cfg(not(feature = "logs"))]
+            {
+                left_input
+                    .par_iter()
+                    .merge(right_input.par_iter())
+                    .directional_zip(new_output.par_iter_mut())
+                    .for_each(|(sorted, placeholder)| *placeholder = *sorted);
+            }
             (new_output, fuse_slices(left_input, right_input))
         });
 }
