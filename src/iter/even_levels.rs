@@ -55,7 +55,6 @@ impl<I> BorrowingParallelIterator for EvenLevels<I>
 where
     I: BorrowingParallelIterator,
 {
-    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }
@@ -64,6 +63,9 @@ where
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         self.base.micro_blocks_sizes()
+    }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
     }
 }
 

@@ -44,7 +44,6 @@ where
     I: BorrowingParallelIterator,
     J: BorrowingParallelIterator<Item = I::Item>,
 {
-    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         match self {
             EitherIter::I(i) => i.iterations_number(),
@@ -55,6 +54,12 @@ where
         match self {
             EitherIter::I(i) => EitherSeqIter::I(i.seq_borrow(size)),
             EitherIter::J(j) => EitherSeqIter::J(j.seq_borrow(size)),
+        }
+    }
+    fn part_completed(&self) -> bool {
+        match self {
+            EitherIter::I(i) => i.part_completed(),
+            EitherIter::J(j) => j.part_completed(),
         }
     }
 }

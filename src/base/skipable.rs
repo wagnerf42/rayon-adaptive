@@ -92,7 +92,6 @@ where
     S: Fn(&mut I, usize) -> I + Sync,
     E: Send,
 {
-    type ScheduleType = Adaptive;
     fn iterations_number(&self) -> usize {
         self.count
     }
@@ -106,6 +105,9 @@ where
             next_op: self.next_op.clone(),
         }
         .take(size)
+    }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
     }
 }
 

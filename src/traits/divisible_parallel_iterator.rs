@@ -1,6 +1,7 @@
+use crate::iter::ParallelMerge;
 use crate::prelude::*;
-use crate::scheduler::*;
 use std::iter::{once, Once};
+use std::marker::PhantomData;
 /// This trait provides a shortcut to making a parallel iterator. If this trait is implemented, the
 /// type shall also automatically implement ParallelIterator and IndexedParallelIterator traits.
 /// The catch is that even while making macro blocks, this divide_at_index() method will be called.
@@ -12,26 +13,15 @@ pub trait DivisibleParallelIterator: Send + Sized {
     fn cut_at_index(&mut self, index: usize) -> Self;
     /// Will wrap self in a type that is also a divisible parallel iterator. Should allow quick
     /// nesting of parallel iterators.
-    fn wrap(self) -> Wrapper<Self> {
-        Wrapper { inner_iter: self }
-    }
-    fn adaptive_iter(self) -> DivisibleIter<Self, Adaptive> {
+    fn wrap_iter(self) -> DivisibleIter<Wrapper<Self>> {
         DivisibleIter {
-            base: self,
-            schedule_type: Adaptive {},
-        }
-    }
-    fn non_adaptive_iter(self) -> DivisibleIter<Self, NonAdaptive> {
-        DivisibleIter {
-            base: self,
-            schedule_type: NonAdaptive {},
+            base: Wrapper { inner_iter: self },
         }
     }
 }
 
-pub struct DivisibleIter<I, J> {
+pub struct DivisibleIter<I> {
     pub(crate) base: I,
-    pub(crate) schedule_type: J,
 }
 
 pub struct Wrapper<T> {
@@ -58,27 +48,26 @@ impl<T> IntoIterator for Wrapper<T> {
     }
 }
 
-impl<I, J> Powered for DivisibleIter<I, J> {
+impl<I> Powered for DivisibleIter<I> {
     type Power = Indexed;
 }
 
-impl<I: IntoIterator, J> ItemProducer for DivisibleIter<I, J>
+impl<I: IntoIterator> ItemProducer for DivisibleIter<I>
 where
     I::Item: Sized + Send,
-    J: Schedulable,
 {
     type Item = I::Item;
 }
 
-impl<'l, J, I: DivisibleParallelIterator + IntoIterator> SeqBorrowed<'l> for DivisibleIter<I, J>
+impl<'e, I> SeqBorrowed<'e> for DivisibleIter<I>
 where
+    I: IntoIterator,
     I::Item: Sized + Send,
-    J: Schedulable,
 {
     type Iter = I::IntoIter;
 }
 
-impl<I: DivisibleParallelIterator, J: Copy> Divisible for DivisibleIter<I, J> {
+impl<I: DivisibleParallelIterator> Divisible for DivisibleIter<I> {
     fn should_be_divided(&self) -> bool {
         self.base.base_length() > 1
     }
@@ -87,41 +76,48 @@ impl<I: DivisibleParallelIterator, J: Copy> Divisible for DivisibleIter<I, J> {
         (
             DivisibleIter {
                 base: self.base.cut_at_index(mylen / 2),
-                schedule_type: self.schedule_type,
+            },
+            self,
+        )
+    }
+    fn divide_at(mut self, index: usize) -> (Self, Self) {
+        (
+            DivisibleIter {
+                base: self.base.cut_at_index(index),
             },
             self,
         )
     }
 }
 
-impl<'l, J: Copy, I: DivisibleParallelIterator + IntoIterator> ParBorrowed<'l>
-    for DivisibleIter<I, J>
+impl<'e, I> ParBorrowed<'e> for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
-    J: Schedulable + Send,
 {
-    type Iter = DivisibleIter<I, J>;
+    type Iter = DivisibleIter<I>;
 }
 
-impl<J: Copy, I: DivisibleParallelIterator + IntoIterator> BorrowingParallelIterator
-    for DivisibleIter<I, J>
+impl<I> BorrowingParallelIterator for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
-    J: Schedulable + Send,
 {
-    type ScheduleType = J;
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.base.cut_at_index(size).into_iter()
     }
     fn iterations_number(&self) -> usize {
         self.base.base_length()
     }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
+    }
 }
 
-impl<J: Copy, I: DivisibleParallelIterator + IntoIterator> ParallelIterator for DivisibleIter<I, J>
+impl<I> ParallelIterator for DivisibleIter<I>
 where
+    I: DivisibleParallelIterator + IntoIterator,
     I::Item: Sized + Send,
-    J: Schedulable + Send,
 {
     fn bound_iterations_number(&self, size: usize) -> usize {
         std::cmp::min(size, self.base.base_length())
@@ -129,7 +125,6 @@ where
     fn par_borrow<'e>(&'e mut self, size: usize) -> <Self as ParBorrowed<'e>>::Iter {
         DivisibleIter {
             base: self.base.cut_at_index(self.bound_iterations_number(size)),
-            schedule_type: { self.schedule_type },
         }
     }
 }
@@ -155,5 +150,28 @@ impl<I: DivisibleParallelIterator, J: DivisibleParallelIterator> DivisibleParall
     }
     fn cut_at_index(&mut self, index: usize) -> Self {
         (self.0.cut_at_index(index), self.1.cut_at_index(index))
+    }
+}
+
+impl<'a, T: 'a> std::ops::Index<usize> for DivisibleIter<&'a [T]> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { &self.base.get_unchecked(index) }
+    }
+}
+
+impl<I> DivisibleIter<I>
+where
+    I: DivisibleParallelIterator + IntoIterator,
+    Self: std::ops::Index<usize>,
+    <Self as std::ops::Index<usize>>::Output: Ord,
+{
+    /// Merge two ordered parallel iterators into one ordered parallel iterator.
+    pub fn merge<J>(self, other: DivisibleIter<J>) -> ParallelMerge<I, J>
+    where
+        J: DivisibleParallelIterator + IntoIterator<Item = I::Item>,
+        DivisibleIter<J>: std::ops::Index<usize, Output = <Self as std::ops::Index<usize>>::Output>,
+    {
+        ParallelMerge { i: self, j: other }
     }
 }

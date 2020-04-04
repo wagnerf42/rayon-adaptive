@@ -1,12 +1,10 @@
 use crate::prelude::*;
-use itertools::merge;
-
 /// Fuse contiguous slices together back into one.
 /// This panics if slices are not contiguous.
 fn fuse_slices<'a: 'c, 'b: 'c, 'c, T: 'a + 'b>(s1: &'a mut [T], s2: &'b mut [T]) -> &'c mut [T] {
     let ptr1 = s1.as_mut_ptr();
     unsafe {
-        assert_eq!(ptr1.add(s1.len()) as *const T, s2.as_ptr());
+        assert_eq!(ptr1.add(s1.len()) as *const T, s2.as_ptr(),);
         std::slice::from_raw_parts_mut(ptr1, s1.len() + s2.len())
     }
 }
@@ -22,7 +20,7 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(
     let to_sort = (input, copy_vector.as_mut_slice());
 
     to_sort
-        .wrap()
+        .wrap_iter()
         .non_adaptive_iter()
         .map(|s| {
             s.0.sort();
@@ -32,12 +30,11 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(
         .even_levels()
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {
             let new_output = fuse_slices(left_output, right_output);
-            new_output
-                .into_iter()
-                .zip(merge(&mut left_input[..], &mut right_input[..]))
-                .for_each(|(outp, inp)| {
-                    *outp = *inp;
-                });
+            left_input
+                .par_iter()
+                .merge(right_input.par_iter())
+                .directional_zip(new_output.par_iter_mut())
+                .for_each(|(sorted, placeholder)| *placeholder = *sorted);
             (new_output, fuse_slices(left_input, right_input))
         });
 }

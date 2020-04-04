@@ -1,6 +1,6 @@
 //! Parallel iterator on mutable slices.
 use crate::prelude::*;
-use crate::traits::{Adaptive, DivisibleIter};
+use crate::traits::DivisibleIter;
 
 /// Ordinary slices can also be turned into parallel iterators.
 /// # Example:
@@ -22,13 +22,10 @@ impl<'a, T: 'a + Sync> DivisibleParallelIterator for &'a [T] {
 }
 
 impl<'a, T: 'a + Sync> IntoParallelIterator for &'a [T] {
-    type Iter = DivisibleIter<Self, Adaptive>;
+    type Iter = DivisibleIter<Self>;
     type Item = &'a T;
     fn into_par_iter(self) -> Self::Iter {
-        DivisibleIter {
-            base: self,
-            schedule_type: Adaptive {},
-        }
+        DivisibleIter { base: self }
     }
 }
 
@@ -58,12 +55,9 @@ impl<'a, T: 'a + Sync + Send> DivisibleParallelIterator for &'a mut [T] {
 }
 
 impl<'a, T: 'a + Sync + Send> IntoParallelIterator for &'a mut [T] {
-    type Iter = DivisibleIter<Self, Adaptive>;
+    type Iter = DivisibleIter<Self>;
     type Item = &'a mut T;
     fn into_par_iter(self) -> Self::Iter {
-        DivisibleIter {
-            base: self,
-            schedule_type: Adaptive {},
-        }
+        DivisibleIter { base: self }
     }
 }

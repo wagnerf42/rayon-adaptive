@@ -36,7 +36,6 @@ impl<I: ParallelIterator> ParallelIterator for DampenLocalDivision<I> {
 }
 
 impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivision<I> {
-    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.iterator.iterations_number()
     }
@@ -45,6 +44,9 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivi
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         self.iterator.micro_blocks_sizes()
+    }
+    fn part_completed(&self) -> bool {
+        self.iterator.part_completed()
     }
 }
 

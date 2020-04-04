@@ -63,13 +63,16 @@ impl<T: Clone + Send + Sync> ParallelIterator for Repeat<T> {
 }
 
 impl<'a, T: Clone + Send + Sync> BorrowingParallelIterator for BorrowedRepeat<'a, T> {
-    type ScheduleType = Adaptive;
     fn iterations_number(&self) -> usize {
         self.size
     }
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.size -= size;
         std::iter::repeat(std::ops::Deref::deref(&self.element).clone()).take(size)
+    }
+    fn part_completed(&self) -> bool {
+        //compare the iterations number with the next micro block size.
+        self.iterations_number() >= self.micro_blocks_sizes().next().unwrap_or(0)
     }
 }
 

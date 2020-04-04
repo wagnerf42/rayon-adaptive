@@ -111,6 +111,9 @@ where
         }
         .take(size)
     }
+    fn part_completed(&self) -> bool {
+        self.iterations_number() == 0
+    }
 }
 
 impl<'a, T, F> Iterator for SeqSuccessors<'a, T, F>

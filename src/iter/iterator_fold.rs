@@ -85,7 +85,6 @@ where
     I: BorrowingParallelIterator,
     F: Fn(<I as SeqBorrowed>::Iter) -> R + Send + Sync,
 {
-    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }
@@ -93,6 +92,9 @@ where
         let i = self.base.seq_borrow(size);
         let r = (self.fold_op)(i);
         once(r)
+    }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
     }
 }
 

@@ -79,7 +79,6 @@ impl<I: ParallelIterator> ParallelIterator for FineLog<I> {
 }
 
 impl<I: BorrowingParallelIterator> BorrowingParallelIterator for FineLog<I> {
-    type ScheduleType = I::ScheduleType;
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }
@@ -102,5 +101,8 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for FineLog<I> {
             };
         }
         r
+    }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
     }
 }
