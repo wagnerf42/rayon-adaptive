@@ -17,10 +17,33 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
         1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46,
         48, 50, 52, 54, 56, 58, 60, 62, 64,
     ];
+    c.bench_function("sequential sort (random input)", |b| {
+        b.iter_with_setup(
+            || {
+                let thread_pool = ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .expect("Thread binder didn't work!");
+                (
+                    thread_pool,
+                    (0..PROBLEM_SIZE)
+                        .map(|_| rand::random())
+                        .collect::<Vec<u32>>(),
+                )
+            },
+            |(tp, mut v)| {
+                tp.install(|| {
+                    v.sort();
+                });
+                v
+            },
+        )
+    });
+
     c.bench(
-        "merge sort (random input)",
+        "parallel sorts (random input)",
         ParameterizedBenchmark::new(
-            "sequential",
+            "adaptive sort",
             |b, &nt| {
                 b.iter_with_setup(
                     || {
@@ -37,7 +60,7 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
                     },
                     |(tp, mut v)| {
                         tp.install(|| {
-                            v.sort();
+                            merge_sort_adaptive(&mut v);
                         });
                         v
                     },
@@ -45,28 +68,6 @@ fn merge_sort_benchmarks(c: &mut Criterion) {
             },
             num_threads.clone(),
         )
-        .with_function("adaptive sort", |b, &nt| {
-            b.iter_with_setup(
-                || {
-                    let thread_pool = ThreadPoolBuilder::new()
-                        .num_threads(nt)
-                        .build()
-                        .expect("Thread binder didn't work!");
-                    (
-                        thread_pool,
-                        (0..PROBLEM_SIZE)
-                            .map(|_| rand::random())
-                            .collect::<Vec<u32>>(),
-                    )
-                },
-                |(tp, mut v)| {
-                    tp.install(|| {
-                        merge_sort_adaptive(&mut v);
-                    });
-                    v
-                },
-            )
-        })
         .with_function("rayon", |b, &nt| {
             b.iter_with_setup(
                 || {
