@@ -45,7 +45,7 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(input: &'a mut 
             }
             s
         })
-        .with_join_policy(problem_size / rayon::current_num_threads())
+        .with_join_policy(problem_size / (2 * rayon::current_num_threads()))
         .with_rayon_policy()
         .non_adaptive_iter()
         .even_levels()
