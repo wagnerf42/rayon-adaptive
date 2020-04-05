@@ -21,13 +21,14 @@ pub fn merge_sort_adaptive<'a, T: 'a + Send + Sync + Ord + Copy>(
 
     to_sort
         .wrap_iter()
-        .non_adaptive_iter()
         .map(|s| {
             s.0.sort();
             s
         })
+        .with_rayon_policy()
         .with_join_policy(threshold)
-        .even_levels()
+        .even_levels() // this adaptor must come before performance based adaptors
+        .non_adaptive_iter() // this must come before performance based adaptors
         .reduce_with(|(left_input, left_output), (right_input, right_output)| {
             let new_output = fuse_slices(left_output, right_output);
             left_input
