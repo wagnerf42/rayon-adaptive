@@ -5,7 +5,7 @@ use crate::small_channel::small_channel;
 /// It is a new version, pretty nifty as it fuses all schedulers into one.
 /// It also allows us to avoid policies since all policies are just iterator adaptors now.
 pub(crate) fn schedule_reduce<I, ID, OP>(
-    iterator: I,
+    mut iterator: I,
     identity: &ID,
     op: &OP,
     output: I::Item,
@@ -24,7 +24,13 @@ where
         );
         op(left_answer, right_answer)
     } else {
-        schedule_adaptive(iterator, identity, op, output)
+        if iterator.micro_blocks_sizes().next().unwrap() >= iterator.iterations_number() {
+            iterator
+                .seq_borrow(iterator.iterations_number())
+                .fold(output, op)
+        } else {
+            schedule_adaptive(iterator, identity, op, output)
+        }
     }
 }
 

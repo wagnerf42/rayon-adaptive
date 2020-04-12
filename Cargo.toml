@@ -32,3 +32,7 @@ harness = false
 [[bench]]
 name = "ms_sequential_overhead"
 harness = false
+
+[[bench]]
+name = "scalability"
+harness = false
