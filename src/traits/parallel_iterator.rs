@@ -96,7 +96,7 @@ where
         DampenLocalDivision {
             iterator: self,
             created_by: rayon::current_thread_index(),
-            counter: (rayon::current_num_threads() as f64).log(2.0).ceil() as usize,
+            counter: std::cmp::min((rayon::current_num_threads() as f64).log(2.0).ceil() as usize, 5),
         }
     }
 

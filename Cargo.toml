@@ -28,3 +28,11 @@ thread_binder="*"
 [[bench]]
 name = "merge_sort"
 harness = false
+
+[[bench]]
+name = "merge"
+harness = false
+
+[[bench]]
+name = "scalability"
+harness = false

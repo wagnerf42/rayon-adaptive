@@ -8,18 +8,18 @@ const PROBLEM_SIZE: u32 = 20_000_000u32;
 const NUM_THREADS: usize = 4;
 
 fn main() {
-    let mut input1 = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
+    let mut input1 = (0..PROBLEM_SIZE).collect::<Vec<u32>>();
     input1.shuffle(&mut thread_rng());
-    let mut input2 = (1..PROBLEM_SIZE / 5)
-        .chain(1..PROBLEM_SIZE / 5)
-        .chain(1..PROBLEM_SIZE / 5)
-        .chain(1..PROBLEM_SIZE / 5)
-        .chain(1..PROBLEM_SIZE / 5)
+    let mut input2 = (0..PROBLEM_SIZE / 5)
+        .chain(0..PROBLEM_SIZE / 5)
+        .chain(0..PROBLEM_SIZE / 5)
+        .chain(0..PROBLEM_SIZE / 5)
+        .chain(0..PROBLEM_SIZE / 5)
         .collect::<Vec<u32>>();
     input1.shuffle(&mut thread_rng());
     input2.shuffle(&mut thread_rng());
-    let solution1 = (1..PROBLEM_SIZE).collect::<Vec<u32>>();
-    let solution2 = (1..PROBLEM_SIZE / 5)
+    let solution1 = (0..PROBLEM_SIZE).collect::<Vec<u32>>();
+    let solution2 = (0..PROBLEM_SIZE / 5)
         .flat_map(|num| std::iter::repeat(num).take(5))
         .collect::<Vec<u32>>();
     //println!("before {:?}", input);

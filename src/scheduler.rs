@@ -5,7 +5,7 @@ use crate::small_channel::small_channel;
 /// It is a new version, pretty nifty as it fuses all schedulers into one.
 /// It also allows us to avoid policies since all policies are just iterator adaptors now.
 pub(crate) fn schedule_reduce<I, ID, OP>(
-    iterator: I,
+    mut iterator: I,
     identity: &ID,
     op: &OP,
     output: I::Item,
@@ -24,7 +24,13 @@ where
         );
         op(left_answer, right_answer)
     } else {
-        schedule_adaptive(iterator, identity, op, output)
+        if iterator.micro_blocks_sizes().next().unwrap() >= iterator.iterations_number() {
+            iterator
+                .seq_borrow(iterator.iterations_number())
+                .fold(output, op)
+        } else {
+            schedule_adaptive(iterator, identity, op, output)
+        }
     }
 }
 
@@ -60,17 +66,20 @@ where
             }) {
             Ok((mut remaining_iterator, output)) => {
                 // we are being stolen. Let's give something if what is left is big enough.
-                let first_size = remaining_iterator.micro_blocks_sizes().next().unwrap();
-                let remaining_size = remaining_iterator.iterations_number();
-                if remaining_size > first_size {
+                if remaining_iterator.part_completed() {
+                    sender.send(None); //Cancel stealer ASAP
+                    if remaining_iterator.iterations_number() > 0 {
+                        //Finish it sequentially
+                        remaining_iterator
+                            .seq_borrow(remaining_iterator.iterations_number())
+                            .fold(output, op)
+                    } else {
+                        output
+                    }
+                } else {
                     let (my_half, his_half) = remaining_iterator.divide();
                     sender.send(Some(his_half));
                     schedule_reduce(my_half, identity, op, output)
-                } else {
-                    sender.send(None);
-                    remaining_iterator
-                        .seq_borrow(remaining_size)
-                        .fold(output, op)
                 }
             }
             Err(output) => {

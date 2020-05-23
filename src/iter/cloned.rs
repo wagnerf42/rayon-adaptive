@@ -56,6 +56,9 @@ where
     fn iterations_number(&self) -> usize {
         self.base.iterations_number()
     }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
+    }
 }
 
 impl<'a, T, I> ParallelIterator for Cloned<I>

@@ -92,13 +92,16 @@ where
         for element in self.base.seq_borrow(size) {
             new_value = (self.fold_op)(new_value, element);
         }
-        if self.base.part_completed() {
+        if self.base.iterations_number() == 0 {
             Some(new_value)
         } else {
             self.current_value = Some(new_value);
             None
         }
         .into_iter()
+    }
+    fn part_completed(&self) -> bool {
+        self.base.part_completed()
     }
 }
 

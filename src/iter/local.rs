@@ -45,11 +45,14 @@ impl<I: BorrowingParallelIterator> BorrowingParallelIterator for DampenLocalDivi
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
         self.iterator.micro_blocks_sizes()
     }
+    fn part_completed(&self) -> bool {
+        self.iterator.part_completed()
+    }
 }
 
 impl<I: BorrowingParallelIterator> Divisible for DampenLocalDivision<I> {
     fn should_be_divided(&self) -> bool {
-        self.iterator.should_be_divided() && self.counter != 0
+        self.iterator.should_be_divided() && self.counter > 0
     }
     fn divide(self) -> (Self, Self) {
         let (left, right) = self.iterator.divide();
@@ -59,10 +62,10 @@ impl<I: BorrowingParallelIterator> Divisible for DampenLocalDivision<I> {
                 // we should not assume counter is not 0
                 0
             } else {
-                self.counter - 1
+                self.counter.saturating_sub(1)
             }
         } else {
-            (rayon::current_num_threads() as f64).log(2.0).ceil() as usize
+            self.counter.saturating_sub(1)
         };
         (
             DampenLocalDivision {

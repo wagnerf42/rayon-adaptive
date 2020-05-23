@@ -64,6 +64,10 @@ where
     fn seq_borrow<'e>(&'e mut self, size: usize) -> <Self as SeqBorrowed<'e>>::Iter {
         self.a.seq_borrow(size).zip(self.b.seq_borrow(size))
     }
+    fn part_completed(&self) -> bool {
+        //Division has to be unanimous
+        self.a.part_completed() || self.b.part_completed()
+    }
 }
 
 impl<A, B> Divisible for Zip<A, B>

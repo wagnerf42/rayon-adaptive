@@ -47,7 +47,14 @@ where
         self.base.seq_borrow(size)
     }
     fn micro_blocks_sizes(&self) -> Box<dyn Iterator<Item = usize>> {
+        //Now with the part completed function we don't need to fake the block sizes anymore
         Box::new(std::iter::repeat(self.fallback))
+    }
+    fn part_completed(&self) -> bool {
+        //This is not very clear, maybe we don't want to mix the join_policy_size with the adaptive
+        //scheduler. So to rephrase, we might be okay with giving the stealer an input of length
+        //less than the fallback number.
+        self.base.part_completed() || self.iterations_number() <= self.fallback
     }
 }
 
